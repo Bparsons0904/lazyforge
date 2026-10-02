@@ -186,7 +186,7 @@ See [ADR 0007](adr/0007-core-cache-and-concurrency.md).
 
 ## Releases
 
-Tagged commits on `main` publish four platform tarballs to Forgejo releases, installed by `install.sh` ([ADR 0008](adr/0008-release-and-install.md)).
+Tagged commits on `main` publish four platform tarballs to Forgejo releases, installed by `install.sh` ([ADR 0008](adr/0008-release-and-install.md)). Interactive launches offer a newer release and self-update by rename ([ADR 0009](adr/0009-self-update.md)).
 
 ## Build order
 
