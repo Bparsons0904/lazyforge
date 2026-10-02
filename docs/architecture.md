@@ -180,6 +180,10 @@ renovate_user = "renovate[bot]"
 - Each adapter has a **contract test suite**: the same tests run against every adapter, using API responses recorded as fixtures.
 - The core and UI are tested against an in-memory fake `Forge`.
 
+## Releases
+
+Tagged commits on `main` publish four platform tarballs to Forgejo releases, installed by `install.sh` ([ADR 0008](adr/0008-release-and-install.md)).
+
 ## Build order
 
 Revised after the [plan review](plan-review.md):

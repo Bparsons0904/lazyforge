@@ -1,20 +1,23 @@
-name: ci
+name: release
 
 on:
-  pull_request:
-    branches: [develop, main]
   push:
-    branches: [develop, main]
+    tags: ["v*"]
 
 jobs:
-  check:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+
+      - name: Require a tag on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
@@ -36,3 +39,13 @@ jobs:
         run: |
           export PATH="$(go env GOPATH)/bin:$PATH"
           make check
+
+      - name: make release
+        run: make release VERSION="$GITHUB_REF_NAME"
+
+      - name: Publish
+        env:
+          FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORGEJO_URL: ${{ github.server_url }}
+          FORGEJO_REPO: ${{ github.repository }}
+        run: scripts/publish-release.sh "$GITHUB_REF_NAME"
