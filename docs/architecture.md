@@ -137,7 +137,7 @@ check = true
 type = "forgejo"
 url = "https://git.bobparsons.dev"
 token_cmd = "infisical secrets get FORGEJO_TOKEN --plain"
-renovate_user = "renovate"
+renovate_user = "renovate-bot"
 
 [hosts.github]
 type = "github"
@@ -177,5 +177,5 @@ Revised after the [plan review](plan-review.md):
 ## Spikes to run first
 
 - [x] Forgejo Actions API on the deployed version (#1): runs, jobs and logs exist; re-run doesn't. Samples in `internal/forge/gitea/testdata/actions/`.
-- [ ] Renovate PR body parsing: collect real PR bodies across the different managers (docker, gomod, github-actions, terraform).
+- [x] Renovate PR body parsing (#2): fixtures and format notes in `internal/core/testdata/renovate/`. One update per table row; unparseable bodies fall back to the title.
 - [ ] The Gitea and Forgejo Go SDKs against the deployed instance: is the SDK useful, or is a thin hand-written client simpler?

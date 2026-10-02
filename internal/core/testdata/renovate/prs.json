@@ -1,0 +1,264 @@
+[
+  {
+    "repo": "deadstyle/adventure",
+    "number": 3,
+    "title": "Dependency Dashboard",
+    "head_branch": null,
+    "head_ref": null,
+    "labels": [],
+    "state": "open",
+    "merged": null,
+    "category": "dependency-dashboard",
+    "file": "dashboard_adventure_3.md"
+  },
+  {
+    "repo": "deadstyle/jellyfin",
+    "number": 3,
+    "title": "Dependency Dashboard",
+    "head_branch": null,
+    "head_ref": null,
+    "labels": [],
+    "state": "open",
+    "merged": null,
+    "category": "dependency-dashboard",
+    "file": "dashboard_jellyfin_3.md"
+  },
+  {
+    "repo": "deadstyle/traefik",
+    "number": 3,
+    "title": "Dependency Dashboard",
+    "head_branch": null,
+    "head_ref": null,
+    "labels": [],
+    "state": "open",
+    "merged": null,
+    "category": "dependency-dashboard",
+    "file": "dashboard_traefik_3.md"
+  },
+  {
+    "repo": "deadstyle/adventure",
+    "number": 2,
+    "title": "Update postgis/postgis Docker tag to v17",
+    "head_branch": "renovate/postgis-postgis-17.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": false,
+    "category": "docker-compose-major",
+    "file": "docker-compose-major_adventure_2.md"
+  },
+  {
+    "repo": "deadstyle/forgejo",
+    "number": 8,
+    "title": "chore(deps): update data.forgejo.org/forgejo/runner docker tag to v13",
+    "head_branch": "renovate/data.forgejo.org-forgejo-runner-13.x",
+    "head_ref": "refs/pull/8/head",
+    "labels": [],
+    "state": "closed",
+    "merged": true,
+    "category": "docker-compose-major",
+    "file": "docker-compose-major_forgejo_8.md"
+  },
+  {
+    "repo": "deadstyle/forgejo",
+    "number": 10,
+    "title": "chore(deps): update postgres docker tag to v18",
+    "head_branch": "renovate/postgres-18.x",
+    "head_ref": "refs/pull/10/head",
+    "labels": [],
+    "state": "closed",
+    "merged": true,
+    "category": "docker-compose-major",
+    "file": "docker-compose-major_forgejo_10.md"
+  },
+  {
+    "repo": "deadstyle/forgejo",
+    "number": 13,
+    "title": "chore(deps): update codeberg.org/forgejo/forgejo docker tag to v16.0.5",
+    "head_branch": "renovate/docker-images-non-major",
+    "head_ref": "refs/pull/13/head",
+    "labels": [],
+    "state": "closed",
+    "merged": true,
+    "category": "docker-group-nonmajor",
+    "file": "docker-group-nonmajor_forgejo_13.md"
+  },
+  {
+    "repo": "deadstyle/forgejo",
+    "number": 6,
+    "title": "chore(deps): update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/6/head",
+    "labels": [],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_forgejo_6.md"
+  },
+  {
+    "repo": "deadstyle/forgejo",
+    "number": 7,
+    "title": "chore(deps): update actions/setup-node action to v7",
+    "head_branch": "renovate/actions-setup-node-7.x",
+    "head_ref": "refs/pull/7/head",
+    "labels": [],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_forgejo_7.md"
+  },
+  {
+    "repo": "deadstyle/home",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/infisical",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/jellyfin",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/karakeep",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/notes",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/ntfy",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/postgres",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/traefik",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/warden",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/watchlist",
+    "number": 2,
+    "title": "Update actions/checkout action to v7",
+    "head_branch": "renovate/actions-checkout-7.x",
+    "head_ref": "refs/pull/2/head",
+    "labels": [
+      "maintenance"
+    ],
+    "state": "closed",
+    "merged": true,
+    "category": "github-actions-major",
+    "file": "github-actions-major_home_2.md"
+  },
+  {
+    "repo": "deadstyle/forgejo",
+    "number": 9,
+    "title": "chore(deps): update dependency node to v24",
+    "head_branch": "renovate/node-24.x",
+    "head_ref": "refs/pull/9/head",
+    "labels": [],
+    "state": "closed",
+    "merged": true,
+    "category": "multi-manager-major",
+    "file": "multi-manager-major_forgejo_9.md"
+  }
+]
