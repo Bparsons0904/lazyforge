@@ -30,6 +30,26 @@ Two columns are visible at any time. The left column is where you are, and the r
 - A breadcrumb in the header shows where you are: `host › repo › [1] Pull requests › #42`.
 - Action keys (`m`, `a`, `x`, `c`, `R`, `o`) work at both the box and details levels.
 
+## Onboarding
+
+The first launch, with no config yet, starts onboarding instead of the host picker. Nobody has to write a config file by hand.
+
+1. **Welcome:** one screen explaining what lazyforge is.
+2. **Forge type:** Forgejo, Gitea, GitHub or GitLab. Types without an adapter yet are listed as "coming soon" and can't be selected.
+3. **Address:** the server URL (pre-filled with `github.com` for GitHub). lazyforge checks that the server is reachable and is the chosen forge type.
+4. **Sign in:** either paste a token, or give a command that prints one (such as `gh auth token` or a secrets-manager command). The screen links to the page where a token is created and lists the permissions it needs.
+5. **Connection test:** shows "Signed in as *name* · *N* repositories". On failure it says why (bad token, missing permission, server unreachable) and stays on the step until it's fixed.
+6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip.
+7. **Name and save:** a short name for the host (suggested from the URL). Saving goes straight into the repo list.
+
+## Settings
+
+- `S` opens Settings from anywhere except inside a dialog.
+- **Hosts:** add (the onboarding flow from step 2), edit, remove, and set the default.
+- **Updates:** turn the startup update check on or off.
+- The host picker has a **+ Add host** entry, which opens the same flow.
+- Settings are saved to the config file right away. There's no separate save step.
+
 ## Boxes
 
 ### Regular repo
@@ -70,6 +90,7 @@ Two columns are visible at any time. The left column is where you are, and the r
 | `R` | Re-run a workflow |
 | `o` | Open in browser |
 | `r` | Refresh |
+| `S` | Settings |
 | `?` | Help |
 | `esc` | Close a dialog / clear marks |
 
@@ -101,7 +122,7 @@ Every merge and close goes through a confirm dialog. The dialog lists the target
 
 ## v1 scope
 
-- Host picker, repo list, boxes `[1]`–`[3]`, details with the Overview tab
+- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]`, details with the Overview tab
 - ★ Renovate view, including `[2]` Updates by dependency
 - Merge, approve, close, comment (`$EDITOR`), open in browser, refresh
 - Bulk merge, with a CI warning

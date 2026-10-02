@@ -122,24 +122,35 @@ How the forges differ in practice:
 - **CI shape:** GitHub and Forgejo use runs → jobs → steps. GitLab uses pipelines → stages → jobs, which maps to `Job.Stage`.
 - **Reviews:** the domain model stays deliberately small: approve, comment, merge, close.
 
-## Host configuration
+## Configuration and stored state
 
-```yaml
-# ~/.config/lazyforge/config.yml
-default: homelab
-hosts:
-  homelab:
-    type: forgejo
-    url: https://git.bobparsons.dev
-    token_cmd: infisical secrets get FORGEJO_TOKEN --plain
-    renovate_user: renovate
-  github:
-    type: github
-    token_cmd: gh auth token
-    renovate_user: renovate[bot]
+See ADR 0004. There is no database.
+
+```toml
+# ~/.config/lazyforge/config.toml (written by onboarding and the settings screen)
+default_host = "homelab"
+
+[update]
+check = true
+
+[hosts.homelab]
+type = "forgejo"
+url = "https://git.bobparsons.dev"
+token_cmd = "infisical secrets get FORGEJO_TOKEN --plain"
+renovate_user = "renovate"
+
+[hosts.github]
+type = "github"
+token_cmd = "gh auth token"
+renovate_user = "renovate[bot]"
 ```
 
-- `token_cmd` keeps secrets out of the config file. It can be a static token, `gh auth token`, a secrets manager, and so on.
+- **The app manages the config.** Onboarding creates it and the settings screen edits it. Hand edits are allowed and picked up on the next start, but a save from the UI rewrites the file, so comments don't survive.
+- **Tokens:** a host has either `token_cmd` (preferred; it keeps secrets out of the file) or `token`, which is a pasted token stored in the file. When `token` is present, the file is written with mode `0600` and lazyforge refuses to read it if it's group- or world-readable. OS keyring support may come later.
+- **Writes are atomic:** write a temp file in the same directory, then rename it. A crash never leaves a half-written config.
+- **State** (`~/.local/state/lazyforge/state.toml`): things the app remembers rather than settings, such as the last update check, a skipped version, and the last-used host. Losing this file is harmless.
+- **Logs:** `~/.local/state/lazyforge/lazyforge.log`.
+- Paths follow the XDG variables (`$XDG_CONFIG_HOME`, `$XDG_STATE_HOME`) on Linux, and the platform equivalents on macOS.
 - The host picker is skipped when only one host is configured or `--host` is passed.
 
 ## Caching and refresh
