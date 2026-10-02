@@ -27,7 +27,7 @@ Forgejo is a fork of Gitea and their APIs are still largely the same. The plan i
 
 ## Stack
 
-**Go, Bubble Tea and Lip Gloss** (not yet confirmed):
+**Go, Bubble Tea and Lip Gloss** ([ADR 0001](adr/0001-go-and-charm.md)):
 
 - Lip Gloss makes the bordered, titled boxes easy to build.
 - Go has SDKs for Gitea and Forgejo, and existing CLIs (`tea`, `gh`) can supply auth tokens.
@@ -157,7 +157,7 @@ renovate_user = "renovate[bot]"
 
 - The core keeps an in-memory cache, scoped to the session's host and keyed by request.
 - Navigating renders from the cache immediately, and the data refreshes in the background.
-- `r` forces a refresh. Interval polling is an open question (see [design.md](design.md#open-questions)).
+- `r` forces a refresh, and the UI also refreshes in the background every five minutes ([design.md](design.md#decided)).
 
 ## Testing
 
@@ -166,11 +166,13 @@ renovate_user = "renovate[bot]"
 
 ## Build order
 
-1. Domain model and `Forge` interface.
-2. The Gitea/Forgejo adapter, built for real and tested against the homelab instance.
-3. A paper check: map GitHub and GitLab onto the interface, then adjust the interface before freezing it.
-4. UI for v1 scope (see [design.md](design.md#v1-scope)).
-5. GitHub adapter, then GitLab adapter.
+Revised after the [plan review](plan-review.md):
+
+1. Run the spikes below.
+2. Domain model and `Forge` interface, revised with the spike findings and checked on paper against GitHub and GitLab before freezing.
+3. One complete path: connect → list repos → inspect a PR → confirm merge → show the result.
+4. Cross-repo grouping and partial-failure handling (★ Renovate).
+5. The remaining v1 features (see [design.md](design.md#v1-scope)), then the GitHub adapter, then GitLab.
 
 ## Spikes to run first
 
