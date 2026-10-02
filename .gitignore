@@ -2,7 +2,7 @@
 /dist/
 *.test
 *.out
-coverage.*
+/coverage.*
 
 # Claude Code: local-only settings and scratch
 .claude/settings.local.json

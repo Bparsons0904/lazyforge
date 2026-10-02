@@ -171,9 +171,13 @@ renovate_user = "renovate[bot]"
 
 ## Caching and refresh
 
-- The core keeps an in-memory cache, scoped to the session's host and keyed by request.
-- Navigating renders from the cache immediately, and the data refreshes in the background.
-- `r` forces a refresh, and the UI also refreshes in the background every five minutes ([design.md](design.md#decided)).
+See [ADR 0007](adr/0007-core-cache-and-concurrency.md).
+
+- `core.Service` wraps the session's one `Forge` and holds an in-memory cache keyed by `core.Key{Kind, Repo, Number}`. Entries never expire on their own.
+- Each read has a `Peek…` form (cached value and fetch time, no I/O) and a fetching form that calls the forge and stores the result. A failed fetch keeps the old entry.
+- A semaphore (4 by default) bounds forge calls across all methods. Waiting for a slot honors `ctx`.
+- The UI renders from `Peek…` immediately, then issues the fetching call in a `tea.Cmd`. `r` and a five-minute background timer in the UI trigger refetches ([design.md](design.md#decided)); the UI also owns cancellation and drops stale results.
+- `core.Coverage` tracks per-repo scan outcomes for host-wide scans such as ★ Renovate.
 
 ## Testing
 
