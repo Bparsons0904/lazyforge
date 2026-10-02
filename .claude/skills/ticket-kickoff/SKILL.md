@@ -1,11 +1,11 @@
 ---
 name: ticket-kickoff
-description: Use when the PM picks up a ticket by number — "grab 8", "work on issue 4", "pick up #12", "let's do ticket 20". Routes to the right execution mode BEFORE any deep reading. Not for opening a ticket ("open a ticket for X") or fleshing one out ("let's work through 12", "flesh this out", "is this ready") — those stay with `ticket-workflow`.
+description: Use when a ticket is picked up — by `work-queue`, or by number ("grab 8", "work on issue 4", "pick up #12"). Routes to the right execution mode BEFORE any deep reading. Not for opening a ticket ("open a ticket for X") or fleshing one out ("let's work through 12", "flesh this out", "is this ready") — those stay with `ticket-workflow`.
 ---
 
 # Ticket Kickoff
 
-A router, not a workflow. It reads only the ticket, picks an execution mode, proposes it, and stops. It never implements and never reads beyond the commands below.
+A router, not a workflow. It reads only the ticket, picks an execution mode, states it, and hands off in the same turn. It never implements and never reads beyond the commands below.
 
 **Why so little reading:** context gathered before the mode decision makes inline work feel inevitable. Once docs and source files are open, dispatching to a pipeline reads as wasted effort even when it's right. Make the call before that context exists.
 
@@ -34,7 +34,7 @@ git cat-file -t <sha>                                                    # once 
 
 ## 2. Pick a mode
 
-First match wins. Readiness is `ticket-workflow` Mode C's criteria (problem stated, AC PM-authored or confirmed, one MR, no open product question, technical decisions settled or settleable by Opus, survives a cold start). Judge against those; don't fork them here.
+First match wins. Readiness is `ticket-workflow` Mode C's criteria (problem stated, AC present (PM-stated or derived from `docs/design.md`), one MR, no open product question, technical decisions settled or settleable by Opus, survives a cold start). Judge against those; don't fork them here.
 
 | Signal from the ticket body | Mode |
 |---|---|
@@ -48,35 +48,23 @@ The two "none" rows matter as much as the mode rows: a fuzzy ticket and a ready 
 
 **The composer / composer-lite line is file-domain overlap, not subtask count.** Lite fans out implementers in parallel too, inside one worktree. What separates them is whether subtasks need branch-level isolation and an integration branch to reconcile overlap. Disjoint domains don't.
 
-If the PM names a mode up front ("grab 8 with composer"), skip the table and go to the gate with that mode.
+If the PM names a mode up front ("grab 8 with composer"), skip the table and use that mode.
 
-**Driver label** (`opus` / `sonnet`, see `ticket-workflow`): if it doesn't match the running model, say so in one line. That's information, not a stop. A Sonnet session on an `opus` ticket should expect to lean on `engineering-decision`. No label on a ready ticket: propose one and apply it on confirmation.
+**Driver label** (`opus` / `sonnet`, see `ticket-workflow`): if it doesn't match the running model, say so in one line. That's information, not a stop. A Sonnet session on an `opus` ticket should expect to lean on `engineering-decision`. No label on a ready ticket: apply one.
 
-## 3. Propose and stop
+## 3. State and continue
 
-One block, then **stop and wait for the PM**. This is gate 1 (approval before code), not narration:
+There is no approval gate. Print one block, then hand off **in the same turn**:
 
 ```
-Ticket 8 · feature · readiness: PASS (AC PM-authored, one MR, no open product question)
+Ticket 8 · feature · readiness: PASS (AC from design.md → Navigation model, one MR)
 Label: sonnet
 Mode: composer-lite
 Why: two subtasks, disjoint domains (internal/forge/gitea and internal/ui) —
      parallel in one worktree; nothing overlaps, so no integration branch.
-Confirm, or override → composer / inline / discovery
 ```
 
-Keep the "Why" line product-legible. Technical reasoning is fine, but don't ask the PM to judge it.
-
-**Missing AC but enough evidence to propose them?** This covers agent-filed tickets (which fail readiness by construction) and PM tickets with a clear problem but no AC section. Propose AC in the same block so the PM confirms AC and mode in one reply:
-
-```
-Ticket 15 · bug · readiness: FAIL (no AC — agent-filed from #12's ship-it)
-Proposed AC: <one or two lines>
-Mode: inline (if you confirm the AC)
-Confirm, or override → composer / composer-lite / discovery
-```
-
-AC still originate with the PM's confirmation; nothing is written to the ticket before it. A ticket too thin to propose AC from goes to Discovery.
+**Missing AC?** If the behavior is specified in `docs/design.md`, derive the AC from it (see `ticket-workflow` → Who decides what), write them to the ticket, and continue. If the ticket needs behavior the design doesn't specify, it's a product question: post it on the ticket (`ticket-workflow` → Parking a ticket), and return to `work-queue` for the next ticket.
 
 ## 4. Hand off
 

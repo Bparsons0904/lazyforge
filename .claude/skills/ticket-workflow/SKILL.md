@@ -5,19 +5,20 @@ description: Use whenever a ticket is involved — opening one for an idea ("ope
 
 # Ticket Workflow
 
-Three modes. Each has its own trigger and its own exit. Don't drift from one into the next unless the PM asks.
+Three modes. In a `work-queue` run, Discovery rolls straight into delivery once the ticket is ready.
 
 | Mode | Trigger | Exit |
 |---|---|---|
 | A. Capture | "open a ticket for X" | ticket with a category label. No plan, no AC. |
-| B. Discovery | "let's work through N", "flesh this out" | scoped ticket with PM-confirmed AC, or left open if still fuzzy |
+| B. Discovery | "let's work through N", "flesh this out", or kickoff found it not ready | scoped ticket with AC, or parked on a product question |
 | C. Execute | `ticket-kickoff` routed the ticket to **inline** | code shipped via `ship-it` |
 
 Every `fj` call below needs `-H https://git.bobparsons.dev`; it is written `fj` here for brevity only.
 
 ## Who decides what
 
-- **AC belong to the PM.** The PM writes them or confirms them. Agents may *propose* AC, in the conversation, never on the ticket until confirmed.
+- **AC come from the PM, directly or through the design.** Two legitimate sources only: (1) the PM stated them; (2) Opus derived them from `docs/design.md`, which the PM owns. Mark each derived criterion with its source, e.g. `- pressing \`h\` from the repo list returns to the host picker *(design.md → Navigation model)*`. A Sonnet session asks Opus via `engineering-decision` to derive or confirm them.
+- **Behavior the design doesn't specify is a product question.** Never invent it as AC. Park the ticket (below).
 - **Technical design belongs to Opus.** Plan, files, package boundaries, interface shape, test approach: Opus decides these and writes them into the ticket. Never ask the PM a technical question. A Sonnet session that hits an unsettled technical decision asks Opus through the `engineering-decision` skill.
 - **Product questions go to the PM**: user-visible behavior, keymap, box layout, scope, naming, anything `docs/design.md` doesn't already answer. Offer options with their user-visible consequences and a recommendation.
 
@@ -31,26 +32,37 @@ fj issue edit <N> labels -a feature              # category label only
 ```
 
 > [!IMPORTANT]
-> **Never write an `## Acceptance criteria` section the PM did not state.** Not inferred, not "obvious", not "drafted for review". The harm is lost provenance: nothing on the ticket separates PM intent from agent guess, so a later agent defends the guess as if the PM wrote it.
+> **Never write an AC the PM didn't state or `docs/design.md` doesn't support, and always cite the design section for derived ones.** The harm is lost provenance: nothing on the ticket separates PM intent from agent guess, so a later agent defends the guess as if the PM wrote it.
 
-Reading rule, every mode: **AC present = PM-authored, binding. AC absent = not yet defined.** Never derive AC from a title.
+Reading rule, every mode: **AC present = binding. AC absent = not yet defined.** Never derive AC from a title.
 
 ## Mode B — Discovery
 
-Slim ticket to scoped ticket. A separate session from implementation; it doesn't roll into Mode C on its own.
+Slim ticket to scoped ticket. In a `work-queue` run it continues straight into `ticket-kickoff` once ready.
 
 1. **Read the ticket:** `fj issue view <N> body` and `fj issue view <N> comments`.
 2. **Read the relevant docs, not all of them:** the `docs/design.md` sections for product behavior, the `docs/architecture.md` sections and any `docs/adr/` for the layers involved. If the ticket touches an item under design.md's "Open questions", that's a product decision to put to the PM, not to resolve silently.
 3. **Read the code** the ticket touches. Docs say what it should do; code says what it does.
 4. **Settle the technical design** (Opus directly; Sonnet via `engineering-decision`). A decision big enough to change `docs/architecture.md` gets an ADR in the delivering MR; note that in the plan.
-5. **Ask the PM** only the product questions left over.
-6. **Propose AC** for the PM to confirm. Write them to the ticket only after confirmation.
+5. **Derive AC** from `docs/design.md`, citing sections, and write them to the ticket.
+6. **Product questions left over** (behavior the design doesn't cover): park the ticket.
 
 **Decomposition is a first-class outcome.** A ticket too big for one MR exits as 3-5 well-scoped child tickets, with the parent kept as a tracking issue. Don't write a 200-line plan for what should be five tickets.
 
 **Visuals go in the body.** When a plan is hard to hold in one read, `/labs:visualize` draws what it touches (state diagram for a Bubble Tea model, a flow across `ui → core → forge`) and marks `← GAP` where the plan is silent. Forgejo renders mermaid. Skip it when the plan is linear and a few files wide.
 
-**Exit:** AC confirmed and scope fits one MR, then write the scoped body, apply a driver label, and say plainly the ticket is ready. Readiness is a judgement from the body, not a label. Leaving a fuzzy ticket open is a legitimate stop.
+**Exit:** AC present and scope fits one MR, then write the scoped body, apply a driver label, and continue. Readiness is a judgement from the body, not a label.
+
+### Parking a ticket
+
+When a ticket can't proceed without a product decision:
+
+```bash
+fj issue comment <N> --body-file question.md   # the question, options with user-visible consequences, recommendation
+fj issue edit <N> labels -a needs-pm
+```
+
+Then move on to the next ticket. The PM answers in the ticket. A later `work-queue` run sees the answer, folds it into `docs/design.md` and the ticket body, removes `needs-pm`, and picks the ticket up.
 
 ### Driver labels
 
@@ -76,13 +88,13 @@ Skip when `ticket-kickoff` routed you here; it already loaded the ticket and jud
 Entering directly: read body and comments, then **assess readiness yourself** against these criteria, stated explicitly:
 
 - Problem is stated.
-- AC present and PM-authored or PM-confirmed.
+- AC present: PM-stated, or derived from `docs/design.md` with a citation.
 - Scope fits one MR.
-- No open product question (CLAUDE.md → "Escalate to the PM").
+- No open product question (CLAUDE.md → "Product questions").
 - Technical decisions the plan depends on are settled in the ticket, an ADR or `docs/architecture.md`, or Opus can settle them now. An open technical decision never sends a ticket back to the PM.
 - The plan survives a cold start: an agent with only this body could execute it.
 
-Failing these is Mode B: say so and offer discovery. Never refuse and dead-end. A polished-looking ticket gets *more* scrutiny, not less.
+Failing these is Mode B: run discovery. Never refuse and dead-end. A polished-looking ticket gets *more* scrutiny, not less.
 
 ### 2. Adversarial pre-implementation check
 
@@ -102,7 +114,7 @@ If the ticket is wrong, say so **before** implementing.
 Already done if `ticket-kickoff` routed you here. Entering directly:
 
 - **bug:** run `labs:triangulate` first. Root cause must be demonstrated (a reproduction, or the code path plus why the alternatives aren't it) before any fix planning.
-- **feature:** not through Discovery yet? Say so and offer it.
+- **feature:** not through Discovery yet? Run it.
 - **maintenance / docs / tech-debt:** usually straight to ready.
 
 ### 4. State the dispatch
@@ -121,7 +133,7 @@ State it even when the answer is "all inline". Hand cold lookups ("how does this
 
 ### 6. Ship it
 
-Hand off to `ship-it` **immediately, in the same turn, without asking**. Plan/mode approval is the only gate. From there through to merge is the agent's job. "Should I open the MR?" and "Should I merge?" are extra gates CLAUDE.md says not to add. Stop mid-flight only for a CLAUDE.md escalation.
+Hand off to `ship-it` **immediately, in the same turn, without asking**. There are no approval gates; from pickup through merge is the agent's job. "Should I open the MR?" and "Should I merge?" are gates CLAUDE.md says not to add. Stop mid-flight only to park a product question.
 
 ## Decomposition vs fixing in place
 

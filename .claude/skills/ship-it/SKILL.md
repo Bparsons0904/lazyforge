@@ -34,7 +34,7 @@ git diff origin/develop...HEAD --name-only && git status --short   # committed
 
 Check the list against CLAUDE.md:
 
-- **Product escalation → stop and ask the PM:** user-visible behavior, keymap or box layout not described in `docs/design.md`; scope past 2x; a `docs/design.md` edit (propose it instead, see step 4).
+- **Product question → park the ticket** (`ticket-workflow` → Parking a ticket): user-visible behavior, keymap or box layout that `docs/design.md` doesn't describe. Leave the branch pushed and say where it stands in a 🤖 comment.
 - **Technical decision → settle it, don't ask the PM:** `go.mod`/`go.sum` (new dependency), a new package or changed boundary, `Forge` interface or domain-model shape, CI/tooling. If the ticket didn't already authorize it, Opus decides (Sonnet asks via `engineering-decision`), and step 4 records it.
 
 A hit in a file the ticket never mentioned counts as unauthorized, even if it's tidy-up.
@@ -179,7 +179,7 @@ Always check, even when the answer is "nothing to update". Say which in the MR b
 
 1. **`docs/architecture.md`:** did layers, the domain model, the `Forge` interface, API mapping, caching or testing approach change? Update it.
 2. **`docs/adr/`:** did this MR make a technical decision (see CLAUDE.md's list)? Write an ADR recording Opus's decision and why. If a Sonnet session got the answer via `engineering-decision`, the ADR records that answer.
-3. **`docs/design.md` and `docs/mockup.html`:** these belong to the PM. **Propose, don't decide.** If behavior, keymap or layout diverged from them, put the proposed change in a "Proposed design changes" section of the MR body for the PM to accept.
+3. **`docs/design.md` and `docs/mockup.html`:** these belong to the PM. Update them in the diff only to record what the PM has decided, or to fix a factual inaccuracy. New product behavior is never added here; that's a parked product question.
 
 Doc updates ship in **this** MR, never as a follow-up.
 
@@ -229,7 +229,7 @@ fj -H https://git.bobparsons.dev pr merge <PR> -M squash -d -t "type(scope): sub
 fj -H https://git.bobparsons.dev issue view <N>   # Fixes #N should have closed it; close by hand if not
 ```
 
-Don't merge while a `docs/design.md` change in the diff lacks PM approval, or while a product question is still open. Ask, and merge once it's answered.
+Don't merge while a product question on the ticket is still open (it should have been parked before implementation).
 
 **End the response with the MR's URL** on its own line, since `fj` doesn't print one:
 

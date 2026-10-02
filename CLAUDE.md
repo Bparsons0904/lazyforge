@@ -16,7 +16,7 @@ lazyforge is a keyboard-driven terminal UI for git forges (Forgejo/Gitea first, 
 
 ## Roles
 
-**The user is the product manager.** They own what gets built and why: scope, priority, user-visible behavior, the keymap, naming, and `docs/design.md`. They approve each ticket's plan before work starts. They do not make engineering decisions and should not be asked to.
+**The user is the product manager.** They own what gets built and why: scope, priority, user-visible behavior, the keymap, naming, and `docs/design.md`. They set direction through tickets and answer product questions. They don't approve plans or merges, and they don't make engineering decisions, so don't ask them to.
 
 **Claude Opus is the engineering lead.** Opus owns every technical decision inside one fixed constraint: **Go and the Charm stack** (Bubble Tea, Lip Gloss, Bubbles), which is the PM's call. Opus owns `docs/architecture.md` and `docs/adr/`.
 
@@ -45,11 +45,12 @@ Tickets are Forgejo issues on `deadstyle/lazyforge`, and the plan for a ticket l
 
 - **Opening or fleshing out a ticket:** `ticket-workflow`.
 - **Picking up a ticket by number:** `ticket-kickoff`. It routes to **`labs:composer`** or **`labs:composer-lite`**, which are the default delivery path, or to inline work for single-domain tickets. Inline work closes out with `ship-it`. Composer stops once its MR is open, so the session that ran it then follows the merge rule below.
-- **One gate:** the PM approves the plan or mode before code is written. Everything after that is the agent's job, through to merge. Don't ask permission to commit, open the MR, or merge.
+- **A session works the queue.** When the PM starts a session without a specific instruction, run the `work-queue` skill: pick the next open ticket, deliver it, merge it, and repeat. There are no approval gates. Don't ask permission to start a ticket, commit, open the MR, or merge. When composer presents a plan for approval, the session approves it as engineering lead.
+- **Product questions park a ticket, not the session.** Post the question on the ticket, label it `needs-pm`, and move on to the next ticket (`ticket-workflow` → Parking a ticket). Every comment an agent posts starts with `🤖 `, so the PM's replies stand out.
 - **Agents merge their own MRs.** A ticket is done when its MR is merged into `develop` and the ticket is closed, not when the MR is opened. Merge when all of these hold:
   1. The review passes have run: composer's review phases, or `ship-it`'s reviewers for inline work.
   2. CI is green on the MR's head commit. Check with `curl -s https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/commits/<sha>/status`; the `state` must be `success`.
-  3. No open product question remains. A change to `docs/design.md` that the PM hasn't approved blocks the merge, so ask first.
+  3. No open product question remains on the ticket.
 
   Then run `fj -H https://git.bobparsons.dev pr merge <PR> -M squash -d`, using the MR title as the squash title. If CI fails, fix it on the branch, push, and wait again. Never merge red.
 - **Never push directly to `develop` or `main`.** Every change lands through an MR. Releases (`develop` → `main`, plus a tag) are the PM's call.
@@ -69,17 +70,16 @@ Tickets are Forgejo issues on `deadstyle/lazyforge`, and the plan for a ticket l
 | `comments_convention` | invoke skill `comment-standard` |
 | Commit format | `type(scope): subject` (`feat`, `fix`, `chore`, `docs`, `refactor`, `test`) and a `#<ticket>` reference in the body |
 
-## Escalate to the PM
+## Product questions
 
-Stop and ask the PM when work would:
+A ticket needs the PM when the work would:
 
-- change user-visible behavior, the keymap, or the box layout in a way `docs/design.md` doesn't already describe
-- change scope: the ticket turns out to be wrong, or the fix has grown past 2x its scoped size
-- change `docs/design.md`. Propose the change in the MR rather than deciding it.
+- add or change user-visible behavior, the keymap, or the box layout in a way `docs/design.md` doesn't describe
+- change scope in a way only the PM can choose (for example, two viable directions that lead to different products)
 
-Technical uncertainty is not a reason to ask the PM. It goes to Opus (see Roles).
+Park that ticket: comment with the options, each with its user-visible consequence, plus a recommendation, and label it `needs-pm`. Then move on. `docs/design.md` stays the PM's: agents update it to record the PM's answers and to keep it accurate, but never to invent new product behavior.
 
-When you ask, give the PM product-level options, each with its user-visible consequence, plus a recommendation. Ask once, then keep working on anything that doesn't depend on the answer.
+Technical uncertainty is never a product question. It goes to Opus (see Roles). A ticket that's merely wrong, or has grown past 2x its scope, gets split or corrected by the agent with evidence in a 🤖 comment.
 
 ## Evidence over assertion
 

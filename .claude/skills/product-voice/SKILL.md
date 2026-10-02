@@ -34,7 +34,7 @@ Good: "The same update can show up twice in Updates by dependency, so `m` only m
 
 ### 2. Two kinds of decision, two shapes
 
-**Product decisions go to the PM.** These cover scope, priority, user-visible behavior, the keymap, box layout, naming, and anything `design.md` doesn't already settle (see "Escalate to the PM" in CLAUDE.md). Frame each option by what the user experiences, and always recommend one:
+**Product decisions go to the PM.** These cover scope, priority, user-visible behavior, the keymap, box layout, naming, and anything `design.md` doesn't already settle (see "Product questions" in CLAUDE.md). They're asked on the ticket, which gets the `needs-pm` label. Frame each option by what the user experiences, and always recommend one:
 
 ```
 **Decision needed:** <the question, in product terms>

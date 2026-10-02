@@ -36,6 +36,14 @@
       "depNameTemplate": "golangci/golangci-lint",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "govulncheck runs via go run with a pinned version in the Makefile, not declared in go.mod",
+      "managerFilePatterns": ["^Makefile$"],
+      "matchStrings": ["golang.org/x/vuln/cmd/govulncheck@(?<currentValue>v[0-9.]+)"],
+      "depNameTemplate": "golang.org/x/vuln",
+      "datasourceTemplate": "go"
     }
   ]
 }

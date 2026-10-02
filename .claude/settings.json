@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cat \"$CLAUDE_PROJECT_DIR/.claude/skills/product-voice/SKILL.md\" 2>/dev/null || true",
+            "command": "cat \"$CLAUDE_PROJECT_DIR/.claude/skills/product-voice/SKILL.md\" 2>/dev/null; echo; echo \"Session default: unless the PM gave a specific instruction, invoke the work-queue skill and work open tickets through to merge.\"; true",
             "statusMessage": "Loading product-voice"
           }
         ]
