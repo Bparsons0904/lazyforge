@@ -150,6 +150,10 @@ type = "forgejo"
 url = "https://git.bobparsons.dev"
 token_cmd = "infisical secrets get FORGEJO_TOKEN --plain"
 renovate_user = "renovate-bot"
+require_green_ci = true
+
+[hosts.homelab.repos."deadstyle/lazyforge"]
+require_green_ci = false # per-repo override of the host setting
 
 [hosts.github]
 type = "github"
