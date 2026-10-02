@@ -367,6 +367,9 @@ func TestHelpOverlay(t *testing.T) {
 	v := strings.Join(lines(m), "\n")
 	for _, grp := range m.keys.fullHelp() {
 		for _, b := range grp {
+			if !b.Enabled() {
+				continue // gated action keys are hidden on purpose; TestActionKeysGated covers them
+			}
 			if h := b.Help(); !strings.Contains(v, h.Key) || !strings.Contains(v, h.Desc) {
 				t.Errorf("help missing %q %q:\n%s", h.Key, h.Desc, v)
 			}

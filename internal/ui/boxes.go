@@ -35,6 +35,18 @@ type boxes struct {
 	loaded   [3]bool
 	cursor   [3]int
 	focus    boxKind
+	marked   map[int]bool // CR numbers marked for a bulk merge
+}
+
+func (b *boxes) toggleMark(n int) {
+	if b.marked[n] {
+		delete(b.marked, n)
+		return
+	}
+	if b.marked == nil {
+		b.marked = map[int]bool{}
+	}
+	b.marked[n] = true
 }
 
 func (b boxes) count() int {
@@ -150,6 +162,10 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 			cr := b.crs[i]
 			label = fmt.Sprintf("#%d %s", cr.Number, cr.Title)
 			meta = ciIcon(cr.CI, base) + on(style.Faint, " "+age(now, cr.UpdatedAt))
+			if b.marked[cr.Number] {
+				out = append(out, on(style.Mark, "◆ ")+row(label, meta, w-2, base))
+				continue
+			}
 		case boxIssues:
 			is := b.issues[i]
 			label = fmt.Sprintf("#%d %s", is.Number, is.Title)

@@ -81,6 +81,15 @@ func RunContract(t *testing.T, newForge func(t *testing.T) (forge.Forge, Fixture
 				t.Errorf("state %v, want merged", cr.State)
 			}
 		}},
+		{"Merging an already-merged change request is ErrRefused", func(t *testing.T, f forge.Forge, fx Fixture) {
+			opts := forge.MergeOpts{HeadSHA: fx.OpenCRHead}
+			if err := f.Merge(ctx, fx.Repo, fx.OpenCR, opts); err != nil {
+				t.Fatal(err)
+			}
+			if err := f.Merge(ctx, fx.Repo, fx.OpenCR, opts); !errors.Is(err, forge.ErrRefused) {
+				t.Errorf("got %v, want ErrRefused", err)
+			}
+		}},
 		{"Comment is visible through ListComments", func(t *testing.T, f forge.Forge, fx Fixture) {
 			item := forge.ItemRef{Repo: fx.Repo, Kind: forge.ItemIssue, Number: fx.OpenIssue}
 			if err := f.Comment(ctx, item, "contract comment"); err != nil {

@@ -58,6 +58,7 @@ var (
 	CIOther   = lipgloss.NewStyle().Foreground(Dim)
 
 	Heading = lipgloss.NewStyle().Foreground(Fg).Bold(true)
+	Mark    = lipgloss.NewStyle().Foreground(Mauve).Bold(true)
 )
 
 func mode(c color.Color) lipgloss.Style {

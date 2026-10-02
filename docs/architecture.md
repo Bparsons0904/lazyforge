@@ -44,6 +44,7 @@ type Repo struct {
     Description, WebURL string
     LastActivity        time.Time
     Access              Access // none, read, write, admin
+    MergeStyle          string // the repo's default merge style; "" when unknown
 }
 
 type ChangeRequest struct { // PR on Gitea/Forgejo/GitHub, MR on GitLab
@@ -82,7 +83,7 @@ type Forge interface {
 
     ListChangeRequests(ctx context.Context, r domain.RepoRef, f Filter) ([]domain.ChangeRequest, error)
     GetChangeRequest(ctx context.Context, r domain.RepoRef, n int) (domain.ChangeRequest, error)
-    Merge(ctx context.Context, r domain.RepoRef, n int, opts MergeOpts) error // opts.HeadSHA required; ErrHeadChanged on mismatch
+    Merge(ctx context.Context, r domain.RepoRef, n int, opts MergeOpts) error // opts.HeadSHA required; ErrHeadChanged on mismatch, ErrRefused when the forge declines
 
     ListIssues(ctx context.Context, r domain.RepoRef, f Filter) ([]domain.Issue, error)
     EditIssueBody(ctx context.Context, r domain.RepoRef, n int, body string) error // Renovate dashboard ticks
@@ -178,6 +179,8 @@ See [ADR 0007](adr/0007-core-cache-and-concurrency.md).
 - A semaphore (4 by default) bounds forge calls across all methods. Waiting for a slot honors `ctx`.
 - The UI renders from `Peek…` immediately, then issues the fetching call in a `tea.Cmd`. `r` and a five-minute background timer in the UI trigger refetches ([design.md](design.md#decided)); the UI also owns cancellation and drops stale results.
 - `core.Coverage` tracks per-repo scan outcomes for host-wide scans such as ★ Renovate.
+
+Mutations go through core too ([ADR 0011](adr/0011-merge-contract.md)). `Service.Merge` takes confirmed targets, pinned by head SHA, and returns one result per target: merged, refused (`ErrHeadChanged`, `forge.ErrRefused`, or the green-CI gate that cmd injects through `core.Options.RequireGreenCI`), failed, unknown (timed out), or not started (cancelled before its turn). Cancelling stops new starts, and started merges finish. `Service.Recheck` re-fetches targets before every merge so a retry is reconciled. Successful merges and closes drop the item from the cached open list.
 
 ## UI
 

@@ -40,6 +40,10 @@ type Model struct {
 	selCtx context.Context // bounds the selected repo's fetches; cancel ends them
 	cancel context.CancelFunc
 
+	openURL     func(string) error // overridable so tests never launch a browser
+	dialog      *dialog
+	mergeCancel context.CancelFunc // stops a running merge from starting more targets
+
 	width, height int
 	level         level
 	showHelp      bool
@@ -59,7 +63,10 @@ func New(ctx context.Context, svc *core.Service) Model {
 	h.Styles.ShortKey, h.Styles.ShortDesc, h.Styles.ShortSeparator = style.HintKey, style.HintText, style.HintText
 	h.Styles.FullKey, h.Styles.FullDesc, h.Styles.FullSeparator = style.HelpKey, style.Text, style.HintText
 	h.Styles.Ellipsis = style.HintText
-	return Model{ctx: ctx, svc: svc, info: svc.Info(), keys: defaultKeys(), help: h, now: time.Now, tick: tickEvery}
+	m := Model{ctx: ctx, svc: svc, info: svc.Info(), keys: defaultKeys(), help: h, now: time.Now, tick: tickEvery}
+	m.openURL = func(u string) error { return openBrowser(ctx, u) }
+	m.syncKeys()
+	return m
 }
 
 // Init loads the repo list and starts the five-minute refresh tick.
@@ -97,9 +104,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loadFailed(msg.key, msg.err) {
 			m.boxes.runs, m.boxes.loaded[boxRuns] = msg.items, true
 		}
+	case recheckedMsg:
+		cmd = m.rechecked(msg)
+	case mergeDoneMsg:
+		cmd = m.mergeDone(msg)
+	case actionDoneMsg:
+		cmd = m.actionDone(msg)
+	case editorDoneMsg:
+		cmd = m.postComment(msg)
 	}
 	m.boxes.clampCursors()
 	m.syncDetails()
+	m.syncKeys()
 	return m, cmd
 }
 
@@ -108,6 +124,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	m.status = ""
 	if key.Matches(msg, k.Interrupt) {
 		return tea.Quit
+	}
+	if m.dialog != nil {
+		return m.dialogKey(msg)
 	}
 	if m.showHelp {
 		if key.Matches(msg, k.Help, k.Close, k.Quit) {
@@ -129,6 +148,11 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case key.Matches(msg, k.Refresh):
 		return m.refresh()
+	}
+	if m.level != levelRepos {
+		if cmd, ok := m.actionKey(msg); ok {
+			return cmd
+		}
 	}
 	switch m.level {
 	case levelBoxes:
@@ -292,6 +316,9 @@ func (m Model) body() string {
 		box := frame(style.ActiveTitle.Render("Help"), lines, min(lipgloss.Width(strings.Join(lines, "\n"))+4, m.width), min(len(lines)+2, bodyH), true)
 		return fitLines(strings.Split(lipgloss.Place(m.width, bodyH, lipgloss.Center, lipgloss.Center, box), "\n"), m.width, bodyH)
 	}
+	if m.dialog != nil {
+		return m.dialog.view(m.width, bodyH, m.info.ChangeRequestTerm, m.keys, m.help)
+	}
 	now := m.now()
 	var left, right string
 	switch m.level {
@@ -372,8 +399,14 @@ func (m Model) statusBar() string {
 		status = style.StatusInfo.Render(status)
 	}
 	h := m.help
-	h.SetWidth(max(room-lipgloss.Width(status)-1, 1))
-	hints := h.ShortHelpView(m.keys.shortHelp(m.level))
+	hw := max(room-lipgloss.Width(status)-1, 1)
+	h.SetWidth(hw)
+	// help adds an overflowing item anyway when its ellipsis doesn't fit, so clip to keep the status visible.
+	bindings := m.keys.shortHelp(m.level)
+	if m.dialog != nil {
+		bindings = m.dialog.hints(m.keys)
+	}
+	hints := clip(h.ShortHelpView(bindings), hw)
 	gap := max(room-lipgloss.Width(hints)-lipgloss.Width(status), 0)
 	return badge + " " + hints + strings.Repeat(" ", gap) + status
 }

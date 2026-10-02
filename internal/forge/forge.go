@@ -63,6 +63,7 @@ var (
 	ErrRateLimited  = errors.New("rate limited")
 	ErrUnsupported  = errors.New("unsupported")
 	ErrHeadChanged  = errors.New("head changed since confirmation")
+	ErrRefused      = errors.New("refused by the forge") // the forge declined: conflicts, branch protection, required checks
 )
 
 // Forge is the core interface every adapter implements; list methods return every page.

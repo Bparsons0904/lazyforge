@@ -129,6 +129,9 @@ func statusError(method, path string, code int, msg string) error {
 	// Forgejo answers 409 for merge conflicts and rejected pushes too; only this message means a stale head.
 	case code == http.StatusConflict && msg == "head out of date":
 		sentinel = forge.ErrHeadChanged
+	// 405 (branch protection, required checks) and other 409s (conflicts) are refusals; msg is the shown reason.
+	case code == http.StatusMethodNotAllowed || code == http.StatusConflict:
+		return fmt.Errorf("%s %s: %w: %s", method, path, forge.ErrRefused, msg)
 	default:
 		return fmt.Errorf("%s %s: %d: %s", method, path, code, msg)
 	}

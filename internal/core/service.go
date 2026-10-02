@@ -1,4 +1,4 @@
-// Package core holds forge-agnostic logic: the cache, refresh plumbing and coverage tracking; it imports only forge and domain.
+// Package core holds forge-agnostic logic: the cache, refresh plumbing, mutations and coverage tracking; it imports only forge and domain.
 package core
 
 import (
@@ -35,8 +35,9 @@ type Key struct {
 
 // Options configures a Service.
 type Options struct {
-	MaxConcurrent int              // 0 means 4
-	Now           func() time.Time // nil means time.Now
+	MaxConcurrent  int                       // 0 means 4
+	Now            func() time.Time          // nil means time.Now
+	RequireGreenCI func(domain.RepoRef) bool // nil means off
 }
 
 type entry struct {
@@ -46,9 +47,10 @@ type entry struct {
 
 // Service caches reads from one forge and bounds its concurrent calls; it is safe for concurrent use.
 type Service struct {
-	f   forge.Forge
-	now func() time.Time
-	sem chan struct{}
+	f         forge.Forge
+	now       func() time.Time
+	sem       chan struct{}
+	greenOnly func(domain.RepoRef) bool
 
 	mu    sync.Mutex
 	cache map[Key]entry
@@ -63,10 +65,11 @@ func New(f forge.Forge, opts Options) *Service {
 		opts.Now = time.Now
 	}
 	return &Service{
-		f:     f,
-		now:   opts.Now,
-		sem:   make(chan struct{}, opts.MaxConcurrent),
-		cache: map[Key]entry{},
+		f:         f,
+		now:       opts.Now,
+		sem:       make(chan struct{}, opts.MaxConcurrent),
+		greenOnly: opts.RequireGreenCI,
+		cache:     map[Key]entry{},
 	}
 }
 

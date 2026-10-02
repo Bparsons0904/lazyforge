@@ -183,11 +183,12 @@ func TestStatusMapping(t *testing.T) {
 		{"404", 404, `{"message":"The target couldn't be found."}`, forge.ErrNotFound, ""},
 		{"429", 429, `{"message":"slow down"}`, forge.ErrRateLimited, ""},
 		{"409 head out of date", 409, `{"message":"head out of date","url":"https://git.bobparsons.dev/api/swagger"}`, forge.ErrHeadChanged, ""},
-		{"409 other", 409, `{"message":"Merge conflict"}`, nil, "Merge conflict"},
-		{"405", 405, `{"message":"PR already merged"}`, nil, "PR already merged"},
+		{"409 other", 409, `{"message":"Merge conflict"}`, forge.ErrRefused, "Merge conflict"},
+		{"405", 405, `{"message":"PR already merged"}`, forge.ErrRefused, "PR already merged"},
+		{"405 required checks", 405, `{"message":"Not all required status checks successful"}`, forge.ErrRefused, "Not all required status checks successful"},
 		{"500", 500, `{"message":"boom"}`, nil, "boom"},
 	}
-	sentinels := []error{forge.ErrUnauthorized, forge.ErrNotFound, forge.ErrRateLimited, forge.ErrHeadChanged}
+	sentinels := []error{forge.ErrUnauthorized, forge.ErrNotFound, forge.ErrRateLimited, forge.ErrHeadChanged, forge.ErrRefused}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := stubForge(t, map[string]http.HandlerFunc{
@@ -228,6 +229,9 @@ func TestListReposAccessAndSort(t *testing.T) {
 	}
 	if repos[1].RepoRef != waugzee || repos[1].Access != domain.AccessRead {
 		t.Errorf("repos[1] = %+v, want waugzee with read", repos[1])
+	}
+	if repos[0].MergeStyle != "merge" {
+		t.Errorf("MergeStyle = %q, want merge", repos[0].MergeStyle)
 	}
 	if repos[0].WebURL != "https://git.bobparsons.dev/deadstyle/lazyforge" {
 		t.Errorf("WebURL = %q", repos[0].WebURL)

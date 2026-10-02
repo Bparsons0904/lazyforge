@@ -17,6 +17,7 @@ import (
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/config"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/core"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/gitea"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui"
@@ -104,5 +105,6 @@ func realService(ctx context.Context, configPath, hostName string, noUpdateCheck
 	if err != nil {
 		return nil, fmt.Errorf("host %q: %w", name, err)
 	}
-	return core.New(f, core.Options{}), nil
+	greenOnly := func(r domain.RepoRef) bool { return h.RequiresGreenCI(r.String()) }
+	return core.New(f, core.Options{RequireGreenCI: greenOnly}), nil
 }

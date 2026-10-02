@@ -267,6 +267,10 @@ func (s *server) mergePull(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w)
 		return
 	}
+	if pr["merged"] == true {
+		writeJSON(w, 405, obj{"message": "PR already merged"})
+		return
+	}
 	var body obj
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	if body["head_commit_id"] != pr["head"].(obj)["sha"] {

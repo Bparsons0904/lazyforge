@@ -209,7 +209,7 @@ func (f *Fake) Merge(ctx context.Context, r domain.RepoRef, n int, opts forge.Me
 		return fmt.Errorf("merge %s#%d: head sha is required", r, n)
 	}
 	if cr.State != domain.StateOpen {
-		return fmt.Errorf("merge %s#%d: change request is not open", r, n)
+		return fmt.Errorf("merge %s#%d: %w: change request is not open", r, n, forge.ErrRefused)
 	}
 	if opts.HeadSHA != cr.HeadSHA {
 		return fmt.Errorf("merge %s#%d: %w", r, n, forge.ErrHeadChanged)

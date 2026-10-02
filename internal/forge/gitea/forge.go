@@ -108,6 +108,7 @@ func (f *Forge) ListRepos(ctx context.Context) ([]domain.Repo, error) {
 			WebURL:       r.HTMLURL,
 			LastActivity: r.UpdatedAt,
 			Access:       access,
+			MergeStyle:   r.DefaultMergeStyle,
 		}
 	}
 	slices.SortStableFunc(out, func(a, b domain.Repo) int { return b.LastActivity.Compare(a.LastActivity) })

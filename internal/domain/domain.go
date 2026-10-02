@@ -26,6 +26,7 @@ type Repo struct {
 	Description, WebURL string
 	LastActivity        time.Time
 	Access              Access
+	MergeStyle          string // the repo's default merge style; "" when the forge doesn't report one
 }
 
 // State is the lifecycle state of an issue or change request.
@@ -51,6 +52,9 @@ const (
 	CICancelled
 	CISkipped
 )
+
+// Green reports whether the state passes a require-green-CI gate: nothing to wait on and nothing failed.
+func (s CIState) Green() bool { return s == CIPass || s == CINone || s == CISkipped }
 
 // RenovateUpdate is one row of a Renovate PR's update table.
 type RenovateUpdate struct {
