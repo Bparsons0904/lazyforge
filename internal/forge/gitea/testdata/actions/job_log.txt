@@ -1,0 +1,21 @@
+2026-10-02T03:22:43.7134832Z Runner e71eabf2-646a-4d71-9175-498fbc131002 (version:v13.2.0) received task 16194 of job check, triggered by event: pull_request
+2026-10-02T03:22:43.7147430Z workflow prepared
+2026-10-02T03:22:43.7211844Z 🚀  Start image=git.bobparsons.dev/deadstyle/runner-images:ubuntu-latest
+2026-10-02T03:22:43.7340319Z Cleaning up network for job check, and network name is: WORKFLOW-45c0c3b3a8032b33583fabe0183aa299
+2026-10-02T03:22:43.7714382Z   🐳  docker create image=git.bobparsons.dev/deadstyle/runner-images:ubuntu-latest platform=linux/amd64 entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="WORKFLOW-45c0c3b3a8032b33583fabe0183aa299"
+2026-10-02T03:22:43.8110423Z   🐳  docker run image=git.bobparsons.dev/deadstyle/runner-images:ubuntu-latest platform=linux/amd64 entrypoint=["tail" "-f" "/dev/null"] cmd=[] network="WORKFLOW-45c0c3b3a8032b33583fabe0183aa299"
+2026-10-02T03:22:44.0098010Z   ☁️  git fetch 'https://data.forgejo.org/actions/checkout' # ref=v7
+2026-10-02T03:22:45.0161076Z   ☁️  git fetch 'https://data.forgejo.org/actions/setup-go' # ref=v7
+2026-10-02T03:22:45.7369987Z ⭐ Run Main actions/checkout@v7
+2026-10-02T03:22:45.7401753Z   🐳  docker cp src=/data/.cache/act/32/530e07075cdb778639265f93c633202aa46c35b6b017ee6dde687e32b42570/ dst=/var/run/act/actions/32/530e07075cdb778639265f93c633202aa46c35b6b017ee6dde687e32b42570/
+2026-10-02T03:22:45.7675701Z   🐳  docker exec cmd=[node /var/run/act/actions/32/530e07075cdb778639265f93c633202aa46c35b6b017ee6dde687e32b42570/dist/index.js] user= workdir=
+2026-10-02T03:22:45.8485276Z   ❓ add-matcher /run/act/actions/32/530e07075cdb778639265f93c633202aa46c35b6b017ee6dde687e32b42570/dist/problem-matcher.json
+2026-10-02T03:22:45.8485403Z ::add-matcher::/run/act/actions/32/530e07075cdb778639265f93c633202aa46c35b6b017ee6dde687e32b42570/dist/problem-matcher.json
+2026-10-02T03:22:45.8486799Z Syncing repository: deadstyle/lazyforge
+2026-10-02T03:22:45.8488131Z ##[group]Getting Git version info
+...(trimmed)
+2026-10-02T03:23:37.9863439Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-e6a7273f\-3101\-4c5a\-9274\-53cf1b155d32\.config
+2026-10-02T03:23:37.9885523Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-02T03:23:38.0133338Z Removing credentials config '/tmp/git-credentials-e6a7273f-3101-4c5a-9274-53cf1b155d32.config'
+2026-10-02T03:23:38.0220111Z   ✅  Success - Post actions/checkout@v7
+2026-10-02T03:23:38.0678167Z 🏁  Job succeeded

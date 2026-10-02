@@ -96,7 +96,7 @@ type Rerunner   interface { Rerun(ctx context.Context, r RepoRef, runID int64) e
 
 ## API mapping (first pass)
 
-This mapping is unverified. Each row needs checking against current API docs, and against the Forgejo version actually deployed, before the interface is frozen.
+The Gitea / Forgejo column is checked against Forgejo 16 (#1, #3). The GitHub and GitLab columns are unverified; each row needs checking against current API docs before those adapters are built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
@@ -109,10 +109,10 @@ This mapping is unverified. Each row needs checking against current API docs, an
 | Issues | `GET …/issues?type=issues` | `GET …/issues` (filter out PRs) | `GET /projects/:id/issues` |
 | Edit issue body | `PATCH …/issues/{n}` | `PATCH …/issues/{n}` | `PUT /projects/:id/issues/:iid` |
 | Comment | `POST …/issues/{n}/comments` | `POST …/issues/{n}/comments` | `POST …/notes` |
-| List runs | ⚠ check what the deployed Forgejo version exposes | `GET …/actions/runs` | `GET /projects/:id/pipelines` |
-| Run jobs | ⚠ check | `GET …/actions/runs/{id}/jobs` | `GET /projects/:id/pipelines/:id/jobs` |
-| Job log | ⚠ check | `GET …/actions/jobs/{id}/logs` | `GET /projects/:id/jobs/:id/trace` |
-| Re-run | ⚠ check | `POST …/actions/runs/{id}/rerun` | `POST /projects/:id/pipelines/:id/retry` |
+| List runs | `GET …/actions/runs` (send `page`, else `limit` is ignored) | `GET …/actions/runs` | `GET /projects/:id/pipelines` |
+| Run jobs | `GET …/actions/runs/{id}/jobs` (bare array) | `GET …/actions/runs/{id}/jobs` | `GET /projects/:id/pipelines/:id/jobs` |
+| Job log | `GET …/actions/jobs/{id}/logs` (job `id`, not `task_id`) | `GET …/actions/jobs/{id}/logs` | `GET /projects/:id/jobs/:id/trace` |
+| Re-run | none on Forgejo 16: no `Rerunner` | `POST …/actions/runs/{id}/rerun` | `POST /projects/:id/pipelines/:id/retry` |
 | Releases | `GET …/releases` | `GET …/releases` | `GET /projects/:id/releases` |
 
 How the forges differ in practice:
@@ -176,6 +176,6 @@ Revised after the [plan review](plan-review.md):
 
 ## Spikes to run first
 
-- [ ] Forgejo Actions API on the deployed version: list runs, jobs, job logs, re-run.
+- [x] Forgejo Actions API on the deployed version (#1): runs, jobs and logs exist; re-run doesn't. Samples in `internal/forge/gitea/testdata/actions/`.
 - [ ] Renovate PR body parsing: collect real PR bodies across the different managers (docker, gomod, github-actions, terraform).
 - [ ] The Gitea and Forgejo Go SDKs against the deployed instance: is the SDK useful, or is a thin hand-written client simpler?

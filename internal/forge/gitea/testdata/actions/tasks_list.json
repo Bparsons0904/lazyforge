@@ -1,0 +1,50 @@
+{
+  "workflow_runs": [
+    {
+      "id": 16194,
+      "name": "check",
+      "head_branch": "#18",
+      "head_sha": "5f5b7243858f450342de15babccedd52a632fe43",
+      "run_number": 7,
+      "event": "pull_request",
+      "display_title": "docs: add external plan review",
+      "status": "success",
+      "workflow_id": "ci.yml",
+      "url": "https://git.bobparsons.dev/deadstyle/lazyforge/actions/runs/7",
+      "created_at": "2026-10-01T22:22:43-05:00",
+      "updated_at": "2026-10-01T22:23:42-05:00",
+      "run_started_at": "2026-10-01T22:22:43-05:00"
+    },
+    {
+      "id": 16193,
+      "name": "check",
+      "head_branch": "develop",
+      "head_sha": "8d1e5c8b96a7cc3b50f7f76e8ae595e256815951",
+      "run_number": 6,
+      "event": "push",
+      "display_title": "chore: autonomous work queue; govulncheck in make check (#16)",
+      "status": "success",
+      "workflow_id": "ci.yml",
+      "url": "https://git.bobparsons.dev/deadstyle/lazyforge/actions/runs/6",
+      "created_at": "2026-10-01T22:16:39-05:00",
+      "updated_at": "2026-10-01T22:17:40-05:00",
+      "run_started_at": "2026-10-01T22:16:39-05:00"
+    },
+    {
+      "id": 16192,
+      "name": "check",
+      "head_branch": "#16",
+      "head_sha": "535410b07d2008b9cd3b8670274a0c9079670b40",
+      "run_number": 5,
+      "event": "pull_request",
+      "display_title": "chore: autonomous work queue; govulncheck in make check",
+      "status": "success",
+      "workflow_id": "ci.yml",
+      "url": "https://git.bobparsons.dev/deadstyle/lazyforge/actions/runs/5",
+      "created_at": "2026-10-01T22:15:48-05:00",
+      "updated_at": "2026-10-01T22:16:29-05:00",
+      "run_started_at": "2026-10-01T22:15:48-05:00"
+    }
+  ],
+  "total_count": 7
+}

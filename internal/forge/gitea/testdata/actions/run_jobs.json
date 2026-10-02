@@ -1,0 +1,149 @@
+[
+  {
+    "id": 73,
+    "run_id": 9,
+    "attempt": 1,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "build-frontend",
+    "needs": null,
+    "runs_on": [
+      "ubuntu-latest"
+    ],
+    "task_id": 89,
+    "status": "success"
+  },
+  {
+    "id": 74,
+    "run_id": 9,
+    "attempt": 1,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "build-backend",
+    "needs": null,
+    "runs_on": [
+      "ubuntu-latest"
+    ],
+    "task_id": 90,
+    "status": "success"
+  },
+  {
+    "id": 75,
+    "run_id": 9,
+    "attempt": 1,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "build-migration",
+    "needs": null,
+    "runs_on": [
+      "ubuntu-latest"
+    ],
+    "task_id": 91,
+    "status": "success"
+  },
+  {
+    "id": 76,
+    "run_id": 9,
+    "attempt": 1,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "build-server-image",
+    "needs": [
+      "build-backend",
+      "build-migration"
+    ],
+    "runs_on": [
+      "docker"
+    ],
+    "task_id": 95,
+    "status": "success"
+  },
+  {
+    "id": 77,
+    "run_id": 9,
+    "attempt": 1,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "build-client-image",
+    "needs": [
+      "build-frontend"
+    ],
+    "runs_on": [
+      "docker"
+    ],
+    "task_id": 94,
+    "status": "success"
+  },
+  {
+    "id": 78,
+    "run_id": 9,
+    "attempt": 1,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "build-valkey-image",
+    "needs": null,
+    "runs_on": [
+      "docker"
+    ],
+    "task_id": 92,
+    "status": "success"
+  },
+  {
+    "id": 79,
+    "run_id": 9,
+    "attempt": 1,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "start-valkey",
+    "needs": [
+      "build-valkey-image"
+    ],
+    "runs_on": [
+      "docker"
+    ],
+    "task_id": 93,
+    "status": "success"
+  },
+  {
+    "id": 80,
+    "run_id": 9,
+    "attempt": 1,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "migration",
+    "needs": [
+      "build-server-image",
+      "start-valkey"
+    ],
+    "runs_on": [
+      "docker"
+    ],
+    "task_id": 96,
+    "status": "failure"
+  },
+  {
+    "id": 81,
+    "run_id": 9,
+    "attempt": 0,
+    "handle": "",
+    "repo_id": 2,
+    "owner_id": 1,
+    "name": "deploy",
+    "needs": [
+      "migration"
+    ],
+    "runs_on": [
+      "docker"
+    ],
+    "task_id": 0,
+    "status": "skipped"
+  }
+]
