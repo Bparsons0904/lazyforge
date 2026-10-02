@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lazyforge Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f5f2; --fg:#1d1f24; --muted:#5d6370; --card:#ffffff; --line:#e2dfd7; --accent:#6d4fe0; --code:#efece6; --ok:#2f7d4a;
+  /* terminal palette: always dark, like a real TUI */
+  --t-bg:#1e1e2e; --t-bg2:#181825; --t-fg:#cdd6f4; --t-dim:#7f849c; --t-sel:#313244; --t-border:#45475a;
+  --t-blue:#89b4fa; --t-green:#a6e3a1; --t-red:#f38ba8; --t-yellow:#f9e2af; --t-mauve:#cba6f7; --t-peach:#fab387; --t-teal:#94e2d5;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --bg:#121317; --fg:#e6e6ea; --muted:#9a9fab; --card:#1a1c22; --line:#2c2f38; --accent:#a78bfa; --code:#23262e; --ok:#7fd29a; }
+}
+:root[data-theme="dark"]{ --bg:#121317; --fg:#e6e6ea; --muted:#9a9fab; --card:#1a1c22; --line:#2c2f38; --accent:#a78bfa; --code:#23262e; --ok:#7fd29a; }
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 Inter,system-ui,sans-serif}
+main{max-width:1160px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:28px;margin:0 0 4px;letter-spacing:-.01em}
+h1 span{color:var(--accent)}
+.sub{color:var(--muted);margin:0 0 24px}
+h2{font-size:16px;margin:0 0 10px}
+code,kbd{font-family:"JetBrains Mono",monospace;font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+.caption{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px;color:var(--muted);font-size:14px}
+
+/* ---------- terminal ---------- */
+.termwrap{overflow-x:auto;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+.term{position:relative;min-width:820px;height:600px;background:var(--t-bg);color:var(--t-fg);
+  font:13px/20px "JetBrains Mono",ui-monospace,monospace;border-radius:12px;display:grid;grid-template-rows:auto 1fr auto;outline:none}
+.term:focus{box-shadow:inset 0 0 0 1px var(--t-blue)}
+.top{display:flex;gap:10px;align-items:center;padding:8px 12px 2px;white-space:nowrap;overflow:hidden}
+.brand{color:var(--t-mauve);font-weight:700}
+.crumbs{color:var(--t-dim)} .crumbs b{color:var(--t-fg);font-weight:600} .crumbs i{font-style:normal;color:var(--t-border);margin:0 6px}
+.panes{display:grid;grid-template-columns:38% 1fr;min-height:0;padding:4px 6px 0}
+.col{min-width:0;min-height:0;display:flex;flex-direction:column}
+
+/* a bordered box with its title sitting on the top border */
+.pane,.bx{position:relative;border:1px solid var(--t-border);border-radius:6px;margin:10px 3px 2px;min-width:0;min-height:0;display:flex;flex-direction:column}
+.pane{flex:1}
+.bx{flex:1 1 0;min-height:46px}
+.bx.focus{flex:2.4 1 0}
+.pane.active,.bx.active{border-color:var(--t-blue)}
+.ptitle{position:absolute;top:-10px;left:10px;background:var(--t-bg);padding:0 6px;color:var(--t-dim);font-size:12px;max-width:92%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:default}
+.active>.ptitle{color:var(--t-blue);font-weight:600}
+.ptitle .n{color:var(--t-peach)}
+.tabon{color:var(--t-fg);text-decoration:underline;text-underline-offset:3px}
+.pbody{flex:1;overflow:auto;padding:8px 0 4px;position:relative;scrollbar-width:thin;scrollbar-color:var(--t-border) transparent}
+.detail .pbody{padding:10px 14px}
+
+.row{display:flex;gap:8px;padding:0 10px;white-space:nowrap;cursor:default}
+.row .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.row .meta{color:var(--t-dim);flex-shrink:0}
+.row.sel{background:var(--t-sel)}
+.active .row.sel .lbl::before{content:"▌";color:var(--t-blue);margin-left:-10px;margin-right:2px}
+.empty{padding:0 10px;color:var(--t-dim)}
+.bar{display:flex;align-items:center;gap:10px;padding:4px 10px 8px;white-space:nowrap;overflow:hidden}
+.mode{color:var(--t-bg2);font-weight:700;padding:0 8px;border-radius:3px;background:var(--t-blue)}
+.mode.l1{background:var(--t-mauve)} .mode.l2{background:var(--t-peach)}
+.hints{color:var(--t-dim);overflow:hidden;text-overflow:ellipsis}
+.hints b{color:var(--t-fg);font-weight:600}
+.toast{margin-left:auto;color:var(--t-yellow)}
+.focushint{position:absolute;right:14px;top:8px;color:var(--t-dim);font-size:12px}
+.term:focus .focushint{display:none}
+
+.g{color:var(--t-green)} .r{color:var(--t-red)} .y{color:var(--t-yellow)} .b{color:var(--t-blue)} .m{color:var(--t-mauve)} .p{color:var(--t-peach)} .t{color:var(--t-teal)} .dim{color:var(--t-dim)}
+.num{color:var(--t-teal)}
+.mk{color:var(--t-peach)}
+.h1{font-weight:700;color:var(--t-fg);white-space:normal}
+.sec{color:var(--t-mauve);font-weight:700;margin-top:12px}
+.pill{display:inline-block;border:1px solid var(--t-border);border-radius:9px;padding:0 6px;font-size:11px;line-height:16px;color:var(--t-dim);margin-right:4px}
+.pill.major{color:var(--t-red);border-color:var(--t-red)} .pill.minor{color:var(--t-yellow);border-color:var(--t-yellow)} .pill.patch{color:var(--t-green);border-color:var(--t-green)}
+.tt{border-collapse:collapse;margin-top:8px}
+.tt td,.tt th{border:1px solid var(--t-border);padding:0 8px;text-align:left}
+.tt th{color:var(--t-dim);font-weight:400}
+.txt{white-space:pre-wrap;margin-top:8px}
+.foot{margin-top:14px;color:var(--t-dim)}
+.code div{white-space:pre}
+.log div{white-space:pre-wrap}
+.fileh{margin-top:12px;color:var(--t-fg);font-weight:600}
+.fileh:first-child{margin-top:0}
+
+.modal,.help{position:absolute;inset:0;background:rgba(17,17,27,.6);display:flex;align-items:center;justify-content:center;z-index:2}
+.box{background:var(--t-bg2);border:1px solid var(--t-blue);border-radius:6px;padding:12px 16px;min-width:420px;max-width:80%}
+.box .bt{color:var(--t-blue);font-weight:700;margin-bottom:6px}
+.help .grid{display:grid;grid-template-columns:auto 1fr;gap:0 18px}
+.help kbd{background:none;color:var(--t-peach);padding:0}
+
+.keys{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.keys button{font:600 13px "JetBrains Mono",monospace;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+.keys button:hover{border-color:var(--accent)}
+
+/* ---------- notes ---------- */
+.notes{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:32px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.card.wide{grid-column:1/-1}
+.card ul{margin:0;padding-left:18px} .card li{margin:4px 0}
+.card.decided{border-color:var(--ok)}
+.card.decided h2{color:var(--ok)}
+table.doc{width:100%;border-collapse:collapse;font-size:14px}
+table.doc th,table.doc td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.doc th{color:var(--muted);font-weight:600}
+.km{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px}
+@media (max-width:760px){ .notes{grid-template-columns:1fr} h1{font-size:24px} }
+</style>
+</head>
+<body>
+<main>
+  <h1><span>lazyforge</span> — Forgejo + Renovate TUI</h1>
+  <p class="sub">Mockup, round 2: lazygit-style numbered boxes inside yazi-style two-column navigation. The design notes are below the terminal.</p>
+
+  <div class="caption">
+    <span>Interactive: click the terminal, then use vim keys. Press <kbd>?</kbd> for help.</span>
+    <span>Fake data · nothing leaves the page</span>
+  </div>
+  <div class="termwrap">
+    <div class="term" id="term" tabindex="0">
+      <div class="top"><span class="brand">lazyforge</span><span class="crumbs" id="crumbs"></span></div>
+      <div class="panes"><div class="col" id="lcol"></div><div class="col" id="rcol"></div></div>
+      <div class="bar"><span class="mode" id="mode"></span><span class="hints" id="hints"></span><span class="toast" id="toast"></span></div>
+      <div class="focushint">click to focus</div>
+      <div id="overlay"></div>
+    </div>
+  </div>
+  <div class="keys" id="keys"></div>
+
+  <section class="notes">
+    <div class="card decided wide">
+      <h2>Decided so far</h2>
+      <ul>
+        <li>A repo's sections are numbered boxes, like lazygit's panels: <b>[1] Pull requests [2] Issues [3] Actions [4] Renovate [5] Releases</b>.</li>
+        <li>When you're on a repo, those boxes are the preview on the right. Press <kbd>l</kbd> and they move to the left column, with the details of the selected item on the right.</li>
+        <li><kbd>l</kbd> from a box moves focus into the details pane. It doesn't open a third set of columns.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Navigation model</h2>
+      <table class="doc">
+        <tr><th>Focus</th><th>Left</th><th>Right</th><th>Keys</th></tr>
+        <tr><td>Repos</td><td>Repo list (★ Renovate pinned, the rest by activity)</td><td>The selected repo's boxes, as a preview</td><td><kbd>j/k</kbd> pick a repo · <kbd>l</kbd> or <kbd>1–5</kbd> go in</td></tr>
+        <tr><td>Boxes</td><td>The repo's boxes; the focused one grows</td><td>Details of the selected item</td><td><kbd>j/k</kbd> within a box · <kbd>1–5</kbd> / <kbd>tab</kbd> between boxes · <kbd>l</kbd> into the details</td></tr>
+        <tr><td>Details</td><td>Same boxes, dimmed</td><td>Details, focused, with tabs</td><td><kbd>j/k</kbd> scroll · <kbd>[ ]</kbd> tabs · actions</td></tr>
+      </table>
+      <p style="margin:10px 0 0;color:var(--muted);font-size:14px"><kbd>h</kbd> always steps back one level. The action keys (<kbd>m</kbd>, <kbd>a</kbd>, <kbd>x</kbd> and so on) work from both the boxes and the details pane.</p>
+    </div>
+    <div class="card">
+      <h2>Where Renovate fits</h2>
+      <ul>
+        <li><b>★ Renovate</b> uses the same boxes, but they span every repo: <b>[1] Renovate PRs [2] Updates by dependency [3] Dashboards [4] Failing CI</b>.</li>
+        <li><b>[2] Updates by dependency</b> lists each update once, e.g. <code>postgres 16.4 → 17.0 ×2</code>. Pressing <kbd>m</kbd> on it merges that update in every repo.</li>
+        <li>In a regular repo, <b>[4] Renovate</b> holds the Dependency Dashboard entries. <kbd>space</kbd> ticks an entry, which asks Renovate to create that PR now.</li>
+        <li><kbd>space</kbd> marks PRs in any PR box, and <kbd>m</kbd> merges everything marked. The confirm dialog warns about failing CI.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Keymap</h2>
+      <div class="km" id="km"></div>
+    </div>
+    <div class="card">
+      <h2>Stack: a recommendation</h2>
+      <p style="margin:0 0 8px">I'd go with <b>Go + Bubble Tea + Lip Gloss</b>:</p>
+      <ul>
+        <li>Lip Gloss handles bordered boxes with titles on the border, and layout like this, with little effort.</li>
+        <li>Gitea and Forgejo both have Go SDKs, and the <code>tea</code> CLI is written in Go, so reusing its config is easy.</li>
+        <li>It builds to a single static binary, so installing on homelab boxes is trivial.</li>
+      </ul>
+      <p style="margin:8px 0 0;color:var(--muted);font-size:14px">Rust + ratatui is just as capable, and it's the better pick if you'd rather write Rust. Yazi's source is a good reference for the column handling.</p>
+    </div>
+    <div class="card">
+      <h2>Open questions</h2>
+      <ul>
+        <li>When <kbd>j</kbd> reaches the bottom of a box, should it stop (like lazygit) or carry on into the next box?</li>
+        <li>Should the focused box grow, as in the mockup, or should every box keep a fixed size?</li>
+        <li>Are these the right boxes? Possible additions: Branches, Milestones, Packages.</li>
+        <li>Should per-repo <b>[4] Renovate</b> show the dashboard entries, as mocked, or Renovate's PRs split out of [1]?</li>
+        <li>Forgejo Actions API: does your version expose job logs and re-runs?</li>
+        <li>One Forgejo instance or several? Should refresh be manual, polled, or both?</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>Suggested v1</h2>
+      <ul>
+        <li>Repo list plus boxes [1]–[3], with details and the Overview tab</li>
+        <li>★ Renovate view, including [2] Updates by dependency</li>
+        <li>Merge, approve, close, comment (in <code>$EDITOR</code>), open in browser and refresh</li>
+        <li>Bulk merge, with a warning when CI isn't green</li>
+        <li>Next after v1: the Files tab with diffs (optionally via <code>delta</code>), the Logs tab, and boxes [4] and [5]</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<script>
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------------- fake data ---------------- */
+const okCheckLog = ['Run actions/checkout@v4', 'Run docker compose config -q', 'Run ./scripts/validate.sh', '✓ all services valid', 'Job succeeded'];
+const lintLog = ['Run actions/checkout@v4', 'Run yamllint .', '✓ 0 problems', 'Job succeeded'];
+const traefikFail = ['Run actions/checkout@v4', 'Run docker compose config -q', 'Run ./scripts/validate-traefik.sh',
+  'ERROR: field not found, node: swarmMode', '  in services/proxy/traefik.yml: providers.docker.swarmMode',
+  'hint: traefik v3.2 moved swarm support to providers.swarm', 'Process completed with exit code 1'];
+
+function checks(ci, failLog) {
+  const st = ci === 'pass' ? 'success' : ci === 'fail' ? 'failure' : 'running';
+  return [
+    {name:'ci / lint', status:'success', log:lintLog},
+    {name:'ci / validate', status:st, log: ci === 'fail' ? failLog : ci === 'running' ? ['Run actions/checkout@v4', 'Run docker compose config -q', '… waiting for runner output'] : okCheckLog},
+  ];
+}
+function imgDiff(svc, img, from, to) {
+  return ['@@ -8,7 +8,7 @@ services:', `   ${svc}:`, `-    image: ${img}:${from}`, `+    image: ${img}:${to}`, '     restart: unless-stopped', '     volumes:'];
+}
+function rpr(n, pkg, from, to, bump, file, diff, ago, ci, notes, failLog) {
+  return {kind:'pr', n, title:`chore(deps): update ${pkg} to v${to}`, author:'renovate', ago, ci, labels:['dependencies'],
+    renovate:{pkg, from, to, bump, notes},
+    files:[{path:file, add:1, del:1, diff}],
+    comments:[{author:'renovate', ago, body:`This PR updates ${pkg} from ${from} to ${to}.\n\nRebasing: whenever the PR becomes conflicted, or you tick the rebase checkbox on the Dependency Dashboard.`}],
+    checks:checks(ci, failLog)};
+}
+function dash(n, ago, lines) {
+  return {kind:'issue', n, title:'Dependency Dashboard', author:'renovate', ago, labels:['renovate'], dashboard:true, body:lines, comments:[]};
+}
+
+const repos = [
+  {name:'homelab', ago:'4m', desc:'Docker Compose stack for the home server',
+    prs:[
+      rpr(42, 'postgres', '16.4', '17.0', 'major', 'services/db/compose.yml', imgDiff('db', 'postgres', '16.4', '17.0'), '4m', 'pass',
+        ['Major version: requires pg_upgrade or dump/restore', 'Incremental backup support in pg_basebackup', 'Lower VACUUM memory usage']),
+      rpr(41, 'traefik', 'v3.1.4', 'v3.2.0', 'minor', 'services/proxy/compose.yml', imgDiff('proxy', 'traefik', 'v3.1.4', 'v3.2.0'), '25m', 'fail',
+        ['Swarm provider split out of the Docker provider', 'Gateway API v1.2 support'], traefikFail),
+      {kind:'pr', n:39, title:'feat: add uptime-kuma service', author:'you', ago:'1d', ci:'pass', labels:['enhancement'],
+        body:'Adds uptime-kuma behind traefik with forward-auth.\n\n- new service in services/monitoring\n- traefik labels for status.home.arpa\n- data volume added to the restic backup set',
+        files:[
+          {path:'services/monitoring/compose.yml', add:14, del:0, diff:['@@ -0,0 +1,14 @@', '+services:', '+  uptime-kuma:', '+    image: louislam/uptime-kuma:1.23.15', '+    restart: unless-stopped', '+    volumes:', '+      - kuma-data:/app/data', '+    labels:', '+      - traefik.enable=true', '+      - traefik.http.routers.kuma.rule=Host(`status.home.arpa`)', '+      - traefik.http.routers.kuma.middlewares=auth@file', '+', '+volumes:', '+  kuma-data:']},
+          {path:'backup/restic-include.txt', add:1, del:0, diff:['@@ -4,3 +4,4 @@', ' /srv/paperless/data', ' /srv/immich/library', ' /srv/vaultwarden', '+/var/lib/docker/volumes/monitoring_kuma-data']}],
+        comments:[{author:'you', ago:'1d', body:'Double-check the restic include path before merging. The compose project name decides the volume prefix.'}],
+        checks:checks('pass')},
+    ],
+    issues:[
+      dash(12, '4m', [['h','Open'], ['x','chore(deps): update postgres to v17.0 (#42)'], ['x','chore(deps): update traefik to v3.2.0 (#41)'], ['h','Awaiting schedule'], ['o','chore(deps): update immich to v1.120.0'], ['o','chore(deps): update node to v22'], ['h','Other'], ['o','Check this box to trigger a request for Renovate to run again on this repository']]),
+      {kind:'issue', n:30, title:'Paperless backups not rotating', author:'you', ago:'3d', labels:['bug'],
+        body:"restic forget isn't pruning paperless snapshots. The last 40 daily snapshots are all still present.",
+        comments:[{author:'you', ago:'3d', body:'The tag filter is probably overriding --keep-daily. Try running forget per tag.'}]},
+    ],
+    runs:[
+      {kind:'run', id:318, wf:'deploy', status:'success', branch:'main', commit:'a1c9e2f', trigger:'push', dur:'1m 12s', ago:'10m',
+        jobs:[{name:'lint', status:'success', log:lintLog},
+              {name:'deploy', status:'success', log:['Run actions/checkout@v4', 'Run docker compose pull', ' ✓ db Pulled', ' ✓ proxy Pulled', 'Run docker compose up -d --remove-orphans', ' Container homelab-db-1  Started', ' Container homelab-proxy-1  Started', 'Job succeeded']}]},
+      {kind:'run', id:317, wf:'validate', status:'failure', branch:'renovate/traefik-3.x', commit:'7be0d14', trigger:'pull_request', dur:'34s', ago:'25m',
+        jobs:[{name:'lint', status:'success', log:lintLog}, {name:'validate', status:'failure', log:traefikFail}]},
+    ],
+    releases:[{kind:'release', tag:'2026.09.1', ago:'5d', notes:'- traefik 3.1\n- immich added\n- nightly restic check'}]},
+  {name:'infra', ago:'1h', desc:'OpenTofu for Proxmox VMs and DNS',
+    prs:[
+      rpr(18, 'opentofu', '1.8.5', '1.9.0', 'minor', '.forgejo/workflows/plan.yml',
+        ['@@ -14,7 +14,7 @@ jobs:', '       - uses: opentofu/setup-opentofu@v1', '         with:', '-          tofu_version: 1.8.5', '+          tofu_version: 1.9.0'], '1h', 'pass',
+        ['Provider-defined functions usable in for_each', 'New -exclude flag for plan and apply']),
+      rpr(17, 'postgres', '16.4', '17.0', 'major', 'modules/db/main.tf',
+        ['@@ -3,7 +3,7 @@ resource "proxmox_lxc" "db" {', '   hostname   = "db"', '-  ostemplate = "local:vztmpl/postgres-16.4.tar.zst"', '+  ostemplate = "local:vztmpl/postgres-17.0.tar.zst"', '   cores      = 2'], '2h', 'running',
+        ['Major version: requires pg_upgrade or dump/restore', 'Incremental backup support in pg_basebackup']),
+    ],
+    issues:[dash(3, '1h', [['h','Open'], ['x','chore(deps): update opentofu to v1.9.0 (#18)'], ['x','chore(deps): update postgres to v17.0 (#17)'], ['h','Rate-limited'], ['o','chore(deps): update proxmox provider to v0.66'], ['h','Other'], ['o','Check this box to trigger a request for Renovate to run again on this repository']])],
+    runs:[
+      {kind:'run', id:91, wf:'plan', status:'running', branch:'renovate/postgres-17.x', commit:'c03aa71', trigger:'pull_request', dur:'2m+', ago:'2h',
+        jobs:[{name:'plan', status:'running', log:['Run opentofu/setup-opentofu@v1', 'Run tofu init', 'Run tofu plan -no-color', '  # proxmox_lxc.db must be replaced', '… streaming']}]},
+      {kind:'run', id:90, wf:'plan', status:'success', branch:'main', commit:'e88d10b', trigger:'push', dur:'48s', ago:'1d',
+        jobs:[{name:'plan', status:'success', log:['Run tofu plan -no-color', 'No changes. Your infrastructure matches the configuration.', 'Job succeeded']}]},
+    ],
+    releases:[]},
+  {name:'lazyforge', ago:'3h', desc:'TUI for Forgejo + Renovate',
+    prs:[
+      {kind:'pr', n:2, title:'feat: numbered boxes + two-column navigation', author:'you', ago:'3h', ci:'pass', labels:['enhancement'],
+        body:'First pass at the layout.\n\n- repo list on the left, its boxes previewed on the right\n- l shifts the boxes left, details on the right\n- 1-5 jump straight to a box',
+        files:[
+          {path:'internal/ui/layout.go', add:3, del:1, diff:['@@ -21,7 +21,9 @@ func (m Model) View() string {', '-\treturn lipgloss.JoinHorizontal(lipgloss.Top, m.parent.View(), m.current.View(), m.preview.View())', '+\tleft := m.leftColumn()', '+\tright := m.rightColumn()', '+\treturn lipgloss.JoinHorizontal(lipgloss.Top, left, right)', ' }']},
+          {path:'internal/ui/keys.go', add:2, del:0, diff:['@@ -9,6 +9,8 @@ var keys = keyMap{', ' \tDown:  key.NewBinding(key.WithKeys("j", "down")),', ' \tUp:    key.NewBinding(key.WithKeys("k", "up")),', '+\tEnter: key.NewBinding(key.WithKeys("l", "right", "enter")),', '+\tBox:   key.NewBinding(key.WithKeys("1", "2", "3", "4", "5")),', ' }']}],
+        comments:[], checks:checks('pass')},
+      rpr(3, 'bubbletea', 'v1.2.4', 'v1.3.0', 'minor', 'go.mod',
+        ['@@ -5,7 +5,7 @@ require (', ' \tgithub.com/charmbracelet/bubbles v0.20.0', '-\tgithub.com/charmbracelet/bubbletea v1.2.4', '+\tgithub.com/charmbracelet/bubbletea v1.3.0', ' \tgithub.com/charmbracelet/lipgloss v1.0.0'], '5h', 'pass',
+        ['Faster renderer for large views', 'Fixed key handling for some kitty keyboard sequences']),
+    ],
+    issues:[{kind:'issue', n:1, title:'Spike: Forgejo Actions API coverage', author:'you', ago:'2d', labels:['spike'],
+      body:'Confirm which endpoints exist on our Forgejo version:\n- list runs per repo\n- job logs\n- rerun workflow / job\n\nIf logs are missing, fall back to opening the run in the browser.', comments:[]}],
+    runs:[{kind:'run', id:12, wf:'ci', status:'success', branch:'main', commit:'4f2b9d0', trigger:'push', dur:'41s', ago:'3h',
+      jobs:[{name:'test', status:'success', log:['Run go test ./...', 'ok  lazyforge/internal/ui     0.12s', 'ok  lazyforge/internal/forge  0.31s', 'Job succeeded']}]}],
+    releases:[{kind:'release', tag:'v0.1.0', ago:'2d', notes:'- first mockup\n- repo list + Renovate inbox'}]},
+  {name:'dotfiles', ago:'2d', desc:'Shell, editor and WM config', prs:[], issues:[], runs:[], releases:[]},
+];
+
+repos.forEach(r => {
+  ['prs', 'issues', 'runs', 'releases'].forEach(k => r[k].forEach(i => { i.repo = r.name; i.state = 'open'; }));
+  // Dependency Dashboard checkbox entries become the per-repo Renovate box.
+  r.deps = [];
+  const d = r.issues.find(i => i.dashboard);
+  if (d) {
+    let section = '';
+    d.body.forEach(([k, t]) => {
+      if (k === 'h') section = t;
+      else if (section !== 'Other') r.deps.push({kind:'dep', repo:r.name, title:t, section, ticked:k === 'x', dash:d});
+    });
+  }
+});
+
+const inbox = {name:'★ Renovate', virtual:true, desc:'Every repo at once: Renovate PRs, updates grouped by dependency, dashboards and CI that needs attention',
+  get prs() { return repos.flatMap(r => r.prs.filter(p => p.author === 'renovate' && p.state === 'open')); },
+  get dashboards() { return repos.flatMap(r => r.issues.filter(i => i.dashboard && i.state === 'open')); },
+  get ci() { return repos.flatMap(r => r.runs.filter(x => x.status !== 'success')); },
+  get groups() {
+    const g = {};
+    this.prs.forEach(p => {
+      const u = p.renovate, k = `${u.pkg}|${u.from}|${u.to}`;
+      (g[k] ||= {kind:'group', pkg:u.pkg, from:u.from, to:u.to, bump:u.bump, notes:u.notes, prs:[]}).prs.push(p);
+    });
+    return Object.values(g).sort((a, b) => b.prs.length - a.prs.length);
+  },
+};
+const repoList = () => [inbox, ...repos];
+
+function boxesFor(r) {
+  if (r.virtual) return [
+    {title:'Renovate PRs', items:r.prs},
+    {title:'Updates by dependency', items:r.groups},
+    {title:'Dashboards', items:r.dashboards},
+    {title:'Failing / running CI', items:r.ci},
+  ];
+  return [
+    {title:'Pull requests', items:r.prs.filter(p => p.state === 'open')},
+    {title:'Issues', items:r.issues.filter(i => i.state === 'open')},
+    {title:'Actions', items:r.runs},
+    {title:'Renovate', items:r.deps},
+    {title:'Releases', items:r.releases},
+  ];
+}
+
+/* ---------------- rows ---------------- */
+const ICON = {success:'<span class="g">✓</span>', pass:'<span class="g">✓</span>', failure:'<span class="r">✗</span>', fail:'<span class="r">✗</span>', running:'<span class="y">●</span>'};
+const STATUS_TXT = {pass:'CI passing', fail:'CI failing', running:'CI running'};
+const shortTitle = p => p.renovate ? `${p.renovate.pkg} ${p.renovate.from} → ${p.renovate.to}` : p.title;
+const bumpPill = b => `<span class="pill ${b}">${b}</span>`;
+
+function itemRow(it, showRepo) {
+  const repo = showRepo ? `<span class="dim">${esc(it.repo)}</span> ` : '';
+  switch (it.kind) {
+    case 'pr': return {html:`<span class="mk">${S.marks.has(it) ? '●' : ' '}</span><span class="num">#${it.n}</span> ${repo}${esc(shortTitle(it))}${it.renovate ? ' ' + bumpPill(it.renovate.bump) : ''}`, meta:`${ICON[it.ci]} ${it.ago}`};
+    case 'issue': return {html:`<span class="num">#${it.n}</span> ${repo}${it.dashboard ? '<span class="m">⚙</span> ' : ''}${esc(it.title)}`, meta:`${it.comments.length ? it.comments.length + '💬 ' : ''}${it.ago}`};
+    case 'run': return {html:`${ICON[it.status]} ${repo}${esc(it.wf)} <span class="dim">${esc(it.branch)}</span>`, meta:it.ago};
+    case 'dep': return {html:`${it.ticked ? '<span class="g">☑</span>' : '<span class="dim">☐</span>'} ${esc(it.title.replace('chore(deps): ', ''))}`, meta:esc(it.section.toLowerCase())};
+    case 'release': return {html:`<span class="t">${esc(it.tag)}</span>`, meta:it.ago};
+    case 'group': return {html:`${esc(it.pkg)} <span class="dim">${esc(it.from)} →</span> <span class="b">${esc(it.to)}</span> ${bumpPill(it.bump)}`, meta:`${it.prs.length > 1 ? `<span class="p">×${it.prs.length}</span> ` : ''}${it.prs.map(p => ICON[p.ci]).join('')}`};
+  }
+}
+function renderRow(row, i, sel) {
+  return `<div class="row${i === sel ? ' sel' : ''}" data-i="${i}"><span class="lbl">${row.html}</span><span class="meta">${row.meta || ''}</span></div>`;
+}
+
+/* ---------------- details ---------------- */
+function textBlock(s) {
+  return `<div class="txt">${s.split('\n').map(l => l.startsWith('- ') ? `<span class="dim">•</span> ${esc(l.slice(2))}` : esc(l)).join('\n')}</div>`;
+}
+function codeBlock(lines) {
+  return `<div class="code">${lines.map(l => `<div class="${l.startsWith('@@') ? 'm' : l[0] === '+' ? 'g' : l[0] === '-' ? 'r' : 'dim'}">${esc(l)}</div>`).join('')}</div>`;
+}
+function logBlock(lines) {
+  return `<div class="log">${lines.map(l => {
+    const c = /ERROR|exit code [1-9]|✗/.test(l) ? 'r' : /^hint/.test(l) ? 'y' : /✓|succeeded|^ok/.test(l) ? 'g' : /^Run /.test(l) ? 'b' : '';
+    return `<div class="${c}">${esc(l)}</div>`;
+  }).join('')}</div>`;
+}
+const commentsBlock = cs => cs.length ? cs.map(c => `<div class="fileh"><span class="b">${esc(c.author)}</span> <span class="dim">· ${c.ago} ago</span></div>${textBlock(c.body)}`).join('') + '<div class="foot">c reply in $EDITOR</div>' : '<div class="dim">No comments yet. c to write one.</div>';
+
+function tabsFor(it) {
+  if (!it) return ['Details'];
+  if (it.kind === 'pr') return ['Overview', 'Files', 'Comments', 'Checks'];
+  if (it.kind === 'issue') return it.dashboard ? ['Overview'] : ['Overview', 'Comments'];
+  if (it.kind === 'run') return ['Overview', 'Logs'];
+  return ['Overview'];
+}
+
+function detail(it, tab) {
+  if (!it) return '<div class="dim">Nothing here.</div>';
+  const name = tabsFor(it)[tab];
+  if (it.kind === 'pr') {
+    if (name === 'Files') return it.files.map(f => `<div class="fileh">${esc(f.path)} <span class="g">+${f.add}</span> <span class="r">-${f.del}</span></div>${codeBlock(f.diff)}`).join('') + '<div class="foot">rendered through delta, if installed</div>';
+    if (name === 'Comments') return commentsBlock(it.comments);
+    if (name === 'Checks') return it.checks.map(c => `<div class="fileh">${ICON[c.status]} ${esc(c.name)}</div>${logBlock(c.log)}`).join('');
+    let h = `<div class="h1">${esc(it.title)}</div>
+      <div class="dim">${esc(it.repo)} <span class="num">#${it.n}</span> · ${esc(it.author)} · ${it.ago} ago</div>
+      <div style="margin-top:6px">${ICON[it.ci]} ${STATUS_TXT[it.ci]}${it.approved ? ' · <span class="g">✓ approved by you</span>' : ''} · ${it.labels.map(l => `<span class="pill">${l}</span>`).join('')}</div>`;
+    if (it.renovate) {
+      const u = it.renovate;
+      h += `<table class="tt"><tr><th>Package</th><th>Change</th><th>Type</th></tr><tr><td>${esc(u.pkg)}</td><td>${esc(u.from)} → <span class="b">${esc(u.to)}</span></td><td>${bumpPill(u.bump)}</td></tr></table>
+        <div class="sec">Release notes</div>${u.notes.map(n => `<div><span class="dim">•</span> ${esc(n)}</div>`).join('')}
+        <div class="sec">Renovate config</div><div class="dim">📅 Schedule: any time · 🚦 Automerge: off · ♻ Rebase: on conflict</div>`;
+    } else h += textBlock(it.body);
+    return h + `<div class="sec">Summary</div><div class="dim">${it.files.length} files · ${it.comments.length} comments · ${it.checks.length} checks</div>`;
+  }
+  if (it.kind === 'issue') {
+    if (name === 'Comments') return commentsBlock(it.comments);
+    let h = `<div class="h1">${esc(it.title)}</div><div class="dim">${esc(it.repo)} <span class="num">#${it.n}</span> · ${esc(it.author)} · ${it.ago} ago</div>
+      <div style="margin-top:6px">${it.labels.map(l => `<span class="pill">${l}</span>`).join('')}</div>`;
+    if (it.dashboard) return h + `<div style="margin-top:8px">` + it.body.map(([k, t]) => k === 'h' ? `<div class="sec">${esc(t)}</div>` : `<div>${k === 'x' ? '<span class="g">☑</span>' : '<span class="dim">☐</span>'} ${esc(t)}</div>`).join('') + `</div><div class="foot">The entries are also in this repo's [4] Renovate box, where space ticks them</div>`;
+    return h + textBlock(it.body);
+  }
+  if (it.kind === 'run') {
+    if (name === 'Logs') return it.jobs.map(j => `<div class="fileh">${ICON[j.status]} ${esc(j.name)}</div>${logBlock(j.log)}`).join('');
+    return `<div class="h1">${ICON[it.status]} ${esc(it.wf)} <span class="dim">#${it.id}</span></div>
+      <div class="dim">${esc(it.repo)} · ${esc(it.trigger)} · ${esc(it.branch)} @ <span class="t">${it.commit}</span></div>
+      <div class="dim">${it.ago} ago · took ${it.dur}</div>
+      <div class="sec">Jobs</div>${it.jobs.map(j => `<div>${ICON[j.status]} ${esc(j.name)}</div>`).join('')}
+      <div class="foot">] → Logs tab · R re-run</div>`;
+  }
+  if (it.kind === 'dep') {
+    return `<div class="h1">${esc(it.title)}</div><div class="dim">${esc(it.repo)} · Dependency Dashboard #${it.dash.n} · ${esc(it.section)}</div>
+      <div class="txt">${it.ticked ? '<span class="g">☑ ticked</span>: Renovate has opened, or will open, this PR.' : '<span class="dim">☐ not ticked</span>: Renovate is holding this update (' + esc(it.section.toLowerCase()) + ').'}</div>
+      <div class="foot">${it.ticked ? 'o open the dashboard in the browser' : 'space ticks the checkbox, so Renovate creates the PR on its next run'}</div>`;
+  }
+  if (it.kind === 'release') return `<div class="h1">${esc(it.tag)}</div><div class="dim">${esc(it.repo)} · released ${it.ago} ago</div>${textBlock(it.notes)}`;
+  // group
+  return `<div class="h1">${esc(it.pkg)} ${esc(it.from)} → <span class="b">${esc(it.to)}</span> ${bumpPill(it.bump)}</div>
+    <div class="dim">${it.prs.length} repo${it.prs.length > 1 ? 's' : ''} · ${it.prs.filter(p => p.ci === 'pass').length} with green CI</div>
+    <div class="sec">Pull requests</div>${it.prs.map(p => `<div>${ICON[p.ci]} ${esc(p.repo)} <span class="num">#${p.n}</span> <span class="dim">${p.ago} ago</span></div>`).join('')}
+    <div class="sec">Release notes</div>${it.notes.map(n => `<div><span class="dim">•</span> ${esc(n)}</div>`).join('')}
+    <div class="foot">m merges this update in every repo</div>`;
+}
+
+/* ---------------- state ---------------- */
+// level 0 = repo list, 1 = boxes, 2 = details pane focused
+const S = {level:0, repo:0, box:0, bcur:[0, 0, 0, 0, 0], tab:0, marks:new Set(), modal:null, help:false, toast:'', g:false, scroll:0, lastKey:''};
+let toastTimer;
+function toast(msg) { S.toast = msg; clearTimeout(toastTimer); toastTimer = setTimeout(() => { S.toast = ''; render(); }, 2600); }
+
+const repoAt = () => repoList()[S.repo];
+const boxes = () => boxesFor(repoAt());
+const curBox = () => boxes()[S.box];
+const curItem = () => S.level >= 1 ? curBox().items[S.bcur[S.box]] : null;
+
+function clamp() {
+  const bs = boxes();
+  if (S.box >= bs.length) S.box = 0;
+  bs.forEach((b, i) => { S.bcur[i] = Math.max(0, Math.min(S.bcur[i] || 0, b.items.length - 1)); });
+  const tabs = tabsFor(curItem());
+  if (S.tab >= tabs.length) S.tab = 0;
+}
+function resetRepoState() { S.box = 0; S.bcur = [0, 0, 0, 0, 0]; S.tab = 0; }
+function goBox(i) {
+  if (i < 0 || i >= boxes().length) return toast(`No box [${i + 1}] here`);
+  S.box = i; S.level = 1; S.tab = 0;
+}
+
+const detailEl = () => document.querySelector('.detail .pbody');
+function scrollDetail(px) { const el = detailEl(); if (el) { el.scrollTop += px; S.scroll = el.scrollTop; } }
+
+const urlFor = it => {
+  const base = `https://forge.home.arpa/home/${it.repo}`;
+  return {pr:`${base}/pulls/${it.n}`, issue:`${base}/issues/${it.n}`, run:`${base}/actions/runs/${it.id}`, release:`${base}/releases/tag/${it.tag}`, dep:`${base}/issues/${it.dash && it.dash.n}`}[it.kind];
+};
+
+function merge() {
+  const it = curItem();
+  const t = S.marks.size ? [...S.marks] : it && it.kind === 'pr' ? [it] : it && it.kind === 'group' ? it.prs : [];
+  if (!t.length) return toast('Nothing to merge: select a PR or update, or mark PRs with space');
+  const bad = t.filter(p => p.ci !== 'pass');
+  S.modal = {
+    title: t.length > 1 ? `Merge ${t.length} pull requests?` : `Merge ${t[0].repo} #${t[0].n}?`,
+    body: t.map(p => `${ICON[p.ci]} ${esc(p.repo)} <span class="num">#${p.n}</span> ${esc(shortTitle(p))}`)
+      .concat(['', '<span class="dim">strategy: squash · delete branch: yes</span>'])
+      .concat(bad.length ? [`<span class="r">⚠ ${bad.length} with failing or pending CI</span>`] : []),
+    yes: () => {
+      t.forEach(p => { p.state = 'merged'; S.marks.delete(p); });
+      if (S.level === 2) S.level = 1;
+      toast(`Merged ${t.length} PR${t.length > 1 ? 's' : ''} (squash)`);
+    }};
+}
+function closeItem() {
+  const it = curItem();
+  if (!it || (it.kind !== 'pr' && it.kind !== 'issue')) return toast('x closes a PR or issue');
+  S.modal = {title:`Close ${it.repo} #${it.n}?`, body:[esc(it.title)], yes:() => { it.state = 'closed'; S.marks.delete(it); if (S.level === 2) S.level = 1; toast(`Closed #${it.n}`); }};
+}
+function rerun() {
+  const it = curItem();
+  if (!it || it.kind !== 'run') return toast('R re-runs a workflow run');
+  it.status = 'running'; it.jobs.forEach(j => j.status = 'running');
+  toast(`Re-running ${it.wf} #${it.id}…`);
+  setTimeout(() => { it.status = 'success'; it.jobs.forEach(j => j.status = 'success'); render(); }, 1800);
+}
+function space() {
+  const it = curItem();
+  if (S.level !== 1 || !it) return toast('space works on items in a box');
+  if (it.kind === 'pr') { S.marks.has(it) ? S.marks.delete(it) : S.marks.add(it); S.bcur[S.box] = Math.min(S.bcur[S.box] + 1, curBox().items.length - 1); }
+  else if (it.kind === 'dep') {
+    if (it.ticked) return toast('Already ticked');
+    it.ticked = true; toast('Ticked: Renovate will create this PR on its next run');
+  } else toast('space marks PRs and ticks Renovate entries');
+}
+
+const KEYS = [
+  ['j / k', 'move (in the details pane: scroll)'], ['h / l', 'back / in (repos → boxes → details)'], ['1 – 5', 'jump straight to a box (also from the repo list)'],
+  ['tab / S-tab', 'next / previous box'], ['[ / ]', 'previous / next details tab'], ['gg / G', 'top / bottom'], ['^d / ^u', 'half-page scroll in the details pane'],
+  ['space', 'mark a PR / tick a Renovate entry'], ['m', 'merge (marked PRs, the current PR, or a whole update)'], ['a', 'approve PR'], ['x', 'close PR / issue'],
+  ['c', 'comment in $EDITOR'], ['R', 're-run workflow'], ['o', 'open in browser'], ['r', 'refresh'], ['?', 'toggle help'], ['esc', 'close dialog / clear marks'],
+];
+
+function key(k) {
+  if (S.modal) {
+    if (k === 'y' || k === 'Enter') { const f = S.modal.yes; S.modal = null; f(); }
+    else if (k === 'n' || k === 'Escape' || k === 'q') S.modal = null;
+    return;
+  }
+  if (S.help) { if (k === '?' || k === 'Escape' || k === 'q') S.help = false; return; }
+  const wasG = S.g; S.g = false;
+  const it = curItem();
+  if (/^[1-9]$/.test(k)) return goBox(+k - 1);
+  switch (k) {
+    case 'j': case 'ArrowDown':
+      if (S.level === 0) { if (S.repo < repoList().length - 1) { S.repo++; resetRepoState(); } }
+      else if (S.level === 1) S.bcur[S.box]++;
+      else scrollDetail(60);
+      break;
+    case 'k': case 'ArrowUp':
+      if (S.level === 0) { if (S.repo > 0) { S.repo--; resetRepoState(); } }
+      else if (S.level === 1) S.bcur[S.box]--;
+      else scrollDetail(-60);
+      break;
+    case 'l': case 'ArrowRight': case 'Enter':
+      if (S.level === 0) S.level = 1;
+      else if (S.level === 1) { if (it) S.level = 2; else toast('This box is empty'); }
+      break;
+    case 'h': case 'ArrowLeft': if (S.level > 0) S.level--; break;
+    case 'Tab': if (S.level >= 1) { S.box = (S.box + 1) % boxes().length; S.level = 1; S.tab = 0; } break;
+    case 'BackTab': if (S.level >= 1) { S.box = (S.box - 1 + boxes().length) % boxes().length; S.level = 1; S.tab = 0; } break;
+    case ']': if (S.level >= 1) { S.tab = (S.tab + 1) % tabsFor(it).length; S.scroll = 0; } break;
+    case '[': if (S.level >= 1) { const n = tabsFor(it).length; S.tab = (S.tab - 1 + n) % n; S.scroll = 0; } break;
+    case 'g':
+      if (!wasG) { S.g = true; break; }
+      if (S.level === 0) { S.repo = 0; resetRepoState(); } else if (S.level === 1) S.bcur[S.box] = 0; else scrollDetail(-1e6);
+      break;
+    case 'G':
+      if (S.level === 0) { S.repo = repoList().length - 1; resetRepoState(); } else if (S.level === 1) S.bcur[S.box] = curBox().items.length - 1; else scrollDetail(1e6);
+      break;
+    case '^d': if (S.level === 2) scrollDetail(200); break;
+    case '^u': if (S.level === 2) scrollDetail(-200); break;
+    case ' ': space(); break;
+    case 'm': merge(); break;
+    case 'x': closeItem(); break;
+    case 'a': if (it && it.kind === 'pr') { it.approved = true; toast(`Approved ${it.repo} #${it.n}`); } else toast('a approves a PR'); break;
+    case 'c': if (it && (it.kind === 'pr' || it.kind === 'issue')) toast(`$EDITOR opened: new comment on ${it.repo} #${it.n}`); else toast('c comments on a PR or issue'); break;
+    case 'R': rerun(); break;
+    case 'o': toast(it && urlFor(it) ? `opened ${urlFor(it)}` : `opened https://forge.home.arpa/home/${repoAt().virtual ? '' : repoAt().name}`); break;
+    case 'r': toast('Refreshed from forge.home.arpa'); break;
+    case '?': S.help = true; break;
+    case 'q': toast('q quits lazyforge (disabled in the mockup)'); break;
+    case 'Escape': if (S.marks.size) { S.marks.clear(); toast('Marks cleared'); } break;
+  }
+}
+
+/* ---------------- render ---------------- */
+const $ = id => document.getElementById(id);
+const pane = (title, body, cls) => `<div class="pane ${cls}"><div class="ptitle">${title}</div><div class="pbody">${body}</div></div>`;
+
+function boxesHtml(r, focus, active) {
+  return boxesFor(r).map((b, i) => {
+    const rows = b.items.length ? b.items.map((it, j) => renderRow(itemRow(it, r.virtual), j, i === focus ? S.bcur[i] : -1)).join('') : '<div class="empty">— none —</div>';
+    return `<div class="bx${i === focus ? ' focus' : ''}${i === focus && active ? ' active' : ''}" data-b="${i}"><div class="ptitle"><span class="n">[${i + 1}]</span> ${esc(b.title)} <span class="dim">${b.items.length}</span></div><div class="pbody">${rows}</div></div>`;
+  }).join('');
+}
+
+function keepSelVisible(container) {
+  container.querySelectorAll('.pbody').forEach(pb => {
+    const s = pb.querySelector('.sel'); if (!s) return;
+    if (s.offsetTop + s.offsetHeight > pb.clientHeight - 4) pb.scrollTop = s.offsetTop + s.offsetHeight - pb.clientHeight + 6;
+  });
+}
+
+function render() {
+  clamp();
+  const repo = repoAt(), it = curItem();
+
+  // breadcrumb
+  const crumbs = ['forge.home.arpa', repo.name];
+  if (S.level >= 1) crumbs.push(`[${S.box + 1}] ${curBox().title}`);
+  if (S.level >= 1 && it) crumbs.push(it.n ? `#${it.n}` : it.kind === 'run' ? `${it.wf} #${it.id}` : it.tag || it.pkg || 'entry');
+  $('crumbs').innerHTML = crumbs.map((c, i) => i === crumbs.length - 1 ? `<b>${esc(c)}</b>` : esc(c)).join('<i>›</i>');
+
+  // columns
+  if (S.level === 0) {
+    const rows = repoList().map((r, i) => {
+      const n = r.prs.filter(p => p.state === 'open').length;
+      return renderRow({html: r.virtual ? `<span class="p">${esc(r.name)}</span>` : esc(r.name), meta:`${n ? `<span class="pill">${n} PR</span>` : ''}${r.ago || ''}`}, i, S.repo);
+    }).join('');
+    $('lcol').innerHTML = pane('Repositories', rows, 'active repos');
+    $('rcol').innerHTML = boxesHtml(repo, -1, false);
+  } else {
+    $('lcol').innerHTML = boxesHtml(repo, S.box, S.level === 1);
+    const tabs = tabsFor(it).map((t, i) => i === S.tab ? `<span class="tabon">${t}</span>` : t).join(' <span class="dim">│</span> ');
+    $('rcol').innerHTML = pane(tabs, detail(it, S.tab), `detail${S.level === 2 ? ' active' : ''}`);
+  }
+  keepSelVisible($('lcol'));
+
+  // details scroll: reset when the shown thing changes, otherwise keep position
+  const dk = `${S.repo}|${S.box}|${S.bcur[S.box]}|${S.tab}`;
+  if (dk !== S.lastKey) { S.scroll = 0; S.lastKey = dk; }
+  const de = detailEl(); if (de) de.scrollTop = S.scroll;
+
+  // status bar
+  const mode = $('mode'); mode.textContent = ['REPOS', 'BOXES', 'DETAILS'][S.level]; mode.className = 'mode l' + S.level;
+  const kind = it && it.kind;
+  const act = {pr:[['m', 'merge'], ['a', 'approve'], ['space', 'mark'], ['x', 'close']], issue:[['c', 'comment'], ['x', 'close']], run:[['R', 're-run']],
+    dep:[['space', 'tick']], group:[['m', 'merge all']], release:[['o', 'browser']]}[kind] || [];
+  const H = S.level === 0 ? [['j/k', 'repo'], ['l', 'enter'], ['1-5', 'jump to box'], ['?', 'help']]
+    : S.level === 1 ? [['j/k', 'move'], ['1-5/tab', 'box'], ['l', 'details'], ...act, ['h', 'back']]
+    : [['j/k', 'scroll'], ['[ ]', 'tabs'], ...act, ['h', 'back']];
+  $('hints').innerHTML = (S.marks.size ? `<span class="p">● ${S.marks.size} marked</span>  ` : '') + H.map(([a, b]) => `<b>${a}</b> ${b}`).join('  ');
+  $('toast').textContent = S.toast;
+
+  let ov = '';
+  if (S.modal) ov = `<div class="modal"><div class="box"><div class="bt">${esc(S.modal.title)}</div>${S.modal.body.map(l => `<div>${l || '&nbsp;'}</div>`).join('')}<div style="margin-top:10px"><b class="g">y</b> confirm   <b class="r">n</b> cancel</div></div></div>`;
+  else if (S.help) ov = `<div class="help"><div class="box"><div class="bt">Keys</div><div class="grid">${KEYS.map(([a, b]) => `<kbd>${a}</kbd><span>${b}</span>`).join('')}</div><div class="dim" style="margin-top:8px">? or esc to close</div></div></div>`;
+  $('overlay').innerHTML = ov;
+}
+
+/* ---------------- input ---------------- */
+const term = $('term');
+const HANDLED = new Set(['j', 'k', 'h', 'l', 'g', 'G', '[', ']', ' ', 'm', 'x', 'a', 'c', 'R', 'o', 'r', '?', 'q', 'y', 'n', 'Escape', 'Enter', 'Tab',
+  'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '1', '2', '3', '4', '5', '6', '7', '8', '9']);
+term.addEventListener('keydown', e => {
+  if (e.metaKey || e.altKey) return;
+  let k = e.key;
+  if (e.ctrlKey) { if (k !== 'd' && k !== 'u') return; k = '^' + k; }
+  else if (k === 'Tab' && e.shiftKey) k = 'BackTab';
+  else if (!HANDLED.has(k)) return;
+  e.preventDefault(); key(k); render();
+});
+
+// mouse: click a repo or a box row to select it, double-click to go in
+term.addEventListener('click', e => {
+  const row = e.target.closest('.row'), bx = e.target.closest('.bx'), det = e.target.closest('.detail');
+  if (S.level === 0 && row && e.target.closest('.repos')) { if (S.repo !== +row.dataset.i) { S.repo = +row.dataset.i; resetRepoState(); } }
+  else if (bx) { S.box = +bx.dataset.b; S.level = 1; if (row) S.bcur[S.box] = +row.dataset.i; }
+  else if (det && S.level === 1 && curItem()) S.level = 2;
+  render(); term.focus({preventScroll:true});
+});
+term.addEventListener('dblclick', e => { if (e.target.closest('.row')) { key('l'); render(); } });
+
+[['h', 'h'], ['j', 'j'], ['k', 'k'], ['l', 'l'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['tab', 'Tab'], ['[', '['], [']', ']'],
+ ['space', ' '], ['m', 'm'], ['a', 'a'], ['x', 'x'], ['R', 'R'], ['o', 'o'], ['y', 'y'], ['n', 'n'], ['esc', 'Escape'], ['?', '?']].forEach(([label, k]) => {
+  const b = document.createElement('button'); b.textContent = label;
+  b.addEventListener('click', () => { key(k); render(); });
+  $('keys').appendChild(b);
+});
+$('km').innerHTML = KEYS.map(([a, b]) => `<kbd>${a}</kbd><span>${b}</span>`).join('');
+
+render();
+term.focus({preventScroll:true});
+</script>
+</body>
+</html>
