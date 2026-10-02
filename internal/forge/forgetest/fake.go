@@ -1,4 +1,4 @@
-// Package forgetest holds the in-memory Fake forge and the contract suite adapters run; it is test support only.
+// Package forgetest holds the in-memory Fake forge and the contract suite adapters run; it is test support and demo mode.
 package forgetest
 
 import (

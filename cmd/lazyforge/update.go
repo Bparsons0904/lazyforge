@@ -17,7 +17,7 @@ const noUpdateEnv = "LAZYFORGE_NO_UPDATE_CHECK"
 
 // maybeUpdate offers a newer release and, if accepted, swaps the binary and re-execs into it.
 // It returns only when the caller should carry on starting the current version.
-func maybeUpdate(checkEnabled bool) {
+func maybeUpdate(ctx context.Context, checkEnabled bool) {
 	if version == "dev" {
 		return
 	}
@@ -40,7 +40,7 @@ func maybeUpdate(checkEnabled bool) {
 		GOOS:    runtime.GOOS,
 		GOARCH:  runtime.GOARCH,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	rel, err := c.Latest(ctx)
 	cancel()
 	if err != nil || !update.Newer(version, rel.Tag) {
@@ -55,7 +55,7 @@ func maybeUpdate(checkEnabled bool) {
 	}
 
 	c.Client = &http.Client{Timeout: 2 * time.Minute}
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel = context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	if err := c.Apply(ctx, rel, exe); err != nil {
 		fmt.Fprintf(os.Stderr, "update failed: %v; starting %s\n", err, version)

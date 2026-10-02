@@ -179,10 +179,20 @@ See [ADR 0007](adr/0007-core-cache-and-concurrency.md).
 - The UI renders from `Peek…` immediately, then issues the fetching call in a `tea.Cmd`. `r` and a five-minute background timer in the UI trigger refetches ([design.md](design.md#decided)); the UI also owns cancellation and drops stale results.
 - `core.Coverage` tracks per-repo scan outcomes for host-wide scans such as ★ Renovate.
 
+## UI
+
+Details and rationale in [ADR 0010](adr/0010-ui-shell.md).
+
+- Charm v2, pinned: `charm.land/bubbletea/v2` v2.0.10, `charm.land/bubbles/v2` v2.2.1, `charm.land/lipgloss/v2` v2.0.6. Only the root model returns a `tea.View`; sub-models return strings.
+- A root model in `internal/ui` routes to sub-models for the repo list, the boxes and the details. One keymap generates both the help overlay and the status-bar hints. Every color and style lives in `internal/ui/style`.
+- Loading: selecting a repo cancels the previous selection's fetches, seeds the boxes from `Peek…`, and fetches only the kinds that missed. `r` and the five-minute tick refetch everything visible. Messages carry their `core.Key`, and a message for another repo is dropped.
+- Demo mode: `lazyforge --demo` runs on `forgetest.NewDemo` data and never contacts a host or checks for updates. Verify UI changes by driving it in tmux at 80x24.
+- Tests send messages to `Update` against a real `core.Service` over the demo `Fake` and assert state, commands and plain-text `View` output. There are no golden files and no `teatest`.
+
 ## Testing
 
 - Each adapter has a **contract test suite**: the same tests run against every adapter, using API responses recorded as fixtures.
-- The core and UI are tested against an in-memory fake `Forge`.
+- The core and UI are tested against an in-memory fake `Forge`; the UI approach is in [UI](#ui).
 
 ## Releases
 
