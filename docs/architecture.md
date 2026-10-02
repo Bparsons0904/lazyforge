@@ -33,13 +33,17 @@ Forgejo is a fork of Gitea and their APIs are still largely the same. The plan i
 - Existing CLIs (`tea`, `gh`) can supply auth tokens. Adapters use thin hand-written HTTP clients rather than SDKs ([ADR 0005](adr/0005-thin-forgejo-client.md)).
 - It builds to a single static binary.
 
-## Domain model (sketch)
+## Domain model
+
+The types live in `internal/domain`; ADR 0006 records the decisions behind them.
 
 ```go
+type RepoRef struct{ Owner, Name string } // Owner may contain slashes (GitLab subgroups)
 type Repo struct {
-    Owner, Name, Description string
-    LastActivity             time.Time
-    WebURL                   string
+    RepoRef
+    Description, WebURL string
+    LastActivity        time.Time
+    Access              Access // none, read, write, admin
 }
 
 type ChangeRequest struct { // PR on Gitea/Forgejo/GitHub, MR on GitLab
@@ -47,52 +51,60 @@ type ChangeRequest struct { // PR on Gitea/Forgejo/GitHub, MR on GitLab
     Title, Body, Author        string
     State                      State // open, merged, closed
     SourceBranch, TargetBranch string
-    CI                         CIState // pass, fail, running, none
+    HeadSHA                    string
+    CI                         CIState // none, pending, running, pass, fail, cancelled, skipped
     Labels                     []string
     UpdatedAt                  time.Time
-    Renovate                   *RenovateUpdate // nil unless authored by the Renovate user
+    WebURL                     string
+    Renovate                   []RenovateUpdate // nil from adapters; core fills it
 }
 
-type RenovateUpdate struct {
-    Package, From, To string
-    Bump              string // major, minor, patch, digest
+type RenovateUpdate struct { // one row of the PR's update table
+    Ecosystem, Package, DepType, UpdateType, From, To, SourceURL string
 }
 
-type Issue struct { /* Number, Title, Body, Author, State, Labels, Comments… */ }
-type Run struct    { ID int64; Workflow, Branch, Commit, Trigger string; Status CIState; Jobs []Job }
-type Job struct    { ID int64; Name, Stage string; Status CIState } // Stage is only set on GitLab
-type Release struct { Tag, Name, Notes string; PublishedAt time.Time }
+type Issue struct { /* Number, Title, Body, Author, State, Labels, Comments, UpdatedAt, WebURL */ }
+type Comment struct { /* ID, Author, Body, CreatedAt */ }
+type Run struct { /* ID, Number, Workflow, Title, Branch, Commit, Event, Status, StartedAt, Duration, WebURL */ }
+type Job struct { /* ID, RunID, Name, Stage (GitLab only), Status, Attempt */ }
+type Release struct { /* Tag, Name, Notes, Draft, Prerelease, PublishedAt, WebURL */ }
 ```
 
-## Forge interface (sketch)
+## Forge interface
 
-A core interface that every adapter implements, plus optional interfaces for features that not every forge supports. Capabilities come from type assertions, so a capability can't be claimed without being implemented.
+A core interface that every adapter implements, plus optional interfaces for features that not every forge supports. Capabilities come from type assertions, so a capability can't be claimed without being implemented. See ADR 0006.
 
 ```go
 type Forge interface {
-    Info() HostInfo // kind, display terms ("PR" vs "MR"), user
+    Info() HostInfo // kind, URL, version, user, "PR" vs "MR"
 
-    ListRepos(ctx context.Context, opts ListOpts) ([]Repo, error)
+    ListRepos(ctx context.Context) ([]domain.Repo, error)
 
-    ListChangeRequests(ctx context.Context, r RepoRef, f Filter) ([]ChangeRequest, error)
-    GetChangeRequest(ctx context.Context, r RepoRef, n int) (ChangeRequest, error)
-    Merge(ctx context.Context, r RepoRef, n int, opts MergeOpts) error
+    ListChangeRequests(ctx context.Context, r domain.RepoRef, f Filter) ([]domain.ChangeRequest, error)
+    GetChangeRequest(ctx context.Context, r domain.RepoRef, n int) (domain.ChangeRequest, error)
+    Merge(ctx context.Context, r domain.RepoRef, n int, opts MergeOpts) error // opts.HeadSHA required; ErrHeadChanged on mismatch
 
-    ListIssues(ctx context.Context, r RepoRef, f Filter) ([]Issue, error)
-    EditIssueBody(ctx context.Context, r RepoRef, n int, body string) error // Renovate dashboard ticks
-    Comment(ctx context.Context, r RepoRef, n int, body string) error
-    Close(ctx context.Context, r RepoRef, n int) error
+    ListIssues(ctx context.Context, r domain.RepoRef, f Filter) ([]domain.Issue, error)
+    EditIssueBody(ctx context.Context, r domain.RepoRef, n int, body string) error // Renovate dashboard ticks
+    ListComments(ctx context.Context, item ItemRef) ([]domain.Comment, error)
+    Comment(ctx context.Context, item ItemRef, body string) error
+    Close(ctx context.Context, item ItemRef) error // ItemRef says issue or change request
 
-    ListReleases(ctx context.Context, r RepoRef) ([]Release, error)
+    ListReleases(ctx context.Context, r domain.RepoRef) ([]domain.Release, error)
+
+    Gate(a Action) error // server-version gates learned at connect; no I/O
 }
 
 // Optional: the UI checks for these with type assertions.
-type Approver   interface { Approve(ctx context.Context, r RepoRef, n int) error }
-type DiffReader interface { ChangedFiles(ctx context.Context, r RepoRef, n int) ([]FileDiff, error) }
-type RunLister  interface { ListRuns(ctx context.Context, r RepoRef, f Filter) ([]Run, error) }
-type LogReader  interface { JobLog(ctx context.Context, r RepoRef, jobID int64) (io.ReadCloser, error) }
-type Rerunner   interface { Rerun(ctx context.Context, r RepoRef, runID int64) error }
+type Approver  interface { Approve(ctx context.Context, r domain.RepoRef, n int) error }
+type RunLister interface {
+    ListRuns(ctx context.Context, r domain.RepoRef, f RunFilter) ([]domain.Run, error)
+    ListJobs(ctx context.Context, r domain.RepoRef, runID int64) ([]domain.Job, error)
+}
+type LogReader interface { JobLog(ctx context.Context, r domain.RepoRef, jobID int64) (io.ReadCloser, error) }
 ```
+
+`forge.Can(f, action, repo)` answers whether the UI should enable an action. It checks the capability interface, then `f.Gate`, then `repo.Access`, and the first failure supplies the user-facing `Reason`. `forgetest.Fake` and `forgetest.RunContract` give core and every adapter a shared fake and behavior suite.
 
 ## API mapping (first pass)
 
