@@ -23,7 +23,7 @@
 └──────────────┴──────────────┴────────────────┘
 ```
 
-Forgejo is a fork of Gitea and their APIs are still largely the same. The plan is one adapter that covers both, with version checks wherever they diverge.
+Forgejo is a fork of Gitea and their APIs are still largely the same. One adapter covers both. It detects which one it is talking to once at connect (a `+gitea-` version suffix means Forgejo) rather than gating on Gitea semver (ADR 0005).
 
 ## Stack
 
@@ -108,20 +108,20 @@ type LogReader interface { JobLog(ctx context.Context, r domain.RepoRef, jobID i
 
 ## API mapping (first pass)
 
-The Gitea / Forgejo column is checked against Forgejo 16 (#1, #3). The GitHub and GitLab columns are unverified; each row needs checking against current API docs before those adapters are built.
+The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub and GitLab columns are unverified, and each row needs checking against current API docs before that adapter is built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
-| List repos by activity | `GET /repos/search?sort=updated` | `GET /user/repos?sort=updated` | `GET /projects?membership=true&order_by=last_activity_at` |
+| List repos by activity | `GET /user/repos` (owned, collaborator and team repos; sorted by `updated_at` client-side) | `GET /user/repos?sort=updated` | `GET /projects?membership=true&order_by=last_activity_at` |
 | List change requests | `GET /repos/{o}/{r}/pulls?state=open` | `GET /repos/{o}/{r}/pulls?state=open` | `GET /projects/:id/merge_requests?state=opened` |
-| Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` | `PUT /repos/{o}/{r}/pulls/{n}/merge` | `PUT /projects/:id/merge_requests/:iid/merge` |
+| Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` with `Do` (sent explicitly from the repo's `default_merge_style`, because an empty `Do` means `merge`) and `head_commit_id`; a stale head is 409 `head out of date` | `PUT /repos/{o}/{r}/pulls/{n}/merge` | `PUT /projects/:id/merge_requests/:iid/merge` |
 | Approve | `POST …/pulls/{n}/reviews` (`event: APPROVED`) | `POST …/pulls/{n}/reviews` (`event: APPROVE`) | `POST /projects/:id/merge_requests/:iid/approve` |
 | Changed files | `GET …/pulls/{n}/files` | `GET …/pulls/{n}/files` | `GET /projects/:id/merge_requests/:iid/diffs` |
 | PR CI state | `GET …/commits/{ref}/status` | check-runs + combined status for the head SHA | MR head pipeline |
 | Issues | `GET …/issues?type=issues` | `GET …/issues` (filter out PRs) | `GET /projects/:id/issues` |
 | Edit issue body | `PATCH …/issues/{n}` | `PATCH …/issues/{n}` | `PUT /projects/:id/issues/:iid` |
 | Comment | `POST …/issues/{n}/comments` | `POST …/issues/{n}/comments` | `POST …/notes` |
-| List runs | `GET …/actions/runs` (send `page`, else `limit` is ignored) | `GET …/actions/runs` | `GET /projects/:id/pipelines` |
+| List runs | `GET …/actions/runs` (send `page`, else `limit` is ignored; `ref` needs the full `refs/heads/<branch>` form; total in the body's `total_count`) | `GET …/actions/runs` | `GET /projects/:id/pipelines` |
 | Run jobs | `GET …/actions/runs/{id}/jobs` (bare array) | `GET …/actions/runs/{id}/jobs` | `GET /projects/:id/pipelines/:id/jobs` |
 | Job log | `GET …/actions/jobs/{id}/logs` (job `id`, not `task_id`) | `GET …/actions/jobs/{id}/logs` | `GET /projects/:id/jobs/:id/trace` |
 | Re-run | none on Forgejo 16: no `Rerunner` | `POST …/actions/runs/{id}/rerun` | `POST /projects/:id/pipelines/:id/retry` |

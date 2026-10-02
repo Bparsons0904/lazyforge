@@ -1,0 +1,71 @@
+[
+    {
+        "id": 20,
+        "tag_name": "v1",
+        "target_commitish": "",
+        "name": "v1",
+        "body": "Kompress model + tokenizer mirror. Provenance and checksums in MIRROR.md.",
+        "url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/headroom-kompresser/releases/20",
+        "html_url": "https://git.bobparsons.dev/deadstyle/headroom-kompresser/releases/tag/v1",
+        "tarball_url": "https://git.bobparsons.dev/deadstyle/headroom-kompresser/archive/v1.tar.gz",
+        "zipball_url": "https://git.bobparsons.dev/deadstyle/headroom-kompresser/archive/v1.zip",
+        "hide_archive_links": false,
+        "upload_url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/headroom-kompresser/releases/20/assets",
+        "draft": false,
+        "prerelease": false,
+        "created_at": "2026-09-12T14:15:59-05:00",
+        "published_at": "2026-09-12T14:15:59-05:00",
+        "author": {
+            "id": 1,
+            "login": "deadstyle",
+            "login_name": "",
+            "source_id": 0,
+            "full_name": "Bob Parsons",
+            "email": "deadstyle@noreply.git.bobparsons.dev",
+            "avatar_url": "https://git.bobparsons.dev/avatars/83ac7f22876c35784f5f55316928768924e831fc69464b9688812725f6948718",
+            "html_url": "https://git.bobparsons.dev/deadstyle",
+            "language": "",
+            "is_admin": false,
+            "last_login": "0001-01-01T00:00:00Z",
+            "created": "2025-12-14T08:18:40-06:00",
+            "restricted": false,
+            "active": false,
+            "prohibit_login": false,
+            "location": "Kansas City",
+            "pronouns": "",
+            "website": "http://bobaprsons.dev",
+            "description": "",
+            "visibility": "public",
+            "followers_count": 0,
+            "following_count": 0,
+            "starred_repos_count": 0,
+            "username": "deadstyle"
+        },
+        "assets": [
+            {
+                "id": 5,
+                "name": "kompress-int8-wo.onnx",
+                "size": 274049435,
+                "download_count": 2,
+                "created_at": "2026-09-12T14:16:01-05:00",
+                "uuid": "04322d0c-057b-49d0-9bd8-6a2cce0aeb43",
+                "browser_download_url": "https://git.bobparsons.dev/deadstyle/headroom-kompresser/releases/download/v1/kompress-int8-wo.onnx",
+                "type": "attachment"
+            },
+            {
+                "id": 4,
+                "name": "tokenizer.json",
+                "size": 2132967,
+                "download_count": 4,
+                "created_at": "2026-09-12T14:15:59-05:00",
+                "uuid": "e95009b1-144e-4006-bee8-502e9256d59f",
+                "browser_download_url": "https://git.bobparsons.dev/deadstyle/headroom-kompresser/releases/download/v1/tokenizer.json",
+                "type": "attachment"
+            }
+        ],
+        "archive_download_count": {
+            "zip": 0,
+            "tar_gz": 0
+        }
+    }
+]
