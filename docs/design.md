@@ -82,6 +82,12 @@ Every merge and close goes through a confirm dialog. The dialog lists the target
 - **Grouping by dependency:** the key is `pkg + from + to`, collected across every repo on the host.
 - **Ticking dashboard entries:** done by editing the Dependency Dashboard issue body, changing `- [ ]` to `- [x]`. Renovate acts on the change during its next run.
 
+## Install and updates
+
+- **Install:** one command, `curl -fsSL https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/install.sh | bash`. It picks the right binary for the OS and architecture, verifies its checksum, and installs to `~/.local/bin`. Running it again upgrades in place.
+- **Updates:** at startup, before the UI opens, lazyforge checks for a newer release. If there is one, it asks whether to update first. Yes downloads, verifies and replaces the binary, then starts the new version. No starts the current version.
+- The check never delays startup by more than about two seconds and never blocks when offline. It can be turned off with a flag, an environment variable or config. When lazyforge was installed by a package manager, it says an update is available instead of replacing itself.
+
 ## Open questions
 
 - [ ] When `j` reaches the bottom of a box, should it stop (like lazygit) or carry on into the next box?
@@ -90,6 +96,8 @@ Every merge and close goes through a confirm dialog. The dialog lists the target
 - [ ] Should per-repo `[4]` Renovate list the dashboard entries, as mocked, or Renovate PRs split out of `[1]`?
 - [ ] Refresh: manual `r` only, interval polling, or both?
 - [ ] Merge strategy: the repo's default from the forge, or a config override?
+- [ ] After declining an update: ask again on every launch, or offer "skip this version"?
+- [ ] Update check frequency: every launch, or at most once a day?
 
 ## v1 scope
 
@@ -98,5 +106,6 @@ Every merge and close goes through a confirm dialog. The dialog lists the target
 - Merge, approve, close, comment (`$EDITOR`), open in browser, refresh
 - Bulk merge, with a CI warning
 - Forgejo/Gitea adapter only
+- Install script, release binaries, and the startup update check
 
 After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, boxes `[4]` and `[5]`, then the GitHub adapter, then GitLab.

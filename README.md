@@ -18,6 +18,18 @@ lazygit handles the git side of your work. lazyforge handles the forge side: eve
 - [Design](docs/design.md): UI model, navigation, keymap, Renovate features
 - [Architecture](docs/architecture.md): core/adapter split, domain model, host config, per-forge API mapping
 - [Interactive mockup](docs/mockup.html): open it in a browser and use vim keys
+- [Decision records](docs/adr/): why the big technical calls were made
+
+## Development
+
+Requires Go (see `go.mod`) and `golangci-lint` v2.
+
+```bash
+make check   # format check, lint, race-enabled tests, build
+make run
+```
+
+How work flows (tickets, roles, MRs) is described in [CLAUDE.md](CLAUDE.md).
 
 ## Name
 

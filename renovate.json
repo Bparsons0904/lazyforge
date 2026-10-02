@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>deadstyle/forgejo//renovate/default"],
+  "baseBranchPatterns": ["develop"],
+  "packageRules": [
+    {
+      "description": "Non-major updates: a Sonnet session can drive these.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
+      "labels": ["maintenance", "sonnet"]
+    },
+    {
+      "description": "Majors: Opus drives these.",
+      "matchUpdateTypes": ["major"],
+      "labels": ["maintenance", "opus"]
+    },
+    {
+      "description": "Anything Renovate flags as breaking, including 0.x minor bumps (most of the Charm stack is pre-1.0 or recently 1.0): Opus.",
+      "matchIsBreaking": true,
+      "labels": ["maintenance", "opus"]
+    },
+    {
+      "matchManagers": ["custom.regex"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchIsBreaking": false,
+      "groupName": "CI tools non-major"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "golangci-lint is installed with go install in ci.yml, not declared in go.mod",
+      "managerFilePatterns": ["^\\.forgejo/workflows/ci\\.yml$"],
+      "matchStrings": [
+        "golangci-lint/v2/cmd/golangci-lint@v(?<currentValue>[0-9.]+)"
+      ],
+      "depNameTemplate": "golangci/golangci-lint",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ]
+}

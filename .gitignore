@@ -1,0 +1,9 @@
+/bin/
+/dist/
+*.test
+*.out
+coverage.*
+
+# Claude Code: local-only settings and scratch
+.claude/settings.local.json
+.claude/worktrees/
