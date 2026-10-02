@@ -30,7 +30,7 @@ Forgejo is a fork of Gitea and their APIs are still largely the same. The plan i
 **Go, Bubble Tea and Lip Gloss** ([ADR 0001](adr/0001-go-and-charm.md)):
 
 - Lip Gloss makes the bordered, titled boxes easy to build.
-- Go has SDKs for Gitea and Forgejo, and existing CLIs (`tea`, `gh`) can supply auth tokens.
+- Existing CLIs (`tea`, `gh`) can supply auth tokens. Adapters use thin hand-written HTTP clients rather than SDKs ([ADR 0005](adr/0005-thin-forgejo-client.md)).
 - It builds to a single static binary.
 
 ## Domain model (sketch)
@@ -178,4 +178,4 @@ Revised after the [plan review](plan-review.md):
 
 - [x] Forgejo Actions API on the deployed version (#1): runs, jobs and logs exist; re-run doesn't. Samples in `internal/forge/gitea/testdata/actions/`.
 - [x] Renovate PR body parsing (#2): fixtures and format notes in `internal/core/testdata/renovate/`. One update per table row; unparseable bodies fall back to the title.
-- [ ] The Gitea and Forgejo Go SDKs against the deployed instance: is the SDK useful, or is a thin hand-written client simpler?
+- [x] Gitea/Forgejo SDKs vs a thin client (#3): thin client, see ADR 0005.
