@@ -45,22 +45,59 @@ func New(ctx context.Context, baseURL, token string, hc *http.Client) (*Forge, e
 		hc = &http.Client{Timeout: 30 * time.Second}
 	}
 	f := &Forge{hc: hc, base: strings.TrimRight(baseURL, "/"), token: token}
-	var v struct {
-		Version string `json:"version"`
-	}
-	if err := f.call(ctx, http.MethodGet, "/version", nil, &v); err != nil {
+	version, err := f.version(ctx)
+	if err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", f.base, err)
 	}
 	var u user
 	if err := f.call(ctx, http.MethodGet, "/user", nil, &u); err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", f.base, err)
 	}
-	kind := forge.KindGitea
-	if strings.Contains(v.Version, "+gitea-") {
-		kind = forge.KindForgejo
-	}
-	f.info = forge.HostInfo{Kind: kind, URL: f.base, Version: v.Version, User: u.Login, ChangeRequestTerm: "PR"}
+	f.info = forge.HostInfo{Kind: kindOf(version), URL: f.base, Version: version, User: u.Login, ChangeRequestTerm: "PR"}
 	return f, nil
+}
+
+// Probe reads GET /api/v1/version without a token. ErrUnauthorized (sign-in-only instance) returns ("", nil):
+// reachable, kind unknown until the connection test.
+func Probe(ctx context.Context, baseURL string, hc *http.Client) (forge.Kind, error) {
+	if hc == nil {
+		hc = &http.Client{Timeout: 30 * time.Second}
+	}
+	f := &Forge{hc: hc, base: strings.TrimRight(baseURL, "/")}
+	version, err := f.version(ctx)
+	switch {
+	case errors.Is(err, forge.ErrUnauthorized):
+		return "", nil
+	case err != nil:
+		return "", fmt.Errorf("probe %s: %w", f.base, err)
+	}
+	return kindOf(version), nil
+}
+
+// version reports ErrNotFound for a reply that isn't a Gitea/Forgejo version document.
+func (f *Forge) version(ctx context.Context) (string, error) {
+	var v struct {
+		Version string `json:"version"`
+	}
+	if err := f.call(ctx, http.MethodGet, "/version", nil, &v); err != nil {
+		var se *json.SyntaxError
+		var te *json.UnmarshalTypeError
+		if errors.As(err, &se) || errors.As(err, &te) || errors.Is(err, io.EOF) {
+			return "", fmt.Errorf("%w: no Forgejo or Gitea API", forge.ErrNotFound)
+		}
+		return "", err
+	}
+	if v.Version == "" {
+		return "", fmt.Errorf("%w: no Forgejo or Gitea API", forge.ErrNotFound)
+	}
+	return v.Version, nil
+}
+
+func kindOf(version string) forge.Kind {
+	if strings.Contains(version, "+gitea-") {
+		return forge.KindForgejo
+	}
+	return forge.KindGitea
 }
 
 // Info returns what New learned at connect.
@@ -97,7 +134,9 @@ func (f *Forge) send(ctx context.Context, method, path string, q url.Values, bod
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", method, path, err)
 	}
-	req.Header.Set("Authorization", "token "+f.token)
+	if f.token != "" {
+		req.Header.Set("Authorization", "token "+f.token)
+	}
 	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")

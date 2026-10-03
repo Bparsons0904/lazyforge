@@ -42,9 +42,12 @@ var (
 	CurrentCrumb = lipgloss.NewStyle().Foreground(Fg).Bold(true)
 	CrumbSep     = lipgloss.NewStyle().Foreground(Border)
 
-	ModeRepos   = mode(Blue)
-	ModeBoxes   = mode(Mauve)
-	ModeDetails = mode(Peach)
+	ModeRepos    = mode(Blue)
+	ModeBoxes    = mode(Mauve)
+	ModeDetails  = mode(Peach)
+	ModeHosts    = mode(Green)
+	ModeSettings = mode(Yellow)
+	ModeSetup    = mode(Dim)
 
 	HintKey    = lipgloss.NewStyle().Foreground(Fg).Bold(true)
 	HintText   = lipgloss.NewStyle().Foreground(Dim)

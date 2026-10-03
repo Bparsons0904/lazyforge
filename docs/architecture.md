@@ -189,6 +189,10 @@ Details and rationale in [ADR 0010](adr/0010-ui-shell.md).
 - Charm v2, pinned: `charm.land/bubbletea/v2` v2.0.10, `charm.land/bubbles/v2` v2.2.1, `charm.land/lipgloss/v2` v2.0.6. Only the root model returns a `tea.View`; sub-models return strings.
 - A root model in `internal/ui` routes to sub-models for the repo list, the boxes and the details. One keymap generates both the help overlay and the status-bar hints. Every color and style lives in `internal/ui/style`.
 - Loading: selecting a repo cancels the previous selection's fetches, seeds the boxes from `Peek…`, and fetches only the kinds that missed. `r` and the five-minute tick refetch everything visible. Messages carry their `core.Key`, and a message for another repo is dropped.
+- App root ([ADR 0012](adr/0012-ui-app-root-and-settings.md)): `ui.App` sits above the session model and owns the screen (onboarding, host picker, Settings, session), the config and the one live session. It catches `S` and, at the repo list, `h` before the session sees them, unless a dialog or the help overlay is open.
+- Switching host cancels the old session's context and bumps a generation number. Every session command's result is stamped with its generation, and the app drops results from a replaced session, because two hosts can serve the same `owner/name`.
+- `ui` never imports an adapter: cmd injects `Connect` and `Probe` functions. The session's green-CI gate reads the live config through an atomic pointer, so a Settings toggle applies on the next merge without reconnecting.
+- Config saves run as commands, ordered by sequence number so an older snapshot never overwrites a newer one. Settings changes apply at once and report a failed save in the status bar; onboarding's save applies only after the write succeeds.
 - Demo mode: `lazyforge --demo` runs on `forgetest.NewDemo` data and never contacts a host or checks for updates. Verify UI changes by driving it in tmux at 80x24.
 - Tests send messages to `Update` against a real `core.Service` over the demo `Fake` and assert state, commands and plain-text `View` output. There are no golden files and no `teatest`.
 

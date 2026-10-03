@@ -9,15 +9,13 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"sort"
-	"strings"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/config"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/core"
-	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/gitea"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui"
@@ -49,62 +47,80 @@ func run(configPath, hostName string, noUpdateCheck, demo bool) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	var root tea.Model
 	if demo {
-		return runUI(ctx, core.New(forgetest.NewDemo(time.Now()), core.Options{}))
+		root = ui.New(ctx, core.New(forgetest.NewDemo(time.Now()), core.Options{}))
+	} else {
+		d, err := appDeps(ctx, configPath, hostName, noUpdateCheck)
+		if err != nil {
+			return err
+		}
+		root = ui.NewApp(ctx, d)
 	}
-	svc, err := realService(ctx, configPath, hostName, noUpdateCheck)
-	if err != nil {
-		return err
-	}
-	return runUI(ctx, svc)
-}
-
-func runUI(ctx context.Context, svc *core.Service) error {
-	_, err := tea.NewProgram(ui.New(ctx, svc)).Run()
+	_, err := tea.NewProgram(root).Run()
 	return err
 }
 
-func realService(ctx context.Context, configPath, hostName string, noUpdateCheck bool) (*core.Service, error) {
+// appDeps leaves Host empty when the UI must show the picker, and sets Fresh when there is no config yet.
+func appDeps(ctx context.Context, configPath, hostName string, noUpdateCheck bool) (ui.Deps, error) {
+	paths, pathsErr := config.DefaultPaths()
 	if configPath == "" {
-		paths, err := config.DefaultPaths()
-		if err != nil {
-			return nil, err
+		if pathsErr != nil {
+			return ui.Deps{}, pathsErr
 		}
 		configPath = paths.Config
+	}
+	// State is disposable: with an explicit --config, a missing home dir just means no remembered host.
+	var statePath string
+	var state config.State
+	if pathsErr == nil {
+		statePath = paths.State
+		state, _ = config.LoadState(statePath)
+	}
+	d := ui.Deps{
+		ConfigPath: configPath,
+		StatePath:  statePath,
+		LastHost:   state.LastHost,
+		Connect:    connect,
+		Probe: func(ctx context.Context, url string) (forge.Kind, error) {
+			return gitea.Probe(ctx, url, &http.Client{Timeout: 10 * time.Second})
+		},
 	}
 	cfg, err := config.Load(configPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		maybeUpdate(ctx, !noUpdateCheck) // a missing config means the check is on
-		return nil, errors.New("no config yet: onboarding is not built yet (#24)")
+		d.Fresh = true
+		d.Config = config.Config{Update: config.Update{Check: true}}
+		return d, nil
 	}
 	if err != nil {
-		return nil, err
+		return ui.Deps{}, err
 	}
+	d.Config = cfg
 	maybeUpdate(ctx, !noUpdateCheck && cfg.Update.Check)
 	name, err := config.SelectHost(cfg, hostName)
 	if errors.Is(err, config.ErrNeedPicker) {
-		names := make([]string, 0, len(cfg.Hosts))
-		for n := range cfg.Hosts {
-			names = append(names, n)
-		}
-		sort.Strings(names)
-		return nil, fmt.Errorf("pick a host with --host (configured: %s)", strings.Join(names, ", "))
+		return d, nil
 	}
 	if err != nil {
-		return nil, err
+		return ui.Deps{}, err
 	}
-	h := cfg.Hosts[name]
+	f, err := connect(ctx, cfg.Hosts[name])
+	if err != nil {
+		return ui.Deps{}, fmt.Errorf("host %q: %w", name, err)
+	}
+	d.Host, d.Forge = name, f
+	return d, nil
+}
+
+// connect errors carry no host name; callers add it.
+func connect(ctx context.Context, h config.Host) (forge.Forge, error) {
 	if h.Type != "forgejo" && h.Type != "gitea" {
-		return nil, fmt.Errorf("host %q: type %q has no adapter yet", name, h.Type)
+		return nil, fmt.Errorf("type %q has no adapter yet", h.Type)
 	}
 	token, err := config.ResolveToken(ctx, h)
 	if err != nil {
-		return nil, fmt.Errorf("host %q: %w", name, err)
+		return nil, err
 	}
-	f, err := gitea.New(ctx, h.URL, token, &http.Client{Timeout: 30 * time.Second})
-	if err != nil {
-		return nil, fmt.Errorf("host %q: %w", name, err)
-	}
-	greenOnly := func(r domain.RepoRef) bool { return h.RequiresGreenCI(r.String()) }
-	return core.New(f, core.Options{RequireGreenCI: greenOnly}), nil
+	return gitea.New(ctx, h.URL, token, &http.Client{Timeout: 30 * time.Second})
 }

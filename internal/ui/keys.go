@@ -1,11 +1,14 @@
 package ui
 
-import "charm.land/bubbles/v2/key"
+import (
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+)
 
 type keyMap struct {
 	Up, Down, Left, Right, NextBox, PrevBox, PrevTab, NextTab,
 	Top, Bottom, HalfDown, HalfUp, Jump, Refresh, Help, Quit, Interrupt, Close,
-	Merge, Approve, CloseItem, Comment, Open, Rerun, Mark, Confirm key.Binding
+	Merge, Approve, CloseItem, Comment, Open, Rerun, Mark, Confirm, Settings, Enter key.Binding
 }
 
 // defaultKeys gives help text only to the first binding of each pair, so the overlay lists the pair once.
@@ -37,6 +40,8 @@ func defaultKeys() keyMap {
 		Rerun:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "run page")),
 		Mark:      key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
 		Confirm:   key.NewBinding(key.WithKeys("y", "enter"), key.WithHelp("y/enter", "confirm")),
+		Settings:  key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "settings")),
+		Enter:     key.NewBinding(key.WithKeys("enter")), // enter alone, so text inputs still receive l and y
 	}
 }
 
@@ -47,7 +52,11 @@ func (k keyMap) shortHelp(l level) []key.Binding {
 	case levelDetails:
 		return append([]key.Binding{hint(k.Down, "j/k", "scroll"), hint(k.NextTab, "[ ]", "tabs"), hint(k.Left, "h", "back")}, k.actions()...)
 	default:
-		return []key.Binding{hint(k.Down, "j/k", "repo"), hint(k.Right, "l", "enter"), k.Jump, k.Help}
+		bs := []key.Binding{hint(k.Down, "j/k", "repo"), hint(k.Right, "l", "enter"), k.Jump, k.Help}
+		if k.hosted() {
+			bs = append(bs, hint(k.Left, "h", "hosts"), k.Settings)
+		}
+		return bs
 	}
 }
 
@@ -55,7 +64,7 @@ func (k keyMap) fullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Down, k.Right, k.Jump, k.NextBox},
 		{k.NextTab, k.Top, k.HalfDown},
-		{k.Refresh, k.Help, k.Quit, k.Close},
+		{k.Refresh, k.Settings, k.Help, k.Quit, k.Close},
 		k.actions(),
 	}
 }
@@ -63,6 +72,24 @@ func (k keyMap) fullHelp() [][]key.Binding {
 func (k keyMap) actions() []key.Binding {
 	return []key.Binding{k.Merge, k.Mark, k.Approve, k.CloseItem, k.Comment, k.Open, k.Rerun}
 }
+
+// gPrefix runs the gg prefix: the first g is consumed (swallowed), a g right after it reports gg,
+// and any other key clears the pending state.
+func gPrefix(pending *bool, msg tea.KeyPressMsg, k keyMap) (gg, swallowed bool) {
+	isG := key.Matches(msg, k.Top)
+	if isG && !*pending {
+		*pending = true
+		return false, true
+	}
+	gg = *pending && isG
+	*pending = false
+	return gg, false
+}
+
+// hosted reports whether an App hosts this session, which is what enables the S and hosts keys.
+func (k keyMap) hosted() bool { return k.Settings.Enabled() }
+
+func (k *keyMap) setHosted(b bool) { k.Settings.SetEnabled(b) }
 
 func hint(b key.Binding, keys, desc string) key.Binding {
 	b.SetHelp(keys, desc)

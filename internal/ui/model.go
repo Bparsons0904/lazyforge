@@ -58,13 +58,9 @@ type Model struct {
 
 // New returns the root model for one session over svc; ctx bounds every fetch the UI makes.
 func New(ctx context.Context, svc *core.Service) Model {
-	h := help.New()
-	h.ShortSeparator = " · "
-	h.Styles.ShortKey, h.Styles.ShortDesc, h.Styles.ShortSeparator = style.HintKey, style.HintText, style.HintText
-	h.Styles.FullKey, h.Styles.FullDesc, h.Styles.FullSeparator = style.HelpKey, style.Text, style.HintText
-	h.Styles.Ellipsis = style.HintText
-	m := Model{ctx: ctx, svc: svc, info: svc.Info(), keys: defaultKeys(), help: h, now: time.Now, tick: tickEvery}
+	m := Model{ctx: ctx, svc: svc, info: svc.Info(), keys: defaultKeys(), help: newHelp(), now: time.Now, tick: tickEvery}
 	m.openURL = func(u string) error { return openBrowser(ctx, u) }
+	m.keys.setHosted(false) // only an App hosting the session handles S and the hosts key
 	m.syncKeys()
 	return m
 }
@@ -134,12 +130,10 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 		return nil
 	}
-	if key.Matches(msg, k.Top) && !m.pendingG {
-		m.pendingG = true
+	gg, swallowed := gPrefix(&m.pendingG, msg, k)
+	if swallowed {
 		return nil
 	}
-	gg := m.pendingG && key.Matches(msg, k.Top)
-	m.pendingG = false
 	switch {
 	case key.Matches(msg, k.Quit):
 		return tea.Quit
@@ -391,21 +385,25 @@ func (m Model) statusBar() string {
 	default:
 		badge = style.ModeRepos.Render("REPOS")
 	}
-	room := max(m.width-lipgloss.Width(badge)-1, 0)
-	status := truncate(m.status, room)
-	if m.statusErr {
-		status = style.StatusErr.Render(status)
-	} else {
-		status = style.StatusInfo.Render(status)
-	}
-	h := m.help
-	hw := max(room-lipgloss.Width(status)-1, 1)
-	h.SetWidth(hw)
-	// help adds an overflowing item anyway when its ellipsis doesn't fit, so clip to keep the status visible.
 	bindings := m.keys.shortHelp(m.level)
 	if m.dialog != nil {
 		bindings = m.dialog.hints(m.keys)
 	}
+	return renderStatusBar(m.width, m.help, badge, m.status, m.statusErr, bindings)
+}
+
+// renderStatusBar lays out badge, hints and status on one line, giving the status priority when they don't fit.
+func renderStatusBar(width int, h help.Model, badge, status string, isErr bool, bindings []key.Binding) string {
+	room := max(width-lipgloss.Width(badge)-1, 0)
+	status = truncate(status, room)
+	if isErr {
+		status = style.StatusErr.Render(status)
+	} else {
+		status = style.StatusInfo.Render(status)
+	}
+	hw := max(room-lipgloss.Width(status)-1, 1)
+	h.SetWidth(hw)
+	// help adds an overflowing item anyway when its ellipsis doesn't fit, so clip to keep the status visible.
 	hints := clip(h.ShortHelpView(bindings), hw)
 	gap := max(room-lipgloss.Width(hints)-lipgloss.Width(status), 0)
 	return badge + " " + hints + strings.Repeat(" ", gap) + status

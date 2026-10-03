@@ -37,7 +37,10 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 1. **Welcome:** one screen explaining what lazyforge is.
 2. **Forge type:** Forgejo, Gitea, GitHub or GitLab. Types without an adapter yet are listed as "coming soon" and can't be selected.
 3. **Address:** the server URL (pre-filled with `github.com` for GitHub). lazyforge checks that the server is reachable and is the chosen forge type.
-4. **Sign in:** either paste a token, or give a command that prints one (such as `gh auth token` or a secrets-manager command). The screen links to the page where a token is created and lists the permissions it needs.
+4. **Sign in:** either paste a token, or give a command that prints one (such as `gh auth token` or a secrets-manager command). The screen links to the page where a token is created (`<url>/user/settings/applications` on Forgejo and Gitea) and lists the permissions it needs:
+   - `read:user`: the sign-in check
+   - `write:repository`: listing repos, PRs, CI status and runs; merging, approving and closing PRs
+   - `write:issue`: issues, comments, closing issues and ticking Renovate dashboard entries
 5. **Connection test:** shows "Signed in as *name* · *N* repositories". On failure it says why (bad token, missing permission, server unreachable) and stays on the step until it's fixed.
 6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip.
 7. **Name and save:** a short name for the host (suggested from the URL). Saving goes straight into the repo list.

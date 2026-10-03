@@ -5,6 +5,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"sort"
 	"strings"
@@ -48,6 +49,17 @@ func (h Host) RequiresGreenCI(repo string) bool {
 		return *r.RequireGreenCI
 	}
 	return h.RequireGreenCI
+}
+
+// Clone deep-copies Hosts and every host's Repos, so edits to the clone never reach c.
+// RepoSettings pointers stay shared: they are replaced, never written through.
+func (c Config) Clone() Config {
+	c.Hosts = maps.Clone(c.Hosts)
+	for n, h := range c.Hosts {
+		h.Repos = maps.Clone(h.Repos)
+		c.Hosts[n] = h
+	}
+	return c
 }
 
 // Load reads and validates the config at path. A missing file yields an error
