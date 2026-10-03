@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/core"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
@@ -54,6 +56,7 @@ type Model struct {
 	repos   repoList
 	boxes   boxes
 	details details
+	star    starModel
 }
 
 // New returns the root model for one session over svc; ctx bounds every fetch the UI makes.
@@ -68,6 +71,14 @@ func New(ctx context.Context, svc *core.Service) Model {
 // Init loads the repo list and starts the five-minute refresh tick.
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(loadRepos(m.ctx, m.svc), m.tick())
+}
+
+func repoRefs(repos []domain.Repo) []domain.RepoRef {
+	out := make([]domain.RepoRef, len(repos))
+	for i, r := range repos {
+		out[i] = r.RepoRef
+	}
+	return out
 }
 
 // Update applies msg; it never blocks, and all I/O happens in the returned command.
@@ -87,6 +98,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.repos.replace(msg.repos) {
 			cmd = m.selectRepo(true)
+		} else if m.onStar() && (m.star.cov == nil || !slices.Equal(m.star.refs, repoRefs(m.repos.repos))) {
+			// A changed repo list mid-refresh must keep refetching rather than fall back to the cache.
+			cmd = m.startScan(!m.star.fresh)
 		}
 	case changeRequestsLoadedMsg:
 		if !m.loadFailed(msg.key, msg.err) {
@@ -100,6 +114,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loadFailed(msg.key, msg.err) {
 			m.boxes.runs, m.boxes.loaded[boxRuns] = msg.items, true
 		}
+	case renovateScannedMsg:
+		m.scanned(msg)
+	case starRecheckedMsg:
+		m.starRechecked(msg)
+	case starMergeDoneMsg:
+		m.starMergeDone(msg)
 	case recheckedMsg:
 		cmd = m.rechecked(msg)
 	case mergeDoneMsg:
@@ -148,10 +168,14 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	}
-	switch m.level {
-	case levelBoxes:
+	switch {
+	case m.level == levelBoxes && m.onStar():
+		m.starBoxesKey(msg, gg)
+	case m.level == levelDetails && m.onStar():
+		m.starDetailsKey(msg, gg)
+	case m.level == levelBoxes:
 		m.boxesKey(msg, gg)
-	case levelDetails:
+	case m.level == levelDetails:
 		m.detailsKey(msg, gg)
 	default:
 		return m.reposKey(msg, gg)
@@ -183,10 +207,13 @@ func (m *Model) reposKey(msg tea.KeyPressMsg, gg bool) tea.Cmd {
 }
 
 func (m *Model) enterBoxes(box int) {
-	if _, ok := m.repos.selected(); !ok {
-		if m.repos.loaded {
-			m.setInfo(renovateRow + " isn't built yet")
+	if m.onStar() {
+		if m.focusStar(box) {
+			m.level = levelBoxes
 		}
+		return
+	}
+	if _, ok := m.repos.selected(); !ok {
 		return
 	}
 	if m.focusBox(box) {
@@ -239,8 +266,9 @@ func (m *Model) boxesKey(msg tea.KeyPressMsg, gg bool) {
 	}
 }
 
-func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) {
-	k, vp, b := m.keys, &m.details.vp, &m.boxes
+// scrollKey scrolls the details pane; it reports whether msg was a scroll key.
+func (m *Model) scrollKey(msg tea.KeyPressMsg, gg bool) bool {
+	k, vp := m.keys, &m.details.vp
 	switch {
 	case key.Matches(msg, k.Down):
 		vp.ScrollDown(1)
@@ -254,6 +282,18 @@ func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) {
 		vp.GotoTop()
 	case key.Matches(msg, k.Bottom):
 		vp.GotoBottom()
+	default:
+		return false
+	}
+	return true
+}
+
+func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) {
+	if m.scrollKey(msg, gg) {
+		return
+	}
+	k, b := m.keys, &m.boxes
+	switch {
 	case key.Matches(msg, k.NextTab):
 		m.details.cycleTab(b.selected(), 1)
 	case key.Matches(msg, k.PrevTab):
@@ -288,6 +328,12 @@ func (m Model) layout() (bodyH, leftW, rightW int) {
 
 func (m *Model) syncDetails() {
 	bodyH, _, rightW := m.layout()
+	if m.onStar() {
+		if m.level != levelRepos {
+			m.syncStarDetails()
+		}
+		return
+	}
 	m.details.sync(m.boxes.selected(), m.boxes.repo, rightW, bodyH, m.now())
 }
 
@@ -315,16 +361,19 @@ func (m Model) body() string {
 	}
 	now := m.now()
 	var left, right string
-	switch m.level {
-	case levelRepos:
+	switch {
+	case m.level == levelRepos:
 		left = m.repos.view(leftW, bodyH, m.svc, m.info.ChangeRequestTerm, now)
 		if _, ok := m.repos.selected(); ok {
 			right = m.boxes.view(rightW, bodyH, -1, false, m.info.ChangeRequestTerm, now)
 		} else if m.repos.loaded {
-			right = frame(style.PaneTitle.Render(renovateRow), []string{style.Faint.Render(renovateRow + " isn't built yet.")}, rightW, bodyH, false)
+			right = m.star.render(rightW, bodyH, -1, false, m.info.ChangeRequestTerm, now)
 		} else {
 			right = frame("", nil, rightW, bodyH, false)
 		}
+	case m.onStar():
+		left = m.star.render(leftW, bodyH, int(m.star.focus), m.level == levelBoxes, m.info.ChangeRequestTerm, now)
+		right = m.details.view(nil, rightW, bodyH, m.level == levelDetails)
 	default:
 		left = m.boxes.view(leftW, bodyH, int(m.boxes.focus), m.level == levelBoxes, m.info.ChangeRequestTerm, now)
 		right = m.details.view(m.boxes.selected(), rightW, bodyH, m.level == levelDetails)
@@ -354,6 +403,12 @@ func (m Model) breadcrumb(w int) string {
 		}
 	} else if m.repos.loaded {
 		crumbs = append(crumbs, renovateRow)
+		if m.level != levelRepos {
+			crumbs = append(crumbs, fmt.Sprintf("[%d] %s", m.star.focus+1, starTitle(m.star.focus, m.info.ChangeRequestTerm)))
+			if c := m.star.crumb(); c != "" {
+				crumbs = append(crumbs, c)
+			}
+		}
 	}
 	const sep = " › "
 	for drop := 0; len(crumbs)-drop >= 2; drop++ {

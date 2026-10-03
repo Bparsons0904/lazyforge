@@ -58,7 +58,7 @@ func TestNewDemo(t *testing.T) {
 
 	home := domain.RepoRef{Owner: "home", Name: "homelab"}
 	crs, _ := f.ListChangeRequests(ctx, home, forge.Filter{State: domain.StateOpen})
-	if crs[0].Number != 42 || crs[0].CI != domain.CIPass || crs[0].Title != "chore(deps): update postgres to v17.0" {
+	if crs[0].Number != 42 || crs[0].CI != domain.CIPass || crs[0].Title != "chore(deps): update postgres docker tag to v17.0" {
 		t.Errorf("homelab #42 = %+v", crs[0])
 	}
 	if crs[1].Number != 41 || crs[1].CI != domain.CIFail {

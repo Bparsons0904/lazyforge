@@ -1,4 +1,4 @@
-// Package core holds forge-agnostic logic: the cache, refresh plumbing, mutations and coverage tracking; it imports only forge and domain.
+// Package core holds forge-agnostic logic: the cache, refresh plumbing, mutations and coverage tracking; it imports only forge, domain and core/renovate.
 package core
 
 import (
@@ -38,6 +38,7 @@ type Options struct {
 	MaxConcurrent  int                       // 0 means 4
 	Now            func() time.Time          // nil means time.Now
 	RequireGreenCI func(domain.RepoRef) bool // nil means off
+	RenovateUser   string                    // "" detects Renovate PRs by branch only
 }
 
 type entry struct {
@@ -51,6 +52,7 @@ type Service struct {
 	now       func() time.Time
 	sem       chan struct{}
 	greenOnly func(domain.RepoRef) bool
+	renovUser string
 
 	mu    sync.Mutex
 	cache map[Key]entry
@@ -69,6 +71,7 @@ func New(f forge.Forge, opts Options) *Service {
 		now:       opts.Now,
 		sem:       make(chan struct{}, opts.MaxConcurrent),
 		greenOnly: opts.RequireGreenCI,
+		renovUser: opts.RenovateUser,
 		cache:     map[Key]entry{},
 	}
 }
@@ -98,11 +101,15 @@ func (s *Service) PeekRepos() ([]domain.Repo, time.Time, bool) {
 	return peek[domain.Repo](s, Key{Kind: KindRepos})
 }
 
-// ChangeRequests fetches open change requests for r.
+// ChangeRequests fetches open change requests for r, with Renovate filled on Renovate PRs.
 func (s *Service) ChangeRequests(ctx context.Context, r domain.RepoRef) ([]domain.ChangeRequest, error) {
 	return fetch(ctx, s, Key{Kind: KindChangeRequests, Repo: r}, "list change requests for "+r.String(),
 		func(ctx context.Context) ([]domain.ChangeRequest, error) {
-			return s.f.ListChangeRequests(ctx, r, forge.Filter{State: domain.StateOpen})
+			crs, err := s.f.ListChangeRequests(ctx, r, forge.Filter{State: domain.StateOpen})
+			for i := range crs {
+				crs[i] = s.fillRenovate(crs[i])
+			}
+			return crs, err
 		})
 }
 

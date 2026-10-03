@@ -72,6 +72,7 @@ type ChangeRequest struct {
 	CI                  CIState
 	Labels              []string
 	UpdatedAt           time.Time
+	CreatedAt           time.Time
 	WebURL              string
 	Renovate            []RenovateUpdate // nil from adapters; core fills it
 }

@@ -84,7 +84,7 @@ func TestNewDemoItemNumbersAndStatuses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cr[0].CI != domain.CIPass || cr[0].Title != "chore(deps): update postgres to v17.0" || cr[1].CI != domain.CIFail {
+	if cr[0].CI != domain.CIPass || cr[0].Title != "chore(deps): update postgres docker tag to v17.0" || cr[1].CI != domain.CIFail {
 		t.Errorf("homelab #42 = %v %q, #41 = %v", cr[0].CI, cr[0].Title, cr[1].CI)
 	}
 

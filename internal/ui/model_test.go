@@ -62,8 +62,9 @@ func TestTinyWindowDoesNotPanic(t *testing.T) {
 func TestSelectionShowsBoxes(t *testing.T) {
 	m := sized(t, 120, 40)
 	m, msgs := step(t, m, "j")
-	if c := counts(msgs); c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || len(msgs) != 3 {
-		t.Fatalf("selecting homelab issued %v, want one load per kind", c)
+	// The ★ scan at startup already cached the change requests and issues, so only the runs miss.
+	if c := counts(msgs); c["crs"] != 0 || c["issues"] != 0 || c["runs"] != 1 || len(msgs) != 1 {
+		t.Fatalf("selecting homelab issued %v, want only the uncached runs load", c)
 	}
 	for _, msg := range msgs {
 		m = run(t, m, msg)
@@ -81,7 +82,7 @@ func TestRunsGateHidesActions(t *testing.T) {
 	f.SetGate(forge.ActRuns, errors.New("no actions"))
 	m := sizedWith(t, seededWith(t, f), 120, 40)
 	m, msgs := step(t, m, "j")
-	if c := counts(msgs); c["runs"] != 0 || c["crs"] != 1 || c["issues"] != 1 {
+	if c := counts(msgs); c["runs"] != 0 || c["crs"] != 0 || c["issues"] != 0 || len(msgs) != 0 {
 		t.Fatalf("gated select issued %v", c)
 	}
 	for _, msg := range msgs {
@@ -156,17 +157,20 @@ func TestRefreshRefetchesEvenWhenCached(t *testing.T) {
 	}
 }
 
-func TestRenovateRowIsInert(t *testing.T) {
+func TestRenovateRowOpensStarBoxes(t *testing.T) {
 	for _, k := range []string{"l", "1", "enter"} {
 		m := sized(t, 80, 24)
 		m, msgs := step(t, m, k)
-		if m.level != levelRepos || m.status != "★ Renovate isn't built yet" || len(msgs) != 0 {
-			t.Errorf("%s: level %v status %q msgs %d", k, m.level, m.status, len(msgs))
+		if m.level != levelBoxes || m.star.focus != starByRepo || len(msgs) != 0 {
+			t.Errorf("%s: level %v focus %v msgs %d", k, m.level, m.star.focus, len(msgs))
 		}
 	}
 	m := sized(t, 120, 40)
-	if v := strings.Join(lines(m), "\n"); !strings.Contains(v, "★ Renovate isn't built yet.") {
-		t.Errorf("right pane missing note:\n%s", v)
+	v := strings.Join(lines(m), "\n")
+	for _, want := range []string{"[1] By repo", "[2] Updates by dependency", "[3] Renovate PRs", "[4] Dashboards", "[5] Failing / running CI"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("right pane missing %q:\n%s", want, v)
+		}
 	}
 }
 

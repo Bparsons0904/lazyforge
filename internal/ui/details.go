@@ -28,12 +28,17 @@ func (d *details) cycleTab(item any, delta int) {
 }
 
 func (d *details) sync(item any, repo domain.RepoRef, w, h int, now time.Time) {
-	d.tab = min(d.tab, len(tabs(item))-1)
+	d.syncText(fmt.Sprintf("%v %s", repo, itemID(item)), overview(item, repo, now), w, h)
+}
+
+// syncText shows text in the pane; a changed id scrolls back to the top.
+func (d *details) syncText(id, text string, w, h int) {
+	d.tab = min(d.tab, len(tabs(nil))-1)
 	cw, ch := max(w-4, 1), max(h-2, 0)
 	d.vp.SetWidth(cw)
 	d.vp.SetHeight(ch)
-	d.vp.SetContent(lipgloss.NewStyle().Width(cw).Render(overview(item, repo, now)))
-	if id := fmt.Sprintf("%v %s %d", repo, itemID(item), d.tab); id != d.shown {
+	d.vp.SetContent(lipgloss.NewStyle().Width(cw).Render(text))
+	if id = fmt.Sprintf("%s %d", id, d.tab); id != d.shown {
 		d.vp.GotoTop()
 		d.shown = id
 	}

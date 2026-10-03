@@ -351,6 +351,9 @@ func TestChangeRequestMapping(t *testing.T) {
 	if cr.UpdatedAt.IsZero() {
 		t.Error("UpdatedAt is zero")
 	}
+	if cr.CreatedAt.IsZero() || cr.CreatedAt.After(cr.UpdatedAt) {
+		t.Errorf("CreatedAt = %v, want set and not after UpdatedAt %v", cr.CreatedAt, cr.UpdatedAt)
+	}
 	merged, err := f.GetChangeRequest(context.Background(), lazyforge, 16)
 	if err != nil {
 		t.Fatal(err)

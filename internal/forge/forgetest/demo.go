@@ -16,6 +16,7 @@ type demoPR struct {
 	n           int
 	title, slug string // slug is set for non-Renovate PRs only
 	ago         time.Duration
+	open        time.Duration // how long the PR has been open; at least ago
 	ci          domain.CIState
 	pkg         string // non-empty marks a Renovate PR
 	from, to    string
@@ -77,10 +78,11 @@ const (
 	day    = 24 * time.Hour
 )
 
-func renovatePR(n int, pkg, from, to, bump string, ago time.Duration, ci domain.CIState) demoPR {
+// what is the title's subject; its noun ("docker tag", "module") is how core infers the ecosystem.
+func renovatePR(n int, what, pkg, from, to, bump string, ago, open time.Duration, ci domain.CIState) demoPR {
 	return demoPR{
-		n: n, title: fmt.Sprintf("chore(deps): update %s to v%s", pkg, strings.TrimPrefix(to, "v")),
-		ago: ago, ci: ci, pkg: pkg, from: from, to: to, bump: bump, label: "dependencies",
+		n: n, title: fmt.Sprintf("chore(deps): update %s to v%s", what, strings.TrimPrefix(to, "v")),
+		ago: ago, open: open, ci: ci, pkg: pkg, from: from, to: to, bump: bump, label: "dependencies",
 	}
 }
 
@@ -92,8 +94,8 @@ var demoRepos = []demoRepo{
 	{
 		name: "homelab", desc: "Docker Compose stack for the home server", ago: 4 * minute,
 		prs: []demoPR{
-			renovatePR(42, "postgres", "16.4", "17.0", "major", 4*minute, domain.CIPass),
-			renovatePR(41, "traefik", "v3.1.4", "v3.2.0", "minor", 25*minute, domain.CIFail),
+			renovatePR(42, "postgres docker tag", "postgres", "16.4", "17.0", "major", 4*minute, 3*day, domain.CIPass),
+			renovatePR(41, "traefik docker tag", "traefik", "v3.1.4", "v3.2.0", "minor", 25*minute, 14*day, domain.CIFail),
 			{
 				n: 39, title: "feat: add uptime-kuma service", slug: "add-uptime-kuma", ago: day, ci: domain.CIPass, label: "enhancement",
 				body: "Adds uptime-kuma behind traefik with forward-auth.\n\n- new service in services/monitoring\n- traefik labels for status.home.arpa\n- data volume added to the restic backup set",
@@ -124,8 +126,8 @@ var demoRepos = []demoRepo{
 	{
 		name: "infra", desc: "OpenTofu for Proxmox VMs and DNS", ago: hour,
 		prs: []demoPR{
-			renovatePR(18, "opentofu", "1.8.5", "1.9.0", "minor", hour, domain.CIPass),
-			renovatePR(17, "postgres", "16.4", "17.0", "major", 2*hour, domain.CIRunning),
+			renovatePR(18, "opentofu", "opentofu", "1.8.5", "1.9.0", "minor", hour, 40*day, domain.CIPass),
+			renovatePR(17, "postgres docker tag", "postgres", "16.4", "17.0", "major", 2*hour, 3*day, domain.CIRunning),
 		},
 		issues: []demoIssue{
 			dashboard(3, hour, "## Open\n\n- [x] chore(deps): update opentofu to v1.9.0 (#18)\n- [x] chore(deps): update postgres to v17.0 (#17)\n\n## Rate-limited\n\n- [ ] chore(deps): update proxmox provider to v0.66\n\n## Other\n\n- [ ] Check this box to trigger a request for Renovate to run again on this repository\n"),
@@ -148,7 +150,7 @@ var demoRepos = []demoRepo{
 				n: 2, title: "feat: numbered boxes + two-column navigation", slug: "numbered-boxes", ago: 3 * hour, ci: domain.CIPass, label: "enhancement",
 				body: "First pass at the layout.\n\n- repo list on the left, its boxes previewed on the right\n- l shifts the boxes left, details on the right\n- 1-5 jump straight to a box",
 			},
-			renovatePR(3, "bubbletea", "v1.2.4", "v1.3.0", "minor", 5*hour, domain.CIPass),
+			renovatePR(3, "module bubbletea", "bubbletea", "v1.2.4", "v1.3.0", "minor", 5*hour, day, domain.CIPass),
 		},
 		issues: []demoIssue{{
 			n: 1, title: "Spike: Forgejo Actions API coverage", author: "you", label: "spike", ago: 2 * day,
@@ -198,7 +200,7 @@ func (p demoPR) toDomain(ref domain.RepoRef, base string, now time.Time) domain.
 	cr := domain.ChangeRequest{
 		Number: p.n, Title: p.title, Body: p.body, Author: "you", SourceBranch: "feature/" + p.slug, TargetBranch: "main",
 		HeadSHA: demoSHA(fmt.Appendf(nil, "%s#%d", ref, p.n)), CI: p.ci, Labels: []string{p.label},
-		UpdatedAt: now.Add(-p.ago), WebURL: fmt.Sprintf("%s/pulls/%d", base, p.n),
+		UpdatedAt: now.Add(-p.ago), CreatedAt: now.Add(-max(p.open, p.ago)), WebURL: fmt.Sprintf("%s/pulls/%d", base, p.n),
 	}
 	if p.pkg != "" {
 		major, _, _ := strings.Cut(strings.TrimPrefix(p.to, "v"), ".")

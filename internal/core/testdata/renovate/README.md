@@ -119,3 +119,15 @@ and stays out of the key. Ecosystem is not in the body; infer it from `Type`
 (`Docker tag`, `action`). Rows whose ecosystem stays unknown (title `dependency X`
 with no `Type`, as `forgejo_9` would be without its Type column) stay out of
 automatic grouping.
+
+## Hand-written
+
+Not captured from a live instance. The instance had no PR with these shapes (see Coverage), so these follow Renovate's documented body format and exist to exercise the parser.
+
+| File | Shape |
+|---|---|
+| `batched-gomod-nonmajor.md` | three rows, `Package \| Type \| Update \| Change`, Type `require`, minor and patch |
+| `digest-docker.md` | one row, Update `digest`, backticked short SHAs |
+| `confidence-columns.md` | `Package \| Update \| Change` plus the `Age`, `Adoption`, `Passing` and `Confidence` badge columns |
+| `rejected-unknown-column.md` | an extra `Foo` column; the parser must reject the body |
+| `rejected-no-arrow.md` | a Change cell without `→`; the parser must reject the body |

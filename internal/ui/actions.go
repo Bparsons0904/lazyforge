@@ -57,6 +57,10 @@ func openBrowser(ctx context.Context, u string) error {
 // syncKeys enables each action key only where it applies, which also hides it from the hints and help.
 func (m *Model) syncKeys() {
 	k := &m.keys
+	if m.onStar() && m.level != levelRepos {
+		m.syncStarKeys()
+		return
+	}
 	repo, _ := m.repos.selected()
 	item := m.boxes.selected()
 	if m.level == levelRepos {
@@ -99,9 +103,11 @@ func itemRef(r domain.RepoRef, item any) forge.ItemRef {
 
 // actionKey handles the action keys at the boxes and details levels.
 func (m *Model) actionKey(msg tea.KeyPressMsg) (cmd tea.Cmd, ok bool) {
+	if m.onStar() {
+		return m.starActionKey(msg)
+	}
 	k, b := m.keys, &m.boxes
 	item := b.selected()
-	ref := itemRef(b.repo, item)
 	switch {
 	case key.Matches(msg, k.Mark):
 		if cr, ok := item.(domain.ChangeRequest); ok {
@@ -111,6 +117,16 @@ func (m *Model) actionKey(msg tea.KeyPressMsg) (cmd tea.Cmd, ok bool) {
 		b.marked = nil
 	case key.Matches(msg, k.Merge):
 		return m.recheck(), true
+	default:
+		return m.itemActionKey(msg, itemRef(b.repo, item), item)
+	}
+	return nil, true
+}
+
+// itemActionKey handles the keys that act on one item the same way in the repo boxes and the ★ boxes.
+func (m *Model) itemActionKey(msg tea.KeyPressMsg, ref forge.ItemRef, item any) (cmd tea.Cmd, ok bool) {
+	k := m.keys
+	switch {
 	case key.Matches(msg, k.Approve):
 		svc, ctx := m.svc, m.ctx
 		return func() tea.Msg {
@@ -187,44 +203,57 @@ func (m *Model) rechecked(msg recheckedMsg) tea.Cmd {
 	}
 	if len(open) > 0 {
 		repo, _ := m.repos.selected()
-		m.dialog = mergeDialog(open, repo.MergeStyle, m.svc.RequiresGreenCI(m.boxes.repo))
+		m.dialog = mergeDialog(open, mergeOpts{strategy: repo.MergeStyle, greenOnly: m.svc.RequiresGreenCI, renovateUser: m.svc.RenovateUser()})
 	}
 	return m.loadBoxes(true)
 }
 
-func (m *Model) startMerge(ts []core.Target) tea.Cmd {
+// beginMerge returns the context for a merge run; Esc in the running dialog cancels it through mergeCancel.
+func (m *Model) beginMerge() context.Context {
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.mergeCancel = cancel
-	svc, r := m.svc, m.boxes.repo
-	return func() tea.Msg { return mergeDoneMsg{repo: r, results: svc.Merge(ctx, ts)} }
+	return ctx
 }
 
-func (m *Model) mergeDone(msg mergeDoneMsg) tea.Cmd {
+// endMerge closes the run, fills the dialog's results and reports the summary.
+func (m *Model) endMerge(results []core.MergeResult) {
 	if m.mergeCancel != nil {
 		m.mergeCancel()
 		m.mergeCancel = nil
 	}
 	if m.dialog != nil && m.dialog.phase == phaseRunning {
-		m.dialog.phase, m.dialog.results = phaseDone, msg.results
+		m.dialog.phase, m.dialog.results = phaseDone, results
 	}
 	n := 0
-	for _, r := range msg.results {
+	for _, r := range results {
 		if r.Outcome == core.OutcomeMerged {
 			n++
-			if msg.repo == m.boxes.repo {
-				delete(m.boxes.marked, r.Target.CR.Number)
-			}
 		}
 	}
-	if s := fmt.Sprintf("Merged %d of %d", n, len(msg.results)); n < len(msg.results) {
+	if s := fmt.Sprintf("Merged %d of %d", n, len(results)); n < len(results) {
 		m.setError(errors.New(s))
 	} else {
 		m.setInfo(s)
 	}
-	if msg.repo != m.boxes.repo {
-		return nil
+}
+
+func (m *Model) startMerge(ts []core.Target) tea.Cmd {
+	ctx := m.beginMerge()
+	svc, r := m.svc, m.boxes.repo
+	return func() tea.Msg { return mergeDoneMsg{repo: r, results: svc.Merge(ctx, ts)} }
+}
+
+func (m *Model) mergeDone(msg mergeDoneMsg) tea.Cmd {
+	m.endMerge(msg.results)
+	if msg.repo == m.boxes.repo {
+		for _, r := range msg.results {
+			if r.Outcome == core.OutcomeMerged {
+				delete(m.boxes.marked, r.Target.CR.Number)
+			}
+		}
+		return m.loadBoxes(true)
 	}
-	return m.loadBoxes(true)
+	return nil
 }
 
 func (m *Model) actionDone(msg actionDoneMsg) tea.Cmd {
@@ -237,6 +266,13 @@ func (m *Model) actionDone(msg actionDoneMsg) tea.Cmd {
 		return nil
 	}
 	m.setInfo(fmt.Sprintf("%s #%d", msg.verb, msg.item.Number))
+	if m.onStar() {
+		if msg.item.Kind == forge.ItemChangeRequest && msg.closed {
+			delete(m.star.marked, starTarget{msg.repo, msg.item.Number})
+		}
+		m.reseed(msg.repo)
+		return nil
+	}
 	if msg.repo != m.boxes.repo {
 		return nil
 	}

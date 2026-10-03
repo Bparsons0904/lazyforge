@@ -13,7 +13,7 @@
 ┌──────────────────────────────────────────────┐
 │ UI (Bubble Tea + Lip Gloss)                  │  host picker · repos · boxes · details
 ├──────────────────────────────────────────────┤
-│ Core                                         │  domain model · cache · Renovate logic
+│ Core (+ core/renovate)                       │  domain model · cache · Renovate logic
 │                                              │  (★ view, grouping, bulk merge, dashboard ticks)
 ├──────────────────────────────────────────────┤
 │ Forge interface + capabilities               │
@@ -55,7 +55,7 @@ type ChangeRequest struct { // PR on Gitea/Forgejo/GitHub, MR on GitLab
     HeadSHA                    string
     CI                         CIState // none, pending, running, pass, fail, cancelled, skipped
     Labels                     []string
-    UpdatedAt                  time.Time
+    UpdatedAt, CreatedAt       time.Time
     WebURL                     string
     Renovate                   []RenovateUpdate // nil from adapters; core fills it
 }
@@ -178,7 +178,7 @@ See [ADR 0007](adr/0007-core-cache-and-concurrency.md).
 - Each read has a `Peek…` form (cached value and fetch time, no I/O) and a fetching form that calls the forge and stores the result. A failed fetch keeps the old entry.
 - A semaphore (4 by default) bounds forge calls across all methods. Waiting for a slot honors `ctx`.
 - The UI renders from `Peek…` immediately, then issues the fetching call in a `tea.Cmd`. `r` and a five-minute background timer in the UI trigger refetches ([design.md](design.md#decided)); the UI also owns cancellation and drops stale results.
-- `core.Coverage` tracks per-repo scan outcomes for host-wide scans such as ★ Renovate.
+- `core.Coverage` tracks per-repo scan outcomes for host-wide scans such as ★ Renovate. `Service.RenovateScan` fetches one repo's open PRs and issues through the cache and returns its Renovate PRs and parsed dashboards, and the UI builds the view with the pure `internal/core/renovate` package ([ADR 0013](adr/0013-renovate-view.md)).
 
 Mutations go through core too ([ADR 0011](adr/0011-merge-contract.md)). `Service.Merge` takes confirmed targets, pinned by head SHA, and returns one result per target: merged, refused (`ErrHeadChanged`, `forge.ErrRefused`, or the green-CI gate that cmd injects through `core.Options.RequireGreenCI`), failed, unknown (timed out), or not started (cancelled before its turn). Cancelling stops new starts, and started merges finish. `Service.Recheck` re-fetches targets before every merge so a retry is reconciled. Successful merges and closes drop the item from the cached open list.
 

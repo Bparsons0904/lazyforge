@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/core"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/core/renovate"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
@@ -30,25 +31,52 @@ type dialog struct {
 	phase     dialogPhase
 	targets   []core.Target // merge only
 	strategy  string
-	greenOnly bool
+	greenOnly func(domain.RepoRef) bool
+	coverage  string   // warning line; "" for none
+	skipped   []string // "owner/name #n: reason"
+	star      bool
+	prefix    bool
+	renovUser string // host's renovate_user, for spotting author-detected Renovate PRs
 	results   []core.MergeResult
 	item      forge.ItemRef // close only
 	label     string        // close only: "#n title"
 	ci        string        // close only: the CR's CI icon
 }
 
-// mergeDialog dedups ts by number, keeping the first occurrence, for the dialog's own listing; core.Merge dedups again.
-func mergeDialog(ts []core.Target, mergeStyle string, greenOnly bool) *dialog {
+type mergeOpts struct {
+	strategy     string // "" shows the repos' own default
+	greenOnly    func(domain.RepoRef) bool
+	coverage     string
+	skipped      []string
+	star         bool
+	renovateUser string
+}
+
+// mergeDialog dedups ts by (repo, number), keeping the first occurrence, for the dialog's own listing.
+func mergeDialog(ts []core.Target, o mergeOpts) *dialog {
 	var uniq []core.Target
+	repos := map[domain.RepoRef]bool{}
 	for _, t := range ts {
-		if !slices.ContainsFunc(uniq, func(u core.Target) bool { return u.CR.Number == t.CR.Number }) {
+		if !slices.ContainsFunc(uniq, func(u core.Target) bool { return u.Repo == t.Repo && u.CR.Number == t.CR.Number }) {
 			uniq = append(uniq, t)
+			repos[t.Repo] = true
 		}
 	}
-	if mergeStyle == "" {
-		mergeStyle = "repo default"
+	if o.strategy == "" {
+		o.strategy = "repo default"
+		if len(repos) > 1 {
+			o.strategy = "each repo's default"
+		}
 	}
-	return &dialog{targets: uniq, strategy: mergeStyle, greenOnly: greenOnly}
+	return &dialog{targets: uniq, strategy: o.strategy, greenOnly: o.greenOnly, coverage: o.coverage, skipped: o.skipped, star: o.star, renovUser: o.renovateUser, prefix: o.star || len(repos) > 1}
+}
+
+// targetLabel names a target for the dialog, with its repo when the listing needs one.
+func (d dialog) targetLabel(t core.Target) string {
+	if d.prefix {
+		return fmt.Sprintf("%s #%d %s", t.Repo, t.CR.Number, t.CR.Title)
+	}
+	return fmt.Sprintf("#%d %s", t.CR.Number, t.CR.Title)
 }
 
 func closeDialog(ref forge.ItemRef, item any) *dialog {
@@ -74,6 +102,9 @@ func (m *Model) dialogKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.closeItem(d.item)
 		case key.Matches(msg, k.Confirm):
 			d.phase = phaseRunning
+			if d.star {
+				return m.startStarMerge(d.targets)
+			}
 			return m.startMerge(d.targets)
 		}
 	case phaseRunning:
@@ -92,6 +123,8 @@ func (d dialog) title(term string) string {
 	switch {
 	case d.isClose:
 		return fmt.Sprintf("Close #%d", d.item.Number)
+	case len(d.targets) == 1 && d.prefix:
+		return fmt.Sprintf("Merge %s #%d", d.targets[0].Repo, d.targets[0].CR.Number)
 	case len(d.targets) == 1:
 		return fmt.Sprintf("Merge #%d", d.targets[0].CR.Number)
 	}
@@ -108,19 +141,28 @@ func (d dialog) lines() []string {
 	case phaseDone:
 		var out []string
 		for _, r := range d.results {
-			out = append(out, style.Text.Render(fmt.Sprintf("#%d %s", r.Target.CR.Number, r.Target.CR.Title)), "  "+outcome(r))
+			out = append(out, style.Text.Render(d.targetLabel(r.Target)), "  "+outcome(r))
 		}
 		return out
 	}
 	out := []string{style.Faint.Render("Strategy: " + d.strategy)}
+	if d.coverage != "" {
+		out = append(out, style.CIRunning.Render(d.coverage))
+	}
+	for _, s := range d.skipped {
+		out = append(out, style.Faint.Render("Skipped "+s))
+	}
 	for _, t := range d.targets {
 		cr := t.CR
-		out = append(out, style.Text.Render(fmt.Sprintf("#%d %s", cr.Number, cr.Title))+" "+ciIcon(cr.CI, lipgloss.NewStyle()))
+		out = append(out, style.Text.Render(d.targetLabel(t))+" "+ciIcon(cr.CI, lipgloss.NewStyle()))
 		for _, u := range cr.Renovate {
 			out = append(out, style.Faint.Render(fmt.Sprintf("  %s %s → %s", u.Package, u.From, u.To)))
 		}
+		if cr.Renovate == nil && (d.star || renovate.IsRenovate(cr, d.renovUser)) {
+			out = append(out, style.Faint.Render("  packages unknown"))
+		}
 		if !cr.CI.Green() {
-			if d.greenOnly {
+			if d.greenOnly != nil && d.greenOnly(t.Repo) {
 				out = append(out, style.StatusErr.Render("  "+ciText(cr.CI)+", will be refused (only merge when CI is green)"))
 			} else {
 				out = append(out, style.CIRunning.Render("  "+ciText(cr.CI)+", will merge anyway"))

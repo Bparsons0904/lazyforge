@@ -287,9 +287,10 @@ func (a *App) openSession(ctx context.Context, name string, f forge.Forge) {
 	a.gen++
 	sctx, cancel := context.WithCancel(ctx)
 	live := a.live
-	svc := core.New(f, core.Options{RequireGreenCI: func(r domain.RepoRef) bool {
-		return live.Load().Hosts[name].RequiresGreenCI(r.String())
-	}})
+	svc := core.New(f, core.Options{
+		RequireGreenCI: func(r domain.RepoRef) bool { return live.Load().Hosts[name].RequiresGreenCI(r.String()) },
+		RenovateUser:   live.Load().Hosts[name].RenovateUser,
+	})
 	a.host, a.session, a.endSession = name, New(sctx, svc), cancel
 	a.session.keys.setHosted(true)
 	if a.size != nil {
@@ -400,6 +401,9 @@ func (refreshTickMsg) fromSession()          {}
 func (recheckedMsg) fromSession()            {}
 func (mergeDoneMsg) fromSession()            {}
 func (actionDoneMsg) fromSession()           {}
+func (renovateScannedMsg) fromSession()      {}
+func (starRecheckedMsg) fromSession()        {}
+func (starMergeDoneMsg) fromSession()        {}
 
 type stampedMsg struct {
 	gen int

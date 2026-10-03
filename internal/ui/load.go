@@ -81,8 +81,12 @@ func (m *Model) selectRepo(cached bool) tea.Cmd {
 	r, ok := m.repos.selected()
 	if !ok {
 		m.boxes = boxes{}
+		if m.repos.loaded {
+			return m.startScan(cached)
+		}
 		return nil
 	}
+	m.stopScan()
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.selCtx, m.cancel = ctx, cancel
 	m.boxes = boxes{repo: r.RepoRef, showRuns: m.svc.Can(forge.ActRuns, r).OK}
@@ -119,7 +123,11 @@ func (m *Model) loadBoxes(cached bool) tea.Cmd {
 // refresh refetches the repo list and every visible kind of the selected repo, cached or not.
 func (m *Model) refresh() tea.Cmd {
 	cmds := []tea.Cmd{loadRepos(m.ctx, m.svc)}
-	if m.selCtx != nil && m.boxes.repo != (domain.RepoRef{}) {
+	if m.onStar() {
+		if m.star.cov != nil {
+			cmds = append(cmds, m.startScan(false))
+		}
+	} else if m.selCtx != nil && m.boxes.repo != (domain.RepoRef{}) {
 		cmds = append(cmds, m.loadBoxes(false))
 	}
 	return tea.Batch(cmds...)

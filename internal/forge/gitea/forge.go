@@ -50,6 +50,7 @@ type pull struct {
 		Ref string `json:"ref"`
 	} `json:"base"`
 	Labels    []label   `json:"labels"`
+	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	HTMLURL   string    `json:"html_url"`
 }
@@ -169,6 +170,7 @@ func (f *Forge) changeRequest(ctx context.Context, r domain.RepoRef, p pull) (do
 		CI:           combinedCI(st.State),
 		Labels:       labelNames(p.Labels),
 		UpdatedAt:    p.UpdatedAt,
+		CreatedAt:    p.CreatedAt,
 		WebURL:       p.HTMLURL,
 	}, nil
 }

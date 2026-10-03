@@ -117,6 +117,7 @@ func (s *Service) Recheck(ctx context.Context, ts []Target) []Checked {
 			if out[i].Err != nil {
 				return
 			}
+			cr = s.fillRenovate(cr)
 			out[i].Target.CR = cr
 			if cr.State != domain.StateOpen {
 				s.dropCR(t.Repo, cr.Number)
