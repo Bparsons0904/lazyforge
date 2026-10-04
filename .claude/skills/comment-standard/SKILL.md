@@ -53,7 +53,7 @@ These are always forbidden:
 - changelog comments (`// Updated to...`, `// Previously...`)
 - commented-out code
 
-A `TODO` needs both an issue reference and a clause of reasoning: `// TODO(#14): drop once Forgejo 9 is the floor; older versions omit the field.`
+A `TODO` needs both an issue reference (`GH-<n>`) and a clause of reasoning: `// TODO(GH-14): drop once Forgejo 9 is the floor; older versions omit the field.`
 
 **Restating includes paraphrase.** `// Merge merges the change request.` and `// StartRefresh begins a background refresh.` never repeat the exact words, yet they add nothing to the signature. The test catches them either way. A block label at file or function scope (`// Key handling`, `// Fetch PRs` above the fetch) fails for the same reason, because the reader can already see the grouping.
 
@@ -160,7 +160,7 @@ type Forge interface {
 
 // ❌ TODO with no issue, or an issue with no reason
 // TODO: fix this
-// TODO(#31)
+// TODO(GH-31)
 ```
 
 ## Review checklist
