@@ -37,17 +37,3 @@ jobs:
         run: |
           export PATH="$(go env GOPATH)/bin:$PATH"
           make check
-
-      # Dispatched runs (imported claude/* branches) get no commit status from Forgejo,
-      # and the merge rule reads that status.
-      - name: Report status for dispatched runs
-        if: always() && github.event_name == 'workflow_dispatch'
-        env:
-          STATE: ${{ job.status }}
-          SHA: ${{ github.sha }}
-          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          [ "$STATE" = success ] || STATE=failure
-          curl -fsS -X POST -H "Authorization: token $TOKEN" -H 'Content-Type: application/json' \
-            -d "{\"state\":\"$STATE\",\"context\":\"ci / check (dispatch)\"}" "$API/statuses/$SHA"

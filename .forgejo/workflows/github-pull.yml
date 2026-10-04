@@ -78,8 +78,32 @@ jobs:
             echo "opened MR for $branch"
           }
 
+          # Dispatched runs get no commit status, and a branch cut before this job existed
+          # can't post one itself, so the run's result is copied onto the commit here.
+          sync_status() {
+            local sha=$1 run state current
+            run=$(curl -fsS -H "Authorization: token $TOKEN" "$API/actions/runs?head_sha=$sha" \
+              | jq -r '[.workflow_runs[] | select(.workflow_id == "ci.yml")] | max_by(.id) | .status // empty') || return 1
+            [ -n "$run" ] || return 0
+            case "$run" in
+              success) state=success ;;
+              failure|cancelled) state=failure ;;
+              *) state=pending ;;
+            esac
+            current=$(curl -fsS -H "Authorization: token $TOKEN" "$API/commits/$sha/status" | jq -r .state) || return 1
+            [ "$current" = "$state" ] && return 0
+            jq -n --arg s "$state" '{state: $s, context: "ci / check (dispatch)"}' \
+              | curl -fsS -X POST -H "Authorization: token $TOKEN" -H 'Content-Type: application/json' \
+                  -d @- "$API/statuses/$sha" >/dev/null || return 1
+            echo "status $state on ${sha:0:7}"
+          }
+
           failed=0
           for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/github/claude/); do
             import "$ref" || { echo "failed: $ref"; failed=1; }
+          done
+          for sha in $(curl -fsS -H "Authorization: token $TOKEN" "$API/pulls?state=open&limit=50" \
+            | jq -r '.[] | select(.head.ref | startswith("claude/")) | .head.sha'); do
+            sync_status "$sha" || { echo "failed status: $sha"; failed=1; }
           done
           exit "$failed"
