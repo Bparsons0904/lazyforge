@@ -40,13 +40,14 @@ jobs:
           git remote add github git@github.com:Bparsons0904/lazyforge.git
           git fetch github '+refs/heads/claude/*:refs/remotes/github/claude/*'
 
-          # Head branches of every MR in any state, across all pages.
+          # Branches of every MR in any state. head.ref is unreliable once a branch is deleted,
+          # so the marker the job writes into each MR body is matched as well.
           heads=$(mktemp)
           page=1
           while :; do
             body=$(curl -fsS -H "Authorization: token $TOKEN" "$API/pulls?state=all&limit=50&page=$page")
             [ "$(jq length <<<"$body")" -eq 0 ] && break
-            jq -r '.[].head.ref' <<<"$body" >> "$heads"
+            jq -r '.[] | .head.ref, ((.body // "") | scan("gh-branch: [^ ]+") | sub("gh-branch: "; ""))' <<<"$body" >> "$heads"
             page=$((page + 1))
           done
 
@@ -72,7 +73,7 @@ jobs:
             fi
             grep -qxF "$branch" "$heads" && return 0
             jq -n --arg t "$(git log -1 --format=%s "$ref")" --arg h "$branch" \
-              '{title: $t, head: $h, base: "develop", body: "🤖 Imported from the GitHub branch pushed by Claude cloud."}' \
+              '{title: $t, head: $h, base: "develop", body: ("🤖 Imported from the GitHub branch pushed by Claude cloud.\n\n<!-- gh-branch: " + $h + " -->")}' \
               | curl -fsS -X POST -H "Authorization: token $TOKEN" -H 'Content-Type: application/json' \
                   -d @- "$API/pulls" >/dev/null || return 1
             echo "opened MR for $branch"
