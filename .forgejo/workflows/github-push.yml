@@ -1,0 +1,39 @@
+name: github-push
+
+on:
+  push:
+    branches: [develop, main]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: github-push
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Push the ref to GitHub
+        shell: bash
+        env:
+          GH_DEPLOY_KEY: ${{ secrets.GH_DEPLOY_KEY }}
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [ -n "$GH_DEPLOY_KEY" ] || { echo "GH_DEPLOY_KEY is not set"; exit 1; }
+          SUDO=""
+          [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null && SUDO=sudo
+          command -v ssh >/dev/null || { $SUDO apt-get update && $SUDO apt-get install -y openssh-client; }
+          install -m 700 -d ~/.ssh
+          trap 'rm -f ~/.ssh/github_key' EXIT
+          printf '%s\n' "$GH_DEPLOY_KEY" > ~/.ssh/github_key
+          chmod 600 ~/.ssh/github_key
+          # Pinned from `gh api meta`, so a hijacked route can't impersonate GitHub.
+          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/github_key -o IdentitiesOnly=yes"
+          # A plain push, never --mirror: it must not delete the claude/* branches Claude cloud owns.
+          git push git@github.com:Bparsons0904/lazyforge.git "$REF:$REF"

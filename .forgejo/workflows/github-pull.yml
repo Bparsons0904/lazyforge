@@ -1,0 +1,78 @@
+name: github-pull
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: github-pull
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Import claude/* branches as MRs
+        shell: bash
+        env:
+          GH_DEPLOY_KEY: ${{ secrets.GH_DEPLOY_KEY }}
+          API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          [ -n "$GH_DEPLOY_KEY" ] || { echo "GH_DEPLOY_KEY is not set"; exit 1; }
+          SUDO=""
+          [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null && SUDO=sudo
+          if ! command -v ssh >/dev/null || ! command -v jq >/dev/null; then
+            $SUDO apt-get update && $SUDO apt-get install -y openssh-client jq
+          fi
+          install -m 700 -d ~/.ssh
+          trap 'rm -f ~/.ssh/github_key' EXIT
+          printf '%s\n' "$GH_DEPLOY_KEY" > ~/.ssh/github_key
+          chmod 600 ~/.ssh/github_key
+          echo 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' > ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/github_key -o IdentitiesOnly=yes"
+
+          git remote add github git@github.com:Bparsons0904/lazyforge.git
+          git fetch github '+refs/heads/claude/*:refs/remotes/github/claude/*'
+
+          # Head branches of every MR in any state, across all pages.
+          heads=$(mktemp)
+          page=1
+          while :; do
+            body=$(curl -fsS -H "Authorization: token $TOKEN" "$API/pulls?state=all&limit=50&page=$page")
+            [ "$(jq length <<<"$body")" -eq 0 ] && break
+            jq -r '.[].head.ref' <<<"$body" >> "$heads"
+            page=$((page + 1))
+          done
+
+          import() {
+            local ref=$1 branch=${1#github/}
+            if git rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
+              # Follow-up commits fast-forward; a diverged branch is left for a human.
+              if [ "$(git rev-parse "origin/$branch")" != "$(git rev-parse "$ref")" ]; then
+                git merge-base --is-ancestor "origin/$branch" "$ref" || { echo "skip $branch: diverged"; return 0; }
+                git push origin "$ref:refs/heads/$branch" || return 1
+              fi
+            else
+              # A merged MR deletes its branch; without this check the next run would resurrect it.
+              if grep -qxF "$branch" "$heads"; then echo "skip $branch: MR already handled"; return 0; fi
+              git push origin "$ref:refs/heads/$branch" || return 1
+            fi
+            grep -qxF "$branch" "$heads" && return 0
+            jq -n --arg t "$(git log -1 --format=%s "$ref")" --arg h "$branch" \
+              '{title: $t, head: $h, base: "develop", body: "🤖 Imported from the GitHub branch pushed by Claude cloud."}' \
+              | curl -fsS -X POST -H "Authorization: token $TOKEN" -H 'Content-Type: application/json' \
+                  -d @- "$API/pulls" >/dev/null || return 1
+            echo "opened MR for $branch"
+          }
+
+          failed=0
+          for ref in $(git for-each-ref --format='%(refname:short)' refs/remotes/github/claude/); do
+            import "$ref" || { echo "failed: $ref"; failed=1; }
+          done
+          exit "$failed"
