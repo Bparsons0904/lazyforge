@@ -50,18 +50,25 @@ jobs:
             page=$((page + 1))
           done
 
+          # Job-token pushes don't trigger workflows, so imported branches get CI by dispatch.
+          run_ci() {
+            jq -n --arg r "$1" '{ref: $r}' \
+              | curl -fsS -X POST -H "Authorization: token $TOKEN" -H 'Content-Type: application/json' \
+                  -d @- "$API/actions/workflows/ci.yml/dispatches" >/dev/null
+          }
+
           import() {
             local ref=$1 branch=${1#github/}
             if git rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
               # Follow-up commits fast-forward; a diverged branch is left for a human.
               if [ "$(git rev-parse "origin/$branch")" != "$(git rev-parse "$ref")" ]; then
                 git merge-base --is-ancestor "origin/$branch" "$ref" || { echo "skip $branch: diverged"; return 0; }
-                git push origin "$ref:refs/heads/$branch" || return 1
+                git push origin "$ref:refs/heads/$branch" && run_ci "$branch" || return 1
               fi
             else
               # A merged MR deletes its branch; without this check the next run would resurrect it.
               if grep -qxF "$branch" "$heads"; then echo "skip $branch: MR already handled"; return 0; fi
-              git push origin "$ref:refs/heads/$branch" || return 1
+              git push origin "$ref:refs/heads/$branch" && run_ci "$branch" || return 1
             fi
             grep -qxF "$branch" "$heads" && return 0
             jq -n --arg t "$(git log -1 --format=%s "$ref")" --arg h "$branch" \
