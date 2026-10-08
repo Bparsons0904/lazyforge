@@ -146,7 +146,7 @@ or FAIL and the path. If the write fails, put the report in your reply.
 
 ```
 The diff under review is in <DIFF_FILE>. Read it. Run no git commands
-except `gh issue view <N> -R Bparsons0904/lazyforge --json body -q .body`. Begin
+except `fj -H https://git.bobparsons.dev issue view <N>`. Begin
 your report with the list of files the patch touches.
 
 Read the ticket, then review the patch against it. Derive every
@@ -185,12 +185,12 @@ Doc updates ship in **this** MR, never as a follow-up.
 
 ## 5. Commit
 
-Format: `type(scope): subject`, with `GH-<N>` in the body. Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`. Scope is the package or area (`ui`, `core`, `gitea`, `domain`, `config`, `cmd`).
+Format: `type(scope): subject`, with `#<N>` in the body. Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`. Scope is the package or area (`ui`, `core`, `gitea`, `domain`, `config`, `cmd`).
 
 ```
 fix(gitea): page through repos beyond the first 50
 
-GH-14
+#14
 ```
 
 Lowercase subject, no trailing period. Explain the *why* in the body when the diff doesn't make it obvious.
@@ -210,7 +210,7 @@ fj -H https://git.bobparsons.dev pr view <PR>   # confirm the body isn't empty
 The body carries:
 
 - a summary in product terms
-- `Refs GH-<N>` (a bare `#N` would link a Forgejo issue, and GitHub tickets aren't closed by keywords)
+- `Refs #<N>` (a closing keyword would close the ticket before it's checked by hand)
 - verification evidence from step 1 (result lines, not scrollback)
 - the review outcome and any dismissals with their reasons
 - the docs outcome and any proposed design changes
@@ -226,7 +226,7 @@ sha=$(git rev-parse HEAD)
 curl -s https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/commits/$sha/status | jq -r .state
 # pending → wait (Monitor with an until-loop, not sleep); failure → fix, push, re-check; success → merge
 fj -H https://git.bobparsons.dev pr merge <PR> -M squash -d -t "type(scope): subject (#<PR>)"
-gh issue close <N> -R Bparsons0904/lazyforge --comment "🤖 merged: <MR url>"   # nothing closes it automatically
+fj -H https://git.bobparsons.dev issue close <N> -w "🤖 merged: <MR url>"   # nothing closes it automatically
 ```
 
 Don't merge while a product question on the ticket is still open (it should have been parked before implementation).

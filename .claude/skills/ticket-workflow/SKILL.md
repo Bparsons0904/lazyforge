@@ -1,6 +1,6 @@
 ---
 name: ticket-workflow
-description: Use whenever a ticket is involved — opening one for an idea ("open a ticket for X", rapid idea capture), fleshing one out ("let's work through 12", "flesh this out", "is this ready"), or executing one once `ticket-kickoff` has routed it to inline work. Picking a ticket up by number ("grab 8", "work on issue 4", "pick up 12") triggers `ticket-kickoff` first, which picks the mode and hands the inline case back here. Tickets are GitHub Issues on Bparsons0904/lazyforge, via `gh -R Bparsons0904/lazyforge`; code and MRs stay on Forgejo (`fj -H https://git.bobparsons.dev`).
+description: Use whenever a ticket is involved — opening one for an idea ("open a ticket for X", rapid idea capture), fleshing one out ("let's work through 12", "flesh this out", "is this ready"), or executing one once `ticket-kickoff` has routed it to inline work. Picking a ticket up by number ("grab 8", "work on issue 4", "pick up 12") triggers `ticket-kickoff` first, which picks the mode and hands the inline case back here. Tickets, code and MRs all live on Forgejo (`fj -H https://git.bobparsons.dev`).
 ---
 
 # Ticket Workflow
@@ -13,7 +13,7 @@ Three modes. In a `work-queue` run, Discovery rolls straight into delivery once 
 | B. Discovery | "let's work through N", "flesh this out", or kickoff found it not ready | scoped ticket with AC, or parked on a product question |
 | C. Execute | `ticket-kickoff` routed the ticket to **inline** | code shipped via `ship-it` |
 
-Every `gh` call below needs `-R Bparsons0904/lazyforge`.
+Every `fj` call below needs `-H https://git.bobparsons.dev`. `fj issue create` has no label flag, so add the category label afterwards with `issue edit <N> labels -a <label>`.
 
 ## Who decides what
 
@@ -27,7 +27,7 @@ Every `gh` call below needs `-R Bparsons0904/lazyforge`.
 Title and problem, in the PM's words. No investigation, plan or scoping.
 
 ```bash
-gh issue create -R Bparsons0904/lazyforge --title "title" --body-file problem.md --label feature   # body: "## Problem\n\n<PM's words>"; category label only
+fj -H https://git.bobparsons.dev issue create "title" --body-file problem.md --label feature   # body: "## Problem\n\n<PM's words>"; category label only
 ```
 
 > [!IMPORTANT]
@@ -39,7 +39,7 @@ Reading rule, every mode: **AC present = binding. AC absent = not yet defined.**
 
 Slim ticket to scoped ticket. In a `work-queue` run it continues straight into `ticket-kickoff` once ready.
 
-1. **Read the ticket:** `gh issue view <N> -R Bparsons0904/lazyforge --json body -q .body` and `gh issue view <N> -R Bparsons0904/lazyforge --comments`.
+1. **Read the ticket:** `fj -H https://git.bobparsons.dev issue view <N>` and `fj -H https://git.bobparsons.dev issue view <N> comments`.
 2. **Read the relevant docs, not all of them:** the `docs/design.md` sections for product behavior, the `docs/architecture.md` sections and any `docs/adr/` for the layers involved. If the ticket touches an item under design.md's "Open questions", that's a product decision to put to the PM, not to resolve silently.
 3. **Read the code** the ticket touches. Docs say what it should do; code says what it does.
 4. **Settle the technical design** (Opus directly; Sonnet via `engineering-decision`). A decision big enough to change `docs/architecture.md` gets an ADR in the delivering MR; note that in the plan.
@@ -57,8 +57,8 @@ Slim ticket to scoped ticket. In a `work-queue` run it continues straight into `
 When a ticket can't proceed without a product decision:
 
 ```bash
-gh issue comment <N> -R Bparsons0904/lazyforge --body-file question.md   # the question, options with user-visible consequences, recommendation
-gh issue edit <N> -R Bparsons0904/lazyforge --add-label needs-pm
+fj -H https://git.bobparsons.dev issue comment <N> --body-file question.md   # the question, options with user-visible consequences, recommendation
+fj -H https://git.bobparsons.dev issue edit <N> labels -a needs-pm
 ```
 
 Then move on to the next ticket. The PM answers in the ticket. A later `work-queue` run sees the answer, folds it into `docs/design.md` and the ticket body, removes `needs-pm`, and picks the ticket up.
@@ -72,7 +72,7 @@ One per scoped ticket, naming which model should drive it. Advisory: the PM may 
 | `opus` | Design-heavy or risky: an unsettled technical decision, a new package, `Forge` interface or domain-model shape, concurrency/refresh/cancellation, anything that would change `docs/architecture.md`. A one-line change here is still `opus`. Opus may consult Fable through `engineering-decision`. |
 | `sonnet` | Well-bounded work that follows established patterns. Any technical decision that surfaces goes to Opus via `engineering-decision`. |
 
-Risk only raises the label. Apply it at Discovery's exit and on any ready ticket an agent files. Relabel when the shape changes (`gh issue edit <N> -R Bparsons0904/lazyforge --remove-label sonnet --add-label opus`). Capture gets none.
+Risk only raises the label. Apply it at Discovery's exit and on any ready ticket an agent files. Relabel when the shape changes (`fj -H https://git.bobparsons.dev issue edit <N> labels -r sonnet --add-label opus`). Capture gets none.
 
 ### Category labels
 
@@ -151,22 +151,22 @@ Propose a size; the PM can override.
 
 **The plan lives in the body, never a comment.** Comments accumulate and a cold agent may read a superseded one. Comments are a progress and decision log.
 
-Edit the body file you wrote with `gh issue edit <N> -R Bparsons0904/lazyforge --body-file`, never text scraped from `gh issue view` (it's rendered and loses blank lines). `test -s` the file first: an empty body would blank the ticket. `fj pr create` also takes `--body-file`; prefer it.
+Edit the body from the file you wrote, with `fj -H https://git.bobparsons.dev issue edit <N> body "$(cat plan.md)"`, never from text scraped out of `issue view` output. `test -s` the file first: an empty body would blank the ticket. `fj pr create` also takes `--body-file`; prefer it.
 
 ## Closing
 
-Commits and the MR description carry `GH-<N>`. Never a bare `#N`: it links a Forgejo issue, and a closing keyword on the mirror would close the wrong GitHub issue.
+Commits and the MR description carry `Refs #<N>`, which links the ticket. Never a closing keyword: tickets are closed by hand.
 
-Nothing closes a ticket automatically, because GitHub can't see Forgejo MRs. Close it by hand once the MR is merged and the AC are met: `gh issue close <N> -R Bparsons0904/lazyforge --comment "<summary>"`. If blocked or partial, comment and leave it open.
+Nothing closes a ticket automatically. Close it by hand once the MR is merged and the AC are met: `fj -H https://git.bobparsons.dev issue close <N> -w "<summary>"`. If blocked or partial, comment and leave it open.
 
 ## Common commands
 
 ```bash
-gh issue view <N> -R Bparsons0904/lazyforge --json body -q .body
-gh issue view <N> -R Bparsons0904/lazyforge --comments
-gh issue create -R Bparsons0904/lazyforge --title "title" --body-file plan.md
-gh issue edit <N> -R Bparsons0904/lazyforge --body-file plan.md
-gh issue edit <N> -R Bparsons0904/lazyforge --add-label opus
-gh issue comment <N> -R Bparsons0904/lazyforge --body-file note.md
-gh issue close <N> -R Bparsons0904/lazyforge --comment "text"
+fj -H https://git.bobparsons.dev issue view <N>
+fj -H https://git.bobparsons.dev issue view <N> comments
+fj -H https://git.bobparsons.dev issue create "title" --body-file plan.md
+fj -H https://git.bobparsons.dev issue edit <N> body "$(cat plan.md)"
+fj -H https://git.bobparsons.dev issue edit <N> labels -a opus
+fj -H https://git.bobparsons.dev issue comment <N> --body-file note.md
+fj -H https://git.bobparsons.dev issue close <N> -w "text"
 ```

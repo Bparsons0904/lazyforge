@@ -7,7 +7,7 @@ description: The default for a lazyforge session. Use when a session starts with
 
 The PM starts a session; the session works the backlog. Nothing in this loop waits for approval. The only reason to stop on a ticket is a product question, and a product question parks that ticket while the loop carries on with the next one.
 
-Every `fj` call needs `-H https://git.bobparsons.dev`; every `gh` call needs `-R Bparsons0904/lazyforge`. Every comment an agent posts starts with `🤖 `. All `fj` and `gh` traffic uses the PM's account, so this prefix is the only way to tell a PM reply from an agent note.
+Every `fj` call needs `-H https://git.bobparsons.dev`. Every comment an agent posts starts with `🤖 `. All `fj` traffic uses the PM's account, so this prefix is the only way to tell a PM reply from an agent note.
 
 ## 0. Sync and finish what's in flight
 
@@ -22,13 +22,13 @@ An open MR from an earlier session comes first. Check its CI (CLAUDE.md → merg
 ## 1. Build the queue
 
 ```bash
-gh issue list -R Bparsons0904/lazyforge --state open -L 200 --json number,title,labels
+fj -H https://git.bobparsons.dev issue search -s open
 ```
 
 For each `needs-pm` ticket, read the comments. If a comment **without** the `🤖 ` prefix appears after the parking comment, the PM has answered:
 
 - fold the answer into `docs/design.md`, and into the ticket body
-- remove the label (`gh issue edit <N> -R Bparsons0904/lazyforge --remove-label needs-pm`)
+- remove the label (`fj -H https://git.bobparsons.dev issue edit <N> labels -r needs-pm`)
 - treat the ticket as open
 
 Otherwise skip it.

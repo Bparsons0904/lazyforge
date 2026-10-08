@@ -11,7 +11,7 @@ lazyforge is a keyboard-driven terminal UI for git forges (Forgejo/Gitea first, 
 | Product: UI model, boxes, keymap, Renovate features, v1 scope | `docs/design.md` |
 | Engineering: layers, domain model, `Forge` interface, API mapping | `docs/architecture.md` |
 | Why a technical decision was made | `docs/adr/` |
-| What's being worked on | GitHub Issues on `Bparsons0904/lazyforge` (tickets before GH-1 are closed Forgejo issues) |
+| What's being worked on | Forgejo issues on `deadstyle/lazyforge` (the old GitHub tickets GH-1 to GH-6 were carried over; earlier commits cite the GH numbers) |
 | Clickable UI reference | `docs/mockup.html` |
 
 ## Roles
@@ -41,7 +41,7 @@ Following a pattern that's already established is not a technical decision.
 
 ## How we work
 
-Tickets are GitHub Issues on `Bparsons0904/lazyforge`, and the plan for a ticket lives in the ticket. Pass `-R Bparsons0904/lazyforge` to every `gh` call, because `origin` points at Forgejo and `gh` can't infer the repo. Code, MRs and CI stay on Forgejo, where `fj` always needs `-H https://git.bobparsons.dev` because it can't use the `:2222` SSH remote as a host.
+Tickets, MRs and CI all live on Forgejo, and the plan for a ticket lives in the ticket. `fj` always needs `-H https://git.bobparsons.dev` because it can't use the `:2222` SSH remote as a host. Don't use `gh` for tickets.
 
 - **Opening or fleshing out a ticket:** `ticket-workflow`.
 - **Picking up a ticket by number:** `ticket-kickoff`. It routes to **`labs:composer`** or **`labs:composer-lite`**, which are the default delivery path, or to inline work for single-domain tickets. Inline work closes out with `ship-it`. Composer stops once its MR is open, so the session that ran it then follows the merge rule below.
@@ -52,8 +52,8 @@ Tickets are GitHub Issues on `Bparsons0904/lazyforge`, and the plan for a ticket
   2. CI is green on the MR's head commit. Check with `curl -s https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/commits/<sha>/status`; the `state` must be `success`.
   3. No open product question remains on the ticket.
 
-  Then run `fj -H https://git.bobparsons.dev pr merge <PR> -M squash -d`, using the MR title as the squash title, and close the ticket by hand with `gh issue close <N> -R Bparsons0904/lazyforge --comment "🤖 merged: <MR url>"`. GitHub can't see Forgejo MRs, so nothing closes it automatically. If CI fails, fix it on the branch, push, and wait again. Never merge red.
-- **Claude cloud works from GitHub.** A cloud session reads its ticket on GitHub, pushes to a `claude/<ticket>-<slug>` branch and never merges. The `github-pull` workflow imports the branch as a Forgejo MR within 10 minutes and copies the dispatched CI result onto it as the `ci / check (dispatch)` status. Whoever merges it follows the merge rule above.
+  Then run `fj -H https://git.bobparsons.dev pr merge <PR> -M squash -d`, using the MR title as the squash title, and close the ticket by hand with `fj -H https://git.bobparsons.dev issue close <N> -w "🤖 merged: <MR url>"`. Merging doesn't close the ticket by itself, because commits carry only `Refs #<N>`. If CI fails, fix it on the branch, push, and wait again. Never merge red.
+- **Claude cloud works from GitHub.** A cloud session can't read Forgejo tickets, so the PM pastes it the brief. It pushes to a `claude/<ticket>-<slug>` branch and never merges. The `github-pull` workflow imports the branch as a Forgejo MR within 10 minutes and copies the dispatched CI result onto it as the `ci / check (dispatch)` status. Whoever merges it follows the merge rule above.
 - **Never push directly to `develop` or `main`.** Every change lands through an MR. Releases (`develop` → `main`, plus a tag) are the PM's call.
 - **After an MR is open:** push every follow-up commit to its branch as soon as it's made.
 - **Worktrees:** ticket work happens in `git worktree add ../lazyforge-<ticket> -b <branch> origin/develop`, never in the main checkout.
@@ -69,7 +69,7 @@ Tickets are GitHub Issues on `Bparsons0904/lazyforge`, and the plan for a ticket
 | Build / test / lint | `make build` · `make test` · `make lint` · `make check` runs all three plus a format check |
 | `project_conventions` | invoke skill `go-development`, and read this file |
 | `comments_convention` | invoke skill `comment-standard` |
-| Commit format | `type(scope): subject` (`feat`, `fix`, `chore`, `docs`, `refactor`, `test`) and a `GH-<ticket>` reference in the body. Never a bare `#<ticket>`: it would link a Forgejo issue, and a closing keyword on the mirror would close the wrong GitHub issue. |
+| Commit format | `type(scope): subject` (`feat`, `fix`, `chore`, `docs`, `refactor`, `test`) and a `Refs #<ticket>` line in the body. Never a closing keyword (`Closes`, `Fixes`): agents close tickets by hand after the merge. |
 
 ## Product questions
 

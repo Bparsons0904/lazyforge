@@ -9,13 +9,13 @@ A router, not a workflow. It reads only the ticket, picks an execution mode, sta
 
 **Why so little reading:** context gathered before the mode decision makes inline work feel inevitable. Once docs and source files are open, dispatching to a pipeline reads as wasted effort even when it's right. Make the call before that context exists.
 
-Every `gh` call needs `-R Bparsons0904/lazyforge`. Every `fj` call needs `-H https://git.bobparsons.dev`.
+Every `fj` call needs `-H https://git.bobparsons.dev`.
 
 ## 1. Read the ticket, nothing else
 
 ```bash
-gh issue view <N> -R Bparsons0904/lazyforge --json body -q .body
-gh issue view <N> -R Bparsons0904/lazyforge --comments
+fj -H https://git.bobparsons.dev issue view <N>
+fj -H https://git.bobparsons.dev issue view <N> comments
 ```
 
 No docs, no source reads, no greps. Any further reach belongs to the mode you route into.
@@ -23,8 +23,8 @@ No docs, no source reads, no greps. Any further reach belongs to the mode you ro
 ## 1.5 Is this already done or taken?
 
 ```bash
-git fetch -q origin && git log --oneline --grep "GH-<N>" origin/develop   # already shipped?
-gh issue view <N> -R Bparsons0904/lazyforge                                                   # assignee, state
+git fetch -q origin && git log --oneline --grep "#<N>" origin/develop   # already shipped?
+fj -H https://git.bobparsons.dev issue view <N>                                                   # assignee, state
 git cat-file -t <sha>                                                    # once per SHA the ticket cites
 ```
 
