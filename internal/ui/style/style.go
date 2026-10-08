@@ -62,6 +62,9 @@ var (
 
 	Heading = lipgloss.NewStyle().Foreground(Fg).Bold(true)
 	Mark    = lipgloss.NewStyle().Foreground(Mauve).Bold(true)
+
+	SparkHot  = lipgloss.NewStyle().Foreground(Yellow).Bold(true)
+	SparkCool = lipgloss.NewStyle().Foreground(Peach)
 )
 
 func mode(c color.Color) lipgloss.Style {

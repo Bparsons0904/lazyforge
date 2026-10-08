@@ -44,12 +44,12 @@ func TestSettingsRowsAndMarkers(t *testing.T) {
 	for _, r := range settingsRows(v) {
 		got = append(got, strings.Join([]string{r.host, r.repo}, "|"))
 	}
-	want := []string{"a|", "b|", "|", "|", "a|", "a|x/new", "a|x/old", "b|", "b|y/only"}
+	want := []string{"a|", "b|", "|", "|", "|", "a|", "a|x/new", "a|x/old", "b|", "b|y/only"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows = %v, want %v", got, want)
 	}
 	out := (settings{}).view(80, 30, v)
-	for _, s := range []string{"(default)", "(connected)", "Check for updates at startup"} {
+	for _, s := range []string{"(default)", "(connected)", "Check for updates at startup", "Show the splash screen at startup"} {
 		if !strings.Contains(out, s) {
 			t.Errorf("view lacks %q:\n%s", s, out)
 		}
@@ -64,7 +64,11 @@ func TestSettingsToggles(t *testing.T) {
 	if in.kind != intentChange || in.cfg.Update.Check {
 		t.Fatalf("update toggle: %+v", in)
 	}
-	_, in = sKeys(v, "j", "j", "j", "j", "enter") // host a merging
+	_, in = sKeys(v, "j", "j", "j", "j", "enter") // splash row
+	if in.kind != intentChange || !in.cfg.Splash.Show {
+		t.Fatalf("splash toggle: %+v", in)
+	}
+	_, in = sKeys(v, "j", "j", "j", "j", "j", "enter") // host a merging
 	if !in.cfg.Hosts["a"].RequireGreenCI {
 		t.Fatalf("host merge toggle: %+v", in.cfg.Hosts["a"])
 	}

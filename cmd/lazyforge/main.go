@@ -90,7 +90,7 @@ func appDeps(ctx context.Context, configPath, hostName string, noUpdateCheck boo
 	if errors.Is(err, fs.ErrNotExist) {
 		maybeUpdate(ctx, !noUpdateCheck) // a missing config means the check is on
 		d.Fresh = true
-		d.Config = config.Config{Update: config.Update{Check: true}}
+		d.Config = config.Defaults()
 		return d, nil
 	}
 	if err != nil {

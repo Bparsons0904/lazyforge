@@ -22,7 +22,7 @@ import (
 // Deps is what cmd hands the app; Connect and Probe keep adapters out of ui.
 type Deps struct {
 	ConfigPath, StatePath string
-	Config                config.Config // Update.Check true when Fresh
+	Config                config.Config // config.Defaults() when Fresh
 	Fresh                 bool          // no config file: start onboarding at step 1
 	LastHost              string        // from state; picker cursor
 	Host                  string        // selected host; "" shows the picker (or onboarding when Fresh)
@@ -38,6 +38,7 @@ const (
 	screenPicker
 	screenSettings
 	screenOnboarding
+	screenSplash
 )
 
 // App is the root model: it owns the screen, the config and the one live session.
@@ -53,7 +54,8 @@ type App struct {
 	screen     appScreen
 	settingsTo appScreen // where Settings returns on close
 	onboardTo  appScreen // where onboarding returns on cancel
-	crumb      string    // header for the onboarding screen
+	splashTo   appScreen
+	crumb      string // header for the onboarding screen
 	size       *tea.WindowSizeMsg
 	status     string
 	statusErr  bool
@@ -72,9 +74,11 @@ type App struct {
 	picker   picker
 	onboard  onboarding
 	settings settings
+	splash   splash
 }
 
-// NewApp starts on onboarding when Fresh, on d.Host's session when set, else on the picker.
+// NewApp starts on onboarding when Fresh, on d.Host's session when set, else on the picker,
+// with the splash in front of it when the config shows one.
 func NewApp(ctx context.Context, d Deps) App {
 	live := new(atomic.Pointer[config.Config])
 	c := d.Config
@@ -88,15 +92,22 @@ func NewApp(ctx context.Context, d Deps) App {
 	default:
 		a.screen, a.picker = screenPicker, newPicker(c, d.LastHost)
 	}
+	if c.Splash.Show {
+		a.splashTo, a.screen, a.splash = a.screen, screenSplash, newSplash()
+	}
 	return a
 }
 
-// Init loads the startup session, if there is one.
+// Init loads the startup session behind the splash, so skipping the splash early adds no wait.
 func (a App) Init() tea.Cmd {
-	if a.host == "" {
-		return nil
+	var cmds []tea.Cmd
+	if a.screen == screenSplash {
+		cmds = append(cmds, a.splash.start())
 	}
-	return stamp(a.gen, a.session.Init())
+	if a.host != "" {
+		cmds = append(cmds, stamp(a.gen, a.session.Init()))
+	}
+	return tea.Batch(cmds...)
 }
 
 // Update never blocks; disk and network work runs in the returned command.
@@ -132,6 +143,15 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.saved(msg)
 	case onboardDoneMsg:
 		return a, a.onboardDone(msg)
+	case splashFrameMsg:
+		if a.screen != screenSplash {
+			return a, nil
+		}
+		a.splash.frame++
+		return a, nextSplashFrame()
+	case splashDoneMsg:
+		a.leaveSplash()
+		return a, nil
 	case onboardCancelMsg:
 		if a.fresh {
 			return a, tea.Quit
@@ -151,6 +171,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	k := a.keys
 	switch a.screen {
+	case screenSplash:
+		if key.Matches(msg, k.Interrupt) {
+			return tea.Quit
+		}
+		a.leaveSplash()
+		return nil
 	case screenSession:
 		s := &a.session
 		if s.dialog == nil && !s.showHelp {
@@ -198,6 +224,18 @@ func connectError(name string, err error) string {
 		err = u
 	}
 	return fmt.Sprintf("Can't connect to %s: %v", name, err)
+}
+
+// leaveSplash is a no-op once the splash is gone, so a late timer can't move the user.
+func (a *App) leaveSplash() {
+	if a.screen != screenSplash {
+		return
+	}
+	a.screen = a.splashTo
+	// Onboarding only takes the window width while it is on screen.
+	if a.screen == screenOnboarding && a.size != nil {
+		a.onboard.resize(a.size.Width)
+	}
 }
 
 func (a App) cfg() config.Config { return *a.live.Load() }
@@ -343,6 +381,11 @@ func (a *App) setInfo(s string) { a.status, a.statusErr = s, false }
 
 // View renders nothing until the first WindowSizeMsg, since layout depends on it.
 func (a App) View() tea.View {
+	if a.screen == screenSplash {
+		v := tea.NewView(a.splash.view(a.width(), a.height()))
+		v.AltScreen = true
+		return v
+	}
 	if a.screen == screenSession {
 		return a.session.View()
 	}

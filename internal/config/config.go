@@ -17,12 +17,18 @@ import (
 type Config struct {
 	DefaultHost string          `toml:"default_host,omitempty"`
 	Update      Update          `toml:"update"`
+	Splash      Splash          `toml:"splash"`
 	Hosts       map[string]Host `toml:"hosts"`
 }
 
 // Update holds self-update settings.
 type Update struct {
 	Check bool `toml:"check"` // defaults to true when absent from the file
+}
+
+// Splash controls the startup splash screen; Load defaults Show to true when the file omits it.
+type Splash struct {
+	Show bool `toml:"show"`
 }
 
 // Host is one configured forge. Type uses the same strings as forge.Kind,
@@ -62,11 +68,14 @@ func (c Config) Clone() Config {
 	return c
 }
 
+// Defaults is the config a file without update or splash settings loads as, and the one onboarding starts from.
+func Defaults() Config { return Config{Update: Update{Check: true}, Splash: Splash{Show: true}} }
+
 // Load reads and validates the config at path. A missing file yields an error
 // satisfying errors.Is(err, fs.ErrNotExist), which the caller treats as "start
 // onboarding".
 func Load(path string) (Config, error) {
-	c := Config{Update: Update{Check: true}}
+	c := Defaults()
 	if _, err := toml.DecodeFile(path, &c); err != nil {
 		return Config{}, fmt.Errorf("load config %s: %w", path, err)
 	}

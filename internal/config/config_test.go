@@ -88,6 +88,42 @@ func TestUpdateCheckDefault(t *testing.T) {
 	}
 }
 
+func TestSplashShowDefault(t *testing.T) {
+	minimal := "[hosts.a]\ntype = \"github\"\ntoken_cmd = \"x\"\n"
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"absent section", minimal, true},
+		{"absent key", "[splash]\n" + minimal, true},
+		{"explicit false", "[splash]\nshow = false\n" + minimal, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := config.Load(writeFile(t, tt.body, 0o600))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Splash.Show != tt.want {
+				t.Fatalf("Splash.Show = %v, want %v", c.Splash.Show, tt.want)
+			}
+			// A saved choice survives the next load, including off.
+			out := filepath.Join(t.TempDir(), "config.toml")
+			if err := config.Save(out, c); err != nil {
+				t.Fatal(err)
+			}
+			got, err := config.Load(out)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Splash.Show != tt.want {
+				t.Fatalf("after save, Splash.Show = %v, want %v", got.Splash.Show, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidate(t *testing.T) {
 	ok := func() config.Host { return config.Host{Type: "forgejo", URL: "https://x", TokenCmd: "t"} }
 	tests := []struct {

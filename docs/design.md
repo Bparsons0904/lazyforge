@@ -30,6 +30,12 @@ Two columns are visible at any time. The left column is where you are, and the r
 - A breadcrumb in the header shows where you are: `host › repo › [1] Pull requests › #42`.
 - Action keys (`m`, `a`, `x`, `c`, `R`, `o`) work at both the box and details levels.
 
+## Splash
+
+Every launch opens on a splash screen: a hammer striking an anvil with sparks flying, the lazyforge name, and a tagline picked at random. It stays up for five seconds, and any key skips it. The key does nothing else. `ctrl+c` quits.
+
+Behind the splash, lazyforge is already on the screen it would have opened (onboarding on first run, otherwise the repo list or the host picker), and the repo list loads while the splash is up. On first run, onboarding starts at **Welcome** once the splash closes. A terminal too small for the art shows just the name and tagline. Settings can turn the splash off.
+
 ## Onboarding
 
 The first launch, with no config yet, starts onboarding instead of the host picker. Nobody has to write a config file by hand.
@@ -50,6 +56,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 - `S` opens Settings from anywhere except inside a dialog.
 - **Hosts:** add (the onboarding flow from step 2), edit, remove, and set the default.
 - **Updates:** turn the startup update check on or off.
+- **Splash screen:** turn the startup splash on or off.
 - **Merging:** "only merge when CI is green" per host, with a per-repo override.
 - The host picker has a **+ Add host** entry, which opens the same flow.
 - Settings are saved to the config file right away. There's no separate save step.

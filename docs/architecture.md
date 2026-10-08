@@ -146,6 +146,9 @@ default_host = "homelab"
 [update]
 check = true
 
+[splash]
+show = true
+
 [hosts.homelab]
 type = "forgejo"
 url = "https://git.bobparsons.dev"
