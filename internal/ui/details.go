@@ -112,7 +112,7 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(string) stri
 	case domain.ChangeRequest:
 		ci := ciIcon(it.CI, lipgloss.NewStyle()) + " " + style.Text.Render(ciText(it.CI))
 		if len(it.Labels) > 0 {
-			ci += style.Faint.Render(" · " + strings.Join(it.Labels, " "))
+			ci += style.Faint.Render(" · ") + renderLabels(it.Labels, it.LabelColors)
 		}
 		lines = []string{
 			style.Heading.Render(it.Title),
@@ -128,7 +128,7 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(string) stri
 			style.Faint.Render(fmt.Sprintf("%s #%d · %s · %s ago", repo, it.Number, it.Author, age(now, it.UpdatedAt))),
 		}
 		if len(it.Labels) > 0 {
-			lines = append(lines, style.Faint.Render(strings.Join(it.Labels, " ")))
+			lines = append(lines, renderLabels(it.Labels, it.LabelColors))
 		}
 		lines = append(lines, "", md(it.Body))
 	case domain.Run:
@@ -142,4 +142,12 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(string) stri
 		lines = []string{style.Faint.Render("Nothing here.")}
 	}
 	return strings.Join(lines, "\n")
+}
+
+func renderLabels(names []string, colors map[string]string) string {
+	labels := make([]string, len(names))
+	for i, name := range names {
+		labels[i] = style.Label(name, colors[name]).Render(name)
+	}
+	return strings.Join(labels, " ")
 }

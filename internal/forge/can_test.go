@@ -211,3 +211,28 @@ func TestCanRuleOrder(t *testing.T) {
 		}
 	})
 }
+
+type withLabels struct{ base }
+
+func (withLabels) ListLabels(context.Context, domain.RepoRef) ([]domain.Label, error) {
+	return nil, nil
+}
+
+func (withLabels) ItemLabels(context.Context, forge.ItemRef) ([]domain.Label, error) { return nil, nil }
+
+func (withLabels) SetLabels(context.Context, forge.ItemRef, []int64) ([]domain.Label, error) {
+	return nil, nil
+}
+
+func TestLabelCapabilityAndPermission(t *testing.T) {
+	if forge.Can(base{}, forge.ActLabels, repoWith(domain.AccessWrite)).OK {
+		t.Fatal("unsupported labels enabled")
+	}
+	f := withLabels{}
+	if forge.Can(f, forge.ActLabels, repoWith(domain.AccessRead)).OK {
+		t.Fatal("label writes enabled with read access")
+	}
+	if !forge.Can(f, forge.ActLabels, repoWith(domain.AccessWrite)).OK {
+		t.Fatal("label writes disabled with write access")
+	}
+}

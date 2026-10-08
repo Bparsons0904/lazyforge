@@ -143,6 +143,26 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 	case b.len(k) == 0:
 		return []string{style.Faint.Render("— none —")}
 	}
+	// Keep the tag and age columns stable across the entire section.
+	tagWidth, ageWidth := 0, 0
+	for i := range b.len(k) {
+		var tag, elapsed string
+		switch k {
+		case boxCRs:
+			tag = fmt.Sprintf("#%d", b.crs[i].Number)
+			elapsed = age(now, b.crs[i].UpdatedAt)
+		case boxIssues:
+			tag = fmt.Sprintf("#%d", b.issues[i].Number)
+			elapsed = age(now, b.issues[i].UpdatedAt)
+		default:
+			tag = b.runs[i].Workflow
+			elapsed = age(now, b.runs[i].StartedAt)
+		}
+		tagWidth = max(tagWidth, lipgloss.Width(tag))
+		ageWidth = max(ageWidth, lipgloss.Width(elapsed))
+	}
+	// Leave room for the title/branch even when a workflow name is very long.
+	tagWidth = min(tagWidth, max((w-ageWidth-4)/2, 0))
 	cur := b.cursor[k]
 	first := max(cur-h+1, 0)
 	var out []string
@@ -157,26 +177,26 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 		switch k {
 		case boxCRs:
 			cr := b.crs[i]
-			tag = fmt.Sprintf("#%d ", cr.Number)
+			tag = fitLine(truncate(fmt.Sprintf("#%d", cr.Number), tagWidth), tagWidth) + " "
 			label = cr.Title
-			meta = ciIcon(cr.CI, base) + on(style.Faint, " "+age(now, cr.UpdatedAt))
+			meta = ciIcon(cr.CI, base) + on(style.Faint, " "+fitLine(age(now, cr.UpdatedAt), ageWidth))
 			if b.marked[cr.Number] {
 				out = append(out, on(style.Mark, "◆ ")+tagRow(tag, ts, label, style.Text, meta, w-2, base))
 				continue
 			}
 		case boxIssues:
 			is := b.issues[i]
-			tag = fmt.Sprintf("#%d ", is.Number)
+			tag = fitLine(truncate(fmt.Sprintf("#%d", is.Number), tagWidth), tagWidth) + " "
 			label = is.Title
-			m := age(now, is.UpdatedAt)
+			m := fitLine(age(now, is.UpdatedAt), ageWidth)
 			if is.Comments > 0 {
 				m = fmt.Sprintf("%d💬 %s", is.Comments, m)
 			}
 			meta = on(style.Faint, m)
 		default:
 			r := b.runs[i]
-			tag = r.Workflow + " "
-			meta = on(style.Faint, age(now, r.StartedAt))
+			tag = fitLine(truncate(r.Workflow, tagWidth), tagWidth) + " "
+			meta = on(style.Faint, fitLine(age(now, r.StartedAt), ageWidth))
 			out = append(out, ciIcon(r.Status, base)+on(style.Text, " ")+tagRow(tag, ts, r.Branch, style.Text, meta, w-2, base))
 			continue
 		}

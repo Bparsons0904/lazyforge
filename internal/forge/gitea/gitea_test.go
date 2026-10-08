@@ -834,7 +834,7 @@ func TestAccessLevels(t *testing.T) {
 
 func TestLabelsAndClosedIssueState(t *testing.T) {
 	pr := loadList(t, "pulls.json")[0]
-	pr["labels"] = []obj{{"name": "renovate"}, {"name": "deps"}}
+	pr["labels"] = []obj{{"name": "renovate", "color": "abcdef"}, {"name": "deps"}}
 	f := stubForge(t, map[string]http.HandlerFunc{
 		"GET /api/v1/repos/{o}/{r}/pulls/18": func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, pr) },
 		"GET /api/v1/repos/{o}/{r}/commits/{ref}/status": func(w http.ResponseWriter, _ *http.Request) {
@@ -851,6 +851,9 @@ func TestLabelsAndClosedIssueState(t *testing.T) {
 	}
 	if !slices.Equal(cr.Labels, []string{"renovate", "deps"}) {
 		t.Errorf("labels = %v", cr.Labels)
+	}
+	if cr.LabelColors["renovate"] != "abcdef" {
+		t.Fatalf("label colors = %v", cr.LabelColors)
 	}
 	issues, err := f.ListIssues(t.Context(), lazyforge, forge.Filter{State: domain.StateClosed})
 	if err != nil {

@@ -71,6 +71,7 @@ type ChangeRequest struct {
 	HeadSHA             string
 	CI                  CIState
 	Labels              []string
+	LabelColors         map[string]string // label name to forge hex color; optional
 	UpdatedAt           time.Time
 	CreatedAt           time.Time
 	WebURL              string
@@ -83,6 +84,7 @@ type Issue struct {
 	Title, Body, Author string
 	State               State
 	Labels              []string
+	LabelColors         map[string]string // label name to forge hex color; optional
 	Comments            int
 	UpdatedAt           time.Time
 	WebURL              string
@@ -122,4 +124,10 @@ type Release struct {
 	Draft, Prerelease bool
 	PublishedAt       time.Time
 	WebURL            string
+}
+
+// Label is a repository or organization label that can be applied to an item.
+type Label struct {
+	ID          int64
+	Name, Color string
 }

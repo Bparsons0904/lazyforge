@@ -18,7 +18,9 @@ type user struct {
 }
 
 type label struct {
-	Name string `json:"name"`
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 
 type repo struct {
@@ -169,6 +171,7 @@ func (f *Forge) changeRequest(ctx context.Context, r domain.RepoRef, p pull) (do
 		HeadSHA:      p.Head.SHA,
 		CI:           combinedCI(st.State),
 		Labels:       labelNames(p.Labels),
+		LabelColors:  labelColors(p.Labels),
 		UpdatedAt:    p.UpdatedAt,
 		CreatedAt:    p.CreatedAt,
 		WebURL:       p.HTMLURL,
@@ -199,6 +202,19 @@ func combinedCI(s string) domain.CIState {
 		return domain.CISkipped
 	}
 	return domain.CINone
+}
+
+func labelColors(ls []label) map[string]string {
+	var out map[string]string
+	for _, l := range ls {
+		if l.Color != "" {
+			if out == nil {
+				out = make(map[string]string)
+			}
+			out[l.Name] = l.Color
+		}
+	}
+	return out
 }
 
 func labelNames(ls []label) []string {
@@ -255,15 +271,16 @@ func (f *Forge) ListIssues(ctx context.Context, r domain.RepoRef, flt forge.Filt
 			st = domain.StateClosed
 		}
 		out[i] = domain.Issue{
-			Number:    is.Number,
-			Title:     is.Title,
-			Body:      is.Body,
-			Author:    is.User.Login,
-			State:     st,
-			Labels:    labelNames(is.Labels),
-			Comments:  is.Comments,
-			UpdatedAt: is.UpdatedAt,
-			WebURL:    is.HTMLURL,
+			Number:      is.Number,
+			Title:       is.Title,
+			Body:        is.Body,
+			Author:      is.User.Login,
+			State:       st,
+			Labels:      labelNames(is.Labels),
+			LabelColors: labelColors(is.Labels),
+			Comments:    is.Comments,
+			UpdatedAt:   is.UpdatedAt,
+			WebURL:      is.HTMLURL,
 		}
 	}
 	return out, nil

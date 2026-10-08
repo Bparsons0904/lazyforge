@@ -61,6 +61,14 @@ func (l repoList) view(w, h int, svc *core.Service, term string, now time.Time) 
 		return frame(style.ActiveTitle.Render("Repositories"), []string{style.Faint.Render("Loading…")}, w, h, true)
 	}
 	title := style.ActiveTitle.Render("Repositories") + " " + style.Count.Render(fmt.Sprint(len(l.repos)))
+	// Measure the whole list so scrolling does not move the metadata columns.
+	ageWidth, countWidth := 0, 0
+	for _, r := range l.repos {
+		ageWidth = max(ageWidth, lipgloss.Width(age(now, r.LastActivity)))
+		if crs, _, ok := svc.PeekChangeRequests(r.RepoRef); ok && len(crs) > 0 {
+			countWidth = max(countWidth, lipgloss.Width(fmt.Sprintf("%d %s", len(crs), term)))
+		}
+	}
 	inner := max(h-2, 0)
 	first := max(l.cursor-inner+1, 0)
 	var lines []string
@@ -74,10 +82,14 @@ func (l repoList) view(w, h int, svc *core.Service, term string, now time.Time) 
 			continue
 		}
 		r := l.repos[i-1]
-		meta := style.Faint.Inherit(base).Render(age(now, r.LastActivity))
+		count := ""
+		meta := style.Faint.Inherit(base).Render(fitLine(age(now, r.LastActivity), ageWidth))
 		if crs, _, ok := svc.PeekChangeRequests(r.RepoRef); ok && len(crs) > 0 {
-			meta = style.RepoOpenPRs.Inherit(base).Render(fmt.Sprintf("%d %s", len(crs), term)) +
-				style.Faint.Inherit(base).Render("  "+age(now, r.LastActivity))
+			count = fmt.Sprintf("%d %s", len(crs), term)
+		}
+		if countWidth > 0 {
+			meta = style.RepoOpenPRs.Inherit(base).Render(fitLine(count, countWidth)) +
+				style.Faint.Inherit(base).Render("  ") + meta
 		}
 		name := style.Text
 		if now.Sub(r.LastActivity) >= staleAfter {

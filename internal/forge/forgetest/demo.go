@@ -174,6 +174,13 @@ func NewDemo(now time.Time) *Fake {
 		ref := domain.RepoRef{Owner: "home", Name: r.name}
 		base := fmt.Sprintf("%s/%s/%s", demoURL, ref.Owner, ref.Name)
 		f.AddRepo(domain.Repo{RepoRef: ref, Description: r.desc, WebURL: base, LastActivity: now.Add(-r.ago), Access: domain.AccessWrite})
+		f.AddLabels(ref,
+			domain.Label{ID: 1, Name: "bug", Color: "f38ba8"},
+			domain.Label{ID: 2, Name: "enhancement", Color: "89b4fa"},
+			domain.Label{ID: 3, Name: "dependencies", Color: "cba6f7"},
+			domain.Label{ID: 4, Name: "renovate", Color: "a6e3a1"},
+			domain.Label{ID: 5, Name: "spike", Color: "fab387"},
+		)
 		for _, p := range r.prs {
 			f.AddChangeRequest(ref, p.toDomain(ref, base, now))
 		}

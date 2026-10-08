@@ -103,6 +103,11 @@ type RunLister interface {
     ListJobs(ctx context.Context, r domain.RepoRef, runID int64) ([]domain.Job, error)
 }
 type LogReader interface { JobLog(ctx context.Context, r domain.RepoRef, jobID int64) (io.ReadCloser, error) }
+type Labeler interface {
+    ListLabels(ctx context.Context, r domain.RepoRef) ([]domain.Label, error)
+    ItemLabels(ctx context.Context, item ItemRef) ([]domain.Label, error)
+    SetLabels(ctx context.Context, item ItemRef, ids []int64) ([]domain.Label, error)
+}
 ```
 
 `forge.Can(f, action, repo)` answers whether the UI should enable an action. It checks the capability interface, then `f.Gate`, then `repo.Access`, and the first failure supplies the user-facing `Reason`. `forgetest.Fake` and `forgetest.RunContract` give core and every adapter a shared fake and behavior suite.

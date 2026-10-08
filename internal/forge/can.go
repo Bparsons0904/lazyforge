@@ -18,6 +18,7 @@ const (
 	ActEditIssue
 	ActRuns
 	ActLogs
+	ActLabels
 )
 
 // Availability says whether an action is allowed and, if not, why.
@@ -36,7 +37,7 @@ func Can(f Forge, a Action, r domain.Repo) Availability {
 	}
 	need := domain.AccessRead
 	switch a {
-	case ActMerge, ActApprove, ActClose, ActEditIssue:
+	case ActMerge, ActApprove, ActClose, ActEditIssue, ActLabels:
 		need = domain.AccessWrite
 	}
 	if r.Access < need {
@@ -52,6 +53,8 @@ func Can(f Forge, a Action, r domain.Repo) Availability {
 func hasCapability(f Forge, a Action) bool {
 	var ok bool
 	switch a {
+	case ActLabels:
+		_, ok = f.(Labeler)
 	case ActApprove:
 		_, ok = f.(Approver)
 	case ActRuns:
