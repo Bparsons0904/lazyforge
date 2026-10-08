@@ -96,6 +96,7 @@ internal/forge/gitea/   Gitea + Forgejo adapter (github/, gitlab/ later)
 internal/core/          cache, refresh, Renovate logic (★ view, grouping, dashboard ticks)
 internal/config/        config file + token_cmd
 internal/ui/            Bubble Tea models and Lip Gloss styles
+internal/ui/markdown/   markdown bodies to styled, width-fitted text (goldmark)
 ```
 
 The dependency direction is `ui → core → forge → domain`. Only `cmd/` knows about concrete adapters. `go-development` owns the detail.

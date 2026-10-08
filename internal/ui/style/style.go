@@ -61,6 +61,8 @@ var (
 	CIOther   = lipgloss.NewStyle().Foreground(Dim)
 
 	Heading = lipgloss.NewStyle().Foreground(Fg).Bold(true)
+	Link    = lipgloss.NewStyle().Foreground(Blue).Underline(true)
+	Code    = lipgloss.NewStyle().Foreground(Peach)
 	Mark    = lipgloss.NewStyle().Foreground(Mauve).Bold(true)
 
 	SparkHot  = lipgloss.NewStyle().Foreground(Yellow).Bold(true)

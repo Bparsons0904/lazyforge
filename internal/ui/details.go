@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/markdown"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
 
@@ -16,6 +17,22 @@ type details struct {
 	vp    viewport.Model
 	tab   int
 	shown string // the item and tab on screen; a change scrolls back to the top
+	md    mdMemo
+}
+
+// Only one item is on screen, so one memo entry is enough.
+type mdMemo struct {
+	body  string
+	width int
+	out   string
+	ok    bool
+}
+
+func (d *details) markdown(body string, width int) string {
+	if !d.md.ok || d.md.body != body || d.md.width != width {
+		d.md = mdMemo{body: body, width: width, out: markdown.Render(body, width), ok: true}
+	}
+	return d.md.out
 }
 
 // tabs lists the details tabs that have content for item; later tickets append to it.
@@ -27,14 +44,18 @@ func (d *details) cycleTab(item any, delta int) {
 	d.tab = ((d.tab+delta)%n + n) % n
 }
 
+// contentWidth subtracts the pane border and its one column of padding per side.
+func contentWidth(w int) int { return max(w-4, 1) }
+
 func (d *details) sync(item any, repo domain.RepoRef, w, h int, now time.Time) {
-	d.syncText(fmt.Sprintf("%v %s", repo, itemID(item)), overview(item, repo, now), w, h)
+	cw := contentWidth(w)
+	d.syncText(fmt.Sprintf("%v %s", repo, itemID(item)), overview(item, repo, now, func(b string) string { return d.markdown(b, cw) }), w, h)
 }
 
 // syncText shows text in the pane; a changed id scrolls back to the top.
 func (d *details) syncText(id, text string, w, h int) {
 	d.tab = min(d.tab, len(tabs(nil))-1)
-	cw, ch := max(w-4, 1), max(h-2, 0)
+	cw, ch := contentWidth(w), max(h-2, 0)
 	d.vp.SetWidth(cw)
 	d.vp.SetHeight(ch)
 	d.vp.SetContent(lipgloss.NewStyle().Width(cw).Render(text))
@@ -85,7 +106,7 @@ func itemCrumb(item any) string {
 	}
 }
 
-func overview(item any, repo domain.RepoRef, now time.Time) string {
+func overview(item any, repo domain.RepoRef, now time.Time, md func(string) string) string {
 	var lines []string
 	switch it := item.(type) {
 	case domain.ChangeRequest:
@@ -99,7 +120,7 @@ func overview(item any, repo domain.RepoRef, now time.Time) string {
 			ci,
 			style.Faint.Render(it.SourceBranch + " → " + it.TargetBranch),
 			"",
-			style.Text.Render(it.Body),
+			md(it.Body),
 		}
 	case domain.Issue:
 		lines = []string{
@@ -109,7 +130,7 @@ func overview(item any, repo domain.RepoRef, now time.Time) string {
 		if len(it.Labels) > 0 {
 			lines = append(lines, style.Faint.Render(strings.Join(it.Labels, " ")))
 		}
-		lines = append(lines, "", style.Text.Render(it.Body))
+		lines = append(lines, "", md(it.Body))
 	case domain.Run:
 		commit := it.Commit[:min(7, len(it.Commit))]
 		lines = []string{

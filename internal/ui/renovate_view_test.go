@@ -552,3 +552,20 @@ func TestStarRefreshStaysUncachedWhenRepoListChanges(t *testing.T) {
 		t.Errorf("refetched %d of %d repos after the list changed during r, want all", n, len(shorter))
 	}
 }
+
+func TestStarMemberDetailsRenderMarkdown(t *testing.T) {
+	pr := rvPostgres(7, domain.CIPass)
+	pr.Body += "\nsee **the notes** <!-- hidden -->\n"
+	f := rvFake("PR", rvRepo{ref: homelab, access: domain.AccessWrite, prs: []domain.ChangeRequest{pr}})
+	m := rvSized(t, f, core.Options{}, 120, 40)
+	m = press(t, m, "l", "3", "l")
+	v := detailsPane(m)
+	if !strings.Contains(v, "see the notes") {
+		t.Errorf("markdown body missing:\n%s", v)
+	}
+	for _, bad := range []string{"**", "](", "<!--", "hidden"} {
+		if strings.Contains(v, bad) {
+			t.Errorf("raw markdown %q in ★ details:\n%s", bad, v)
+		}
+	}
+}

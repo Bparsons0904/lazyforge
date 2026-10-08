@@ -190,3 +190,50 @@ func TestStaleRepoNamesFade(t *testing.T) {
 		t.Fatalf("fresh name should be bright and stale dim:\n%q", out)
 	}
 }
+
+func TestDetailsRendersMarkdownBody(t *testing.T) {
+	var d details
+	cr := domain.ChangeRequest{Number: 3, Title: "bump", Body: "**bold** and [a link](https://example.com)\n\n- [ ] <!-- hidden -->task"}
+	d.sync(cr, domain.RepoRef{Owner: "o", Name: "r"}, 60, 20, time.Now())
+	got := d.vp.View()
+	if !strings.Contains(got, "\x1b]8;;https://example.com\x1b\\") {
+		t.Errorf("link isn't a hyperlink in %q", got)
+	}
+	plain := strip(got)
+	for _, bad := range []string{"**", "](", "hidden", "<!--"} {
+		if strings.Contains(plain, bad) {
+			t.Errorf("raw markdown %q leaked into %q", bad, plain)
+		}
+	}
+	if !strings.Contains(plain, "☐ task") {
+		t.Errorf("task box missing from %q", plain)
+	}
+}
+
+func TestDetailsMarkdownFollowsBodyAndWidth(t *testing.T) {
+	var d details
+	a := d.markdown("one two three four five six seven", 10)
+	if d.markdown("one two three four five six seven", 10) != a {
+		t.Fatal("same body and width gave a different result")
+	}
+	if d.markdown("one two three four five six seven", 40) == a {
+		t.Error("a new width didn't re-render")
+	}
+	if d.markdown("different", 40) == a {
+		t.Error("a new body didn't re-render")
+	}
+}
+
+func TestDetailsRendersIssueMarkdownBody(t *testing.T) {
+	var d details
+	is := domain.Issue{Number: 4, Title: "t", Body: "# Heading\n\n**bold** [l](https://example.com)"}
+	d.sync(is, domain.RepoRef{Owner: "o", Name: "r"}, 60, 20, time.Now())
+	got := d.vp.View()
+	text := strip(got)
+	if strings.Contains(text, "**") || strings.Contains(text, "](") || strings.Contains(text, "# Heading") {
+		t.Errorf("raw markdown leaked into %q", text)
+	}
+	if !strings.Contains(got, "\x1b]8;;https://example.com\x1b\\") {
+		t.Errorf("link isn't a hyperlink in %q", got)
+	}
+}
