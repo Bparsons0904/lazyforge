@@ -26,10 +26,10 @@ var (
 var (
 	PaneBorder   = lipgloss.NewStyle().Foreground(Border)
 	ActiveBorder = lipgloss.NewStyle().Foreground(Blue)
-	PaneTitle    = lipgloss.NewStyle().Foreground(Dim)
 	ActiveTitle  = lipgloss.NewStyle().Foreground(Blue).Bold(true)
-	BoxNumber    = lipgloss.NewStyle().Foreground(Peach)
 	Count        = lipgloss.NewStyle().Foreground(Dim)
+	RepoStale    = lipgloss.NewStyle().Foreground(Dim)
+	RepoOpenPRs  = lipgloss.NewStyle().Foreground(Mauve).Bold(true)
 	Selected     = lipgloss.NewStyle().Background(Sel)
 	Text         = lipgloss.NewStyle().Foreground(Fg)
 	Faint        = lipgloss.NewStyle().Foreground(Dim)
@@ -66,6 +66,48 @@ var (
 	SparkHot  = lipgloss.NewStyle().Foreground(Yellow).Bold(true)
 	SparkCool = lipgloss.NewStyle().Foreground(Peach)
 )
+
+// Accents is one hue per box on a page; an index past the end wraps, so extra boxes repeat hues.
+type Accents []color.Color
+
+// Box accents: the repo page's pull requests, issues and actions, and the ★ Renovate page's five boxes.
+var (
+	RepoAccents = Accents{Mauve, Yellow, Green}
+	StarAccents = Accents{Peach, Blue, Mauve, Green, Red}
+)
+
+// Title is bold when the box is focused.
+func (a Accents) Title(i int, focused bool) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(a[i%len(a)]).Bold(focused)
+}
+
+// Border is the full accent when focused and a darker shade otherwise.
+func (a Accents) Border(i int, focused bool) lipgloss.Style {
+	c := a[i%len(a)]
+	if !focused {
+		c = lipgloss.Darken(c, 0.5)
+	}
+	return lipgloss.NewStyle().Foreground(c)
+}
+
+// Text is plain accent colour, with no bold or dimming.
+func (a Accents) Text(i int) lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(a[i%len(a)])
+}
+
+// UpdateType is red for major, yellow for minor, green for patch, and dim for anything else.
+func UpdateType(t string) lipgloss.Style {
+	switch t {
+	case "major":
+		return lipgloss.NewStyle().Foreground(Red)
+	case "minor":
+		return lipgloss.NewStyle().Foreground(Yellow)
+	case "patch":
+		return lipgloss.NewStyle().Foreground(Green)
+	default:
+		return Faint
+	}
+}
 
 func mode(c color.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(Bg).Background(c).Bold(true).Padding(0, 1)

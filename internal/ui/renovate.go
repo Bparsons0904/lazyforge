@@ -308,16 +308,11 @@ func (s starModel) render(w, h, focus int, active bool, term string, now time.Ti
 	for i := range starBoxes {
 		b := starBox(i)
 		focused := i == focus
-		title := style.BoxNumber.Render(fmt.Sprintf("[%d]", i+1)) + " "
-		if focused && active {
-			title += style.ActiveTitle.Render(starTitle(b, term))
-		} else {
-			title += style.PaneTitle.Render(starTitle(b, term))
-		}
+		title := style.StarAccents.Title(i, focused && active).Render(fmt.Sprintf("[%d] %s", i+1, starTitle(b, term)))
 		if s.cov != nil {
 			title += " " + style.Count.Render(fmt.Sprint(s.len(b)))
 		}
-		panes = append(panes, frame(title, s.rows(b, w-4, hs[i]-2, focused, now), w, hs[i], focused && active))
+		panes = append(panes, frameWith(style.StarAccents.Border(i, focused && active), title, s.rows(b, w-4, hs[i]-2, focused, now), w, hs[i]))
 	}
 	return strings.Join(panes, "\n")
 }
@@ -367,14 +362,24 @@ func (s starModel) row(b starBox, i, w int, selected bool, now time.Time) string
 	switch b {
 	case starByRepo:
 		r := s.view.ByRepo[i]
-		return row(r.Repo.String(), on(style.Faint, fmt.Sprintf("%dM %dm %dp  %.1f", r.Major, r.Minor, r.Patch, r.Impact)), w, base)
+		// A zero count stays dim so only the update types that exist stand out.
+		count := func(n int, unit, typ string) string {
+			st := style.Faint
+			if n > 0 {
+				st = style.UpdateType(typ)
+			}
+			return on(st, fmt.Sprintf("%d%s", n, unit))
+		}
+		meta := count(r.Major, "M", "major") + on(style.Faint, " ") + count(r.Minor, "m", "minor") + on(style.Faint, " ") +
+			count(r.Patch, "p", "patch") + on(style.Faint, fmt.Sprintf("  %.1f", r.Impact))
+		return tagRow("", lipgloss.NewStyle(), r.Repo.String(), style.StarAccents.Text(int(b)), meta, w, base)
 	case starGroups:
 		g := s.view.Groups[i]
 		var meta string
 		if n := len(g.Members); n > 1 {
 			meta = fmt.Sprintf("×%d ", n)
 		}
-		meta = on(style.Faint, meta+g.UpdateType+" ")
+		meta = on(style.Faint, meta) + on(style.UpdateType(g.UpdateType), g.UpdateType+" ")
 		for _, mb := range g.Members[:min(len(g.Members), maxGroupIcons)] {
 			meta += ciIcon(mb.CR.CI, base)
 		}
@@ -385,18 +390,19 @@ func (s starModel) row(b starBox, i, w int, selected bool, now time.Time) string
 		if n := pendingEntries(d); n > 0 {
 			meta = on(style.Faint, fmt.Sprintf("%d pending", n))
 		}
-		return row(fmt.Sprintf("%s ⚙ %s", d.Repo, d.Issue.Title), meta, w, base)
+		return tagRow(d.Repo.String()+" ", style.StarAccents.Text(int(b)), "⚙ "+d.Issue.Title, style.Text, meta, w, base)
 	}
 	mb := s.view.PRs[i]
 	if b == starCI {
 		mb = s.view.CI[i]
 	}
-	label := fmt.Sprintf("%s #%d %s", mb.Repo, mb.CR.Number, memberText(mb))
+	tag, ts := fmt.Sprintf("%s #%d ", mb.Repo, mb.CR.Number), style.StarAccents.Text(int(b))
+	label := memberText(mb)
 	meta := ciIcon(mb.CR.CI, base) + on(style.Faint, " "+memberAge(now, mb.CR))
 	if s.marked[starTarget{mb.Repo, mb.CR.Number}] {
-		return on(style.Mark, "◆ ") + row(label, meta, w-2, base)
+		return on(style.Mark, "◆ ") + tagRow(tag, ts, label, style.Text, meta, w-2, base)
 	}
-	return row(label, meta, w, base)
+	return tagRow(tag, ts, label, style.Text, meta, w, base)
 }
 
 func updateLines(us []domain.RenovateUpdate) []string {

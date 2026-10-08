@@ -125,16 +125,12 @@ func (b boxes) view(w, h int, focus int, active bool, term string, now time.Time
 	for i := range n {
 		k := boxKind(i)
 		focused := i == focus
-		title := style.BoxNumber.Render(fmt.Sprintf("[%d]", i+1)) + " "
-		if focused && active {
-			title += style.ActiveTitle.Render(boxTitle(k, term))
-		} else {
-			title += style.PaneTitle.Render(boxTitle(k, term))
-		}
+		accent := style.RepoAccents.Title(i, focused && active)
+		title := accent.Render(fmt.Sprintf("[%d] %s", i+1, boxTitle(k, term)))
 		if b.loaded[k] {
 			title += " " + style.Count.Render(fmt.Sprint(b.len(k)))
 		}
-		panes = append(panes, frame(title, b.rows(k, w-4, hs[i]-2, focused, now), w, hs[i], focused && active))
+		panes = append(panes, frameWith(style.RepoAccents.Border(i, focused && active), title, b.rows(k, w-4, hs[i]-2, focused, now), w, hs[i]))
 	}
 	return strings.Join(panes, "\n")
 }
@@ -156,19 +152,22 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 			base = style.Selected
 		}
 		on := func(s lipgloss.Style, t string) string { return s.Inherit(base).Render(t) }
-		var label, meta string
+		var tag, label, meta string
+		ts := style.RepoAccents.Text(int(k))
 		switch k {
 		case boxCRs:
 			cr := b.crs[i]
-			label = fmt.Sprintf("#%d %s", cr.Number, cr.Title)
+			tag = fmt.Sprintf("#%d ", cr.Number)
+			label = cr.Title
 			meta = ciIcon(cr.CI, base) + on(style.Faint, " "+age(now, cr.UpdatedAt))
 			if b.marked[cr.Number] {
-				out = append(out, on(style.Mark, "◆ ")+row(label, meta, w-2, base))
+				out = append(out, on(style.Mark, "◆ ")+tagRow(tag, ts, label, style.Text, meta, w-2, base))
 				continue
 			}
 		case boxIssues:
 			is := b.issues[i]
-			label = fmt.Sprintf("#%d %s", is.Number, is.Title)
+			tag = fmt.Sprintf("#%d ", is.Number)
+			label = is.Title
 			m := age(now, is.UpdatedAt)
 			if is.Comments > 0 {
 				m = fmt.Sprintf("%d💬 %s", is.Comments, m)
@@ -176,12 +175,12 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 			meta = on(style.Faint, m)
 		default:
 			r := b.runs[i]
-			label = fmt.Sprintf("%s %s", r.Workflow, r.Branch)
+			tag = r.Workflow + " "
 			meta = on(style.Faint, age(now, r.StartedAt))
-			out = append(out, ciIcon(r.Status, base)+on(style.Text, " ")+row(label, meta, w-2, base))
+			out = append(out, ciIcon(r.Status, base)+on(style.Text, " ")+tagRow(tag, ts, r.Branch, style.Text, meta, w-2, base))
 			continue
 		}
-		out = append(out, row(label, meta, w, base))
+		out = append(out, tagRow(tag, ts, label, style.Text, meta, w, base))
 	}
 	return out
 }

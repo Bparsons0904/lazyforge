@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
 
 func TestAge(t *testing.T) {
@@ -115,5 +116,77 @@ func TestSplitHeightsFocusRatio(t *testing.T) {
 	}
 	if eq := splitHeights(38, 3, -1); slices.Max(eq)-slices.Min(eq) > 1 {
 		t.Fatalf("preview heights %v not equal", eq)
+	}
+}
+
+func TestTagRowKeepsTagAndMetaAndTruncatesLabel(t *testing.T) {
+	got := strip(tagRow("#12 ", style.Faint, "a very long pull request title", style.Text, "3d", 20, lipgloss.NewStyle()))
+	if lipgloss.Width(got) != 20 || !strings.HasPrefix(got, "#12 ") || !strings.HasSuffix(got, "3d") || !strings.Contains(got, "…") {
+		t.Fatalf("tagRow %q", got)
+	}
+}
+
+func TestAccentsCoverEveryBox(t *testing.T) {
+	if len(style.StarAccents) < starBoxes {
+		t.Fatalf("%d star accents for %d boxes", len(style.StarAccents), starBoxes)
+	}
+	if len(style.RepoAccents) < int(boxRuns)+1 {
+		t.Fatalf("%d repo accents for %d boxes", len(style.RepoAccents), int(boxRuns)+1)
+	}
+}
+
+func TestBoxBorderDimsWhenUnfocused(t *testing.T) {
+	on, off := style.RepoAccents.Border(0, true), style.RepoAccents.Border(0, false)
+	if on.GetForeground() == off.GetForeground() {
+		t.Fatal("unfocused border matches the focused one")
+	}
+}
+
+func TestUpdateTypeColours(t *testing.T) {
+	for typ, want := range map[string]lipgloss.Style{
+		"major": lipgloss.NewStyle().Foreground(style.Red),
+		"minor": lipgloss.NewStyle().Foreground(style.Yellow),
+		"patch": lipgloss.NewStyle().Foreground(style.Green),
+		"other": style.Faint,
+	} {
+		if got := style.UpdateType(typ).Render("x"); got != want.Render("x") {
+			t.Errorf("UpdateType(%q) renders %q, want %q", typ, got, want.Render("x"))
+		}
+	}
+}
+
+func TestTagRowKeepsMetaWhenTagIsLong(t *testing.T) {
+	got := strip(tagRow("deadstyle/a-very-long-repository-name #12 ", style.Faint, "title", style.Text, "3d", 20, lipgloss.NewStyle()))
+	if lipgloss.Width(got) != 20 || !strings.HasSuffix(got, "3d") {
+		t.Fatalf("tagRow %q", got)
+	}
+}
+
+func TestTagRowReplacesControlCharsInTag(t *testing.T) {
+	got := strip(tagRow("ci\t", style.Faint, "x", style.Text, "3d", 12, lipgloss.NewStyle()))
+	if strings.ContainsRune(got, '\t') || lipgloss.Width(got) != 12 {
+		t.Fatalf("tagRow %q", got)
+	}
+}
+
+func TestTagRowColoursTagAndLabelApart(t *testing.T) {
+	ts, ls := lipgloss.NewStyle().Foreground(style.Mauve), lipgloss.NewStyle().Foreground(style.Green)
+	got := tagRow("#1 ", ts, "title", ls, "3d", 20, lipgloss.NewStyle())
+	if !strings.Contains(got, ts.Render("#1 ")) || !strings.Contains(got, strings.TrimSuffix(ls.Render("t"), "\x1b[m")) {
+		t.Fatalf("tag and label colours missing from %q", got)
+	}
+}
+
+func TestStaleRepoNamesFade(t *testing.T) {
+	m := seeded(t)
+	now := time.Now()
+	l := repoList{loaded: true, repos: []domain.Repo{
+		{RepoRef: domain.RepoRef{Name: "freshrepo"}, LastActivity: now.Add(-time.Hour)},
+		{RepoRef: domain.RepoRef{Name: "oldrepo"}, LastActivity: now.Add(-staleAfter - time.Hour)},
+	}}
+	out := l.view(40, 6, m.svc, "PR", now)
+	fg := func(st lipgloss.Style) string { return strings.Split(st.Render("x"), "x")[0] }
+	if !strings.Contains(out, fg(style.Text)+"freshrepo") || !strings.Contains(out, fg(style.RepoStale)+"oldrepo") {
+		t.Fatalf("fresh name should be bright and stale dim:\n%q", out)
 	}
 }

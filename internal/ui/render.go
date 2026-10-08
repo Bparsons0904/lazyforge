@@ -15,12 +15,16 @@ import (
 // frame draws a w×h rounded box with title set into the top edge, which Lip Gloss borders can't do.
 // Each content line gets one column of padding per side and is clipped to fit.
 func frame(title string, lines []string, w, h int, active bool) string {
-	if w < 2 || h < 2 {
-		return fitLines(nil, w, h)
-	}
 	bs := style.PaneBorder
 	if active {
 		bs = style.ActiveBorder
+	}
+	return frameWith(bs, title, lines, w, h)
+}
+
+func frameWith(bs lipgloss.Style, title string, lines []string, w, h int) string {
+	if w < 2 || h < 2 {
+		return fitLines(nil, w, h)
 	}
 	top := bs.Render("╭─")
 	if title != "" && w >= 6 {
@@ -95,16 +99,26 @@ func truncate(s string, w int) string {
 
 // row lays out label on the left and meta on the right of a w-column line; only label is truncated.
 func row(label, meta string, w int, base lipgloss.Style) string {
+	return tagRow("", lipgloss.NewStyle(), label, style.Text, meta, w, base)
+}
+
+func tagRow(tag string, ts lipgloss.Style, label string, ls lipgloss.Style, meta string, w int, base lipgloss.Style) string {
 	// lipgloss.Width counts a tab as 0 but Render expands it, so an unreplaced control char overflows w.
-	label = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return ' '
-		}
-		return r
-	}, label)
-	label = truncate(label, w-lipgloss.Width(meta)-1)
-	gap := max(w-lipgloss.Width(label)-lipgloss.Width(meta), 0)
-	return style.Text.Inherit(base).Render(label+strings.Repeat(" ", gap)) + meta
+	clean := func(s string) string {
+		return strings.Map(func(r rune) rune {
+			if unicode.IsControl(r) {
+				return ' '
+			}
+			return r
+		}, s)
+	}
+	tag = clean(tag)
+	// The tag shares the label's truncation budget so a long one can't push meta off the line.
+	full := truncate(tag+clean(label), w-lipgloss.Width(meta)-1)
+	gap := max(w-lipgloss.Width(full)-lipgloss.Width(meta), 0)
+	n := min(len([]rune(tag)), len([]rune(full)))
+	head, rest := []rune(full)[:n], []rune(full)[n:]
+	return ts.Inherit(base).Render(string(head)) + ls.Inherit(base).Render(string(rest)+strings.Repeat(" ", gap)) + meta
 }
 
 func age(now, t time.Time) string {

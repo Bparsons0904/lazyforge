@@ -13,6 +13,8 @@ import (
 
 const renovateRow = "★ Renovate"
 
+const staleAfter = 7 * 24 * time.Hour
+
 type repoList struct {
 	repos  []domain.Repo
 	loaded bool
@@ -72,11 +74,16 @@ func (l repoList) view(w, h int, svc *core.Service, term string, now time.Time) 
 			continue
 		}
 		r := l.repos[i-1]
-		meta := age(now, r.LastActivity)
+		meta := style.Faint.Inherit(base).Render(age(now, r.LastActivity))
 		if crs, _, ok := svc.PeekChangeRequests(r.RepoRef); ok && len(crs) > 0 {
-			meta = fmt.Sprintf("%d %s  %s", len(crs), term, meta)
+			meta = style.RepoOpenPRs.Inherit(base).Render(fmt.Sprintf("%d %s", len(crs), term)) +
+				style.Faint.Inherit(base).Render("  "+age(now, r.LastActivity))
 		}
-		lines = append(lines, row(r.Name, style.Faint.Inherit(base).Render(meta), w-4, base))
+		name := style.Text
+		if now.Sub(r.LastActivity) >= staleAfter {
+			name = style.RepoStale
+		}
+		lines = append(lines, tagRow("", lipgloss.NewStyle(), r.Name, name, meta, w-4, base))
 	}
 	return frame(title, lines, w, h, true)
 }
