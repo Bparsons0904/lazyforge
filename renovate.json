@@ -28,8 +28,8 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "golangci-lint is installed with go install in ci.yml, not declared in go.mod",
-      "managerFilePatterns": ["^\\.forgejo/workflows/ci\\.yml$"],
+      "description": "golangci-lint is installed with go install in the CI and release workflows, not declared in go.mod. Patterns are wrapped in slashes because a bare string is a glob.",
+      "managerFilePatterns": ["/^\\.forgejo/workflows/[^/]+\\.ya?ml$/"],
       "matchStrings": [
         "golangci-lint/v2/cmd/golangci-lint@v(?<currentValue>[0-9.]+)"
       ],
@@ -40,10 +40,18 @@
     {
       "customType": "regex",
       "description": "govulncheck runs via go run with a pinned version in the Makefile, not declared in go.mod",
-      "managerFilePatterns": ["^Makefile$"],
+      "managerFilePatterns": ["/^Makefile$/"],
       "matchStrings": ["golang.org/x/vuln/cmd/govulncheck@(?<currentValue>v[0-9.]+)"],
       "depNameTemplate": "golang.org/x/vuln",
       "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "shellcheck is downloaded from its GitHub release in the CI and release workflows",
+      "managerFilePatterns": ["/^\\.forgejo/workflows/[^/]+\\.ya?ml$/"],
+      "matchStrings": ["SHELLCHECK_VERSION: (?<currentValue>v[0-9.]+)"],
+      "depNameTemplate": "koalaman/shellcheck",
+      "datasourceTemplate": "github-releases"
     }
   ]
 }
