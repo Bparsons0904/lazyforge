@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -34,6 +35,7 @@ type Fake struct {
 	mu        sync.Mutex
 	info      forge.HostInfo
 	known     map[domain.RepoRef]bool
+	labels    map[domain.RepoRef][]domain.Label
 	repos     []domain.Repo
 	crs       map[domain.RepoRef][]domain.ChangeRequest
 	issues    map[domain.RepoRef][]domain.Issue
@@ -53,6 +55,7 @@ func NewFake(info forge.HostInfo) *Fake {
 	return &Fake{
 		info:     info,
 		known:    map[domain.RepoRef]bool{},
+		labels:   map[domain.RepoRef][]domain.Label{},
 		crs:      map[domain.RepoRef][]domain.ChangeRequest{},
 		issues:   map[domain.RepoRef][]domain.Issue{},
 		releases: map[domain.RepoRef][]domain.Release{},
@@ -86,6 +89,7 @@ func (f *Fake) AddIssue(r domain.RepoRef, is domain.Issue) {
 	defer f.mu.Unlock()
 	f.known[r] = true
 	is.Labels = slices.Clone(is.Labels)
+	is.LabelColors = maps.Clone(is.LabelColors)
 	f.issues[r] = append(f.issues[r], is)
 }
 
@@ -232,6 +236,7 @@ func (f *Fake) ListIssues(ctx context.Context, r domain.RepoRef, flt forge.Filte
 	for _, is := range f.issues[r] {
 		if is.State == flt.State {
 			is.Labels = slices.Clone(is.Labels)
+			is.LabelColors = maps.Clone(is.LabelColors)
 			out = append(out, is)
 		}
 	}
@@ -429,6 +434,7 @@ func (f *Fake) itemErr(item forge.ItemRef) error {
 
 func cloneCR(cr domain.ChangeRequest) domain.ChangeRequest {
 	cr.Labels = slices.Clone(cr.Labels)
+	cr.LabelColors = maps.Clone(cr.LabelColors)
 	cr.Renovate = slices.Clone(cr.Renovate)
 	return cr
 }

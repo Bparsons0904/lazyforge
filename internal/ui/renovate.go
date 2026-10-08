@@ -549,6 +549,7 @@ func (m *Model) syncStarKeys() {
 	k.Approve.SetEnabled(isCR && can(forge.ActApprove))
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
 	k.Comment.SetEnabled((isCR || isIssue) && can(forge.ActComment))
+	k.Labels.SetEnabled((isCR || isIssue) && can(forge.ActLabels))
 	k.Open.SetEnabled(webURL(item) != "")
 	k.Rerun.SetEnabled(false)
 }

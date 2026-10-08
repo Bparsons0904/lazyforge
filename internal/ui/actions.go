@@ -75,6 +75,7 @@ func (m *Model) syncKeys() {
 	k.Approve.SetEnabled(isCR && can(forge.ActApprove))
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
 	k.Comment.SetEnabled((isCR || isIssue) && can(forge.ActComment))
+	k.Labels.SetEnabled((isCR || isIssue) && can(forge.ActLabels))
 	k.Open.SetEnabled(webURL(item) != "")
 	k.Rerun.SetEnabled(isRun && webURL(item) != "")
 }
@@ -134,6 +135,8 @@ func (m *Model) itemActionKey(msg tea.KeyPressMsg, ref forge.ItemRef, item any) 
 		}, true
 	case key.Matches(msg, k.CloseItem):
 		m.dialog = closeDialog(ref, item)
+	case key.Matches(msg, k.Labels):
+		return m.openLabels(ref), true
 	case key.Matches(msg, k.Comment):
 		return editComment(m.ctx, ref), true
 	case key.Matches(msg, k.Open), key.Matches(msg, k.Rerun):
@@ -173,7 +176,7 @@ func (m *Model) recheck() tea.Cmd {
 // rechecked leaves a target whose recheck failed marked and out of the dialog.
 func (m *Model) rechecked(msg recheckedMsg) tea.Cmd {
 	// A late recheck must not replace a dialog the user already opened or confirmed.
-	if msg.repo != m.boxes.repo || m.dialog != nil {
+	if msg.repo != m.boxes.repo || m.dialog != nil || m.labels != nil {
 		return nil
 	}
 	var open []core.Target

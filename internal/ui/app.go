@@ -179,7 +179,7 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case screenSession:
 		s := &a.session
-		if s.dialog == nil && !s.showHelp {
+		if s.dialog == nil && s.labels == nil && !s.showHelp {
 			switch {
 			case key.Matches(msg, k.Settings):
 				a.openSettings()

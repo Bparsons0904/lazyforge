@@ -54,7 +54,7 @@ func (m *Model) starRecheck() tea.Cmd {
 // starRechecked opens the merge dialog over the still-open targets the user may merge.
 func (m *Model) starRechecked(msg starRecheckedMsg) {
 	// A late recheck must not replace a dialog the user already opened or confirmed.
-	if m.dialog != nil || !m.onStar() {
+	if m.dialog != nil || m.labels != nil || !m.onStar() {
 		return
 	}
 	var open []core.Target

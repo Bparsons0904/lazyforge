@@ -46,7 +46,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 4. **Sign in:** either paste a token, or give a command that prints one (such as `gh auth token` or a secrets-manager command). The screen links to the page where a token is created (`<url>/user/settings/applications` on Forgejo and Gitea) and lists the permissions it needs:
    - `read:user`: the sign-in check
    - `write:repository`: listing repos, PRs, CI status and runs; merging, approving and closing PRs
-   - `write:issue`: issues, comments, closing issues and ticking Renovate dashboard entries
+   - `write:issue`: issues, comments, closing issues, editing labels and ticking Renovate dashboard entries
 5. **Connection test:** shows "Signed in as *name* · *N* repositories". On failure it says why (bad token, missing permission, server unreachable) and stays on the step until it's fixed.
 6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip.
 7. **Name and save:** a short name for the host (suggested from the URL). Saving goes straight into the repo list.
@@ -104,12 +104,15 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 | `a` | Approve |
 | `x` | Close a PR or issue |
 | `c` | Comment (opens `$EDITOR`) |
+| `L` | Edit labels on the selected PR or issue (requires repository write access) |
 | `R` | Re-run a workflow: opens the run's page in the browser until the forge offers a re-run API |
 | `o` | Open in browser |
 | `r` | Refresh |
 | `S` | Settings |
 | `?` | Help |
 | `esc` | Close a dialog / clear marks |
+
+The label picker lists colored labels with the current selection checked. Type to filter, use arrows to move and Space to toggle, then Enter to save the complete selection. Esc cancels without writing. Failed saves keep the selection available to retry.
 
 Every merge and close goes through a confirm dialog. The dialog lists the targets (for a Renovate PR, every package it carries), the merge strategy (always the repo's default), and a warning for any target with failing or running CI.
 

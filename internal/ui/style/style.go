@@ -2,7 +2,10 @@
 package style
 
 import (
+	"encoding/hex"
+	"hash/fnv"
 	"image/color"
+	"strings"
 
 	"charm.land/lipgloss/v2"
 )
@@ -113,4 +116,16 @@ func UpdateType(t string) lipgloss.Style {
 
 func mode(c color.Color) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(Bg).Background(c).Bold(true).Padding(0, 1)
+}
+
+// Label uses the forge color when valid, or a stable palette color based on the name.
+func Label(name, rawColor string) lipgloss.Style {
+	value := strings.TrimPrefix(rawColor, "#")
+	if _, err := hex.DecodeString(value); len(value) == 6 && err == nil {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#" + value))
+	}
+	palette := []color.Color{Blue, Green, Red, Yellow, Mauve, Peach}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(name))
+	return lipgloss.NewStyle().Foreground(palette[int(h.Sum32()%uint32(len(palette)))])
 }

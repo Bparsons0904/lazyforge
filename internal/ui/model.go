@@ -43,6 +43,7 @@ type Model struct {
 	cancel context.CancelFunc
 
 	openURL     func(string) error // overridable so tests never launch a browser
+	labels      *labelPicker
 	dialog      *dialog
 	mergeCancel context.CancelFunc // stops a running merge from starting more targets
 
@@ -89,6 +90,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 	case tea.KeyPressMsg:
 		cmd = m.handleKey(msg)
+	case tea.PasteMsg:
+		if m.labels != nil && m.labels.loaded && !m.labels.saving {
+			m.labels.search, cmd = m.labels.search.Update(msg)
+			m.labels.cursor = 0
+		}
 	case refreshTickMsg:
 		cmd = tea.Batch(m.refresh(), m.tick())
 	case reposLoadedMsg:
@@ -126,6 +132,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.mergeDone(msg)
 	case actionDoneMsg:
 		cmd = m.actionDone(msg)
+	case labelsLoadedMsg:
+		if m.labels == msg.picker {
+			m.labels.load(msg)
+		}
+	case labelsSavedMsg:
+		if m.labels == msg.picker {
+			m.labels.saving = false
+			m.labels.err = msg.err
+			if msg.err == nil {
+				m.labels = nil
+				cmd = m.actionDone(actionDoneMsg{repo: msg.picker.item.Repo, item: msg.picker.item, verb: "Updated labels on"})
+			}
+		}
 	case editorDoneMsg:
 		cmd = m.postComment(msg)
 	}
@@ -140,6 +159,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	m.status = ""
 	if key.Matches(msg, k.Interrupt) {
 		return tea.Quit
+	}
+	if m.labels != nil {
+		return m.labelsKey(msg)
 	}
 	if m.dialog != nil {
 		return m.dialogKey(msg)
@@ -356,6 +378,9 @@ func (m Model) body() string {
 		box := frame(style.ActiveTitle.Render("Help"), lines, min(lipgloss.Width(strings.Join(lines, "\n"))+4, m.width), min(len(lines)+2, bodyH), true)
 		return fitLines(strings.Split(lipgloss.Place(m.width, bodyH, lipgloss.Center, lipgloss.Center, box), "\n"), m.width, bodyH)
 	}
+	if m.labels != nil {
+		return m.labels.view(m.width, bodyH)
+	}
 	if m.dialog != nil {
 		return m.dialog.view(m.width, bodyH, m.info.ChangeRequestTerm, m.keys, m.help)
 	}
@@ -441,7 +466,9 @@ func (m Model) statusBar() string {
 		badge = style.ModeRepos.Render("REPOS")
 	}
 	bindings := m.keys.shortHelp(m.level)
-	if m.dialog != nil {
+	if m.labels != nil {
+		bindings = []key.Binding{hint(m.keys.Down, "↑/↓", "move"), key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "toggle")), hint(m.keys.Enter, "enter", "save"), hint(m.keys.Close, "esc", "cancel")}
+	} else if m.dialog != nil {
 		bindings = m.dialog.hints(m.keys)
 	}
 	return renderStatusBar(m.width, m.help, badge, m.status, m.statusErr, bindings)

@@ -102,3 +102,10 @@ type RunLister interface {
 type LogReader interface {
 	JobLog(ctx context.Context, r domain.RepoRef, jobID int64) (io.ReadCloser, error)
 }
+
+// Labeler is implemented by adapters that can read and replace item labels.
+type Labeler interface {
+	ListLabels(context.Context, domain.RepoRef) ([]domain.Label, error)
+	ItemLabels(context.Context, ItemRef) ([]domain.Label, error)
+	SetLabels(context.Context, ItemRef, []int64) ([]domain.Label, error)
+}

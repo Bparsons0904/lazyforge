@@ -237,3 +237,70 @@ func TestDetailsRendersIssueMarkdownBody(t *testing.T) {
 		t.Errorf("link isn't a hyperlink in %q", got)
 	}
 }
+
+func TestActionColumnsStayAligned(t *testing.T) {
+	now := time.Now()
+	b := boxes{runs: []domain.Run{
+		{Workflow: "ci.yml", Branch: "develop", StartedAt: now.Add(-time.Hour)},
+		{Workflow: "release.yml", Branch: "#1193", StartedAt: now.Add(-12 * time.Hour)},
+		{Workflow: strings.Repeat("界", 40), Branch: "main", StartedAt: now.Add(-72 * time.Hour)},
+	}}
+	b.loaded[boxRuns] = true
+	rows := b.rows(boxRuns, 40, 3, false, now)
+	column := -1
+	for i, branch := range []string{"develop", "#1193", "main"} {
+		line := strip(rows[i])
+		idx := strings.Index(line, branch)
+		if idx < 0 {
+			t.Fatalf("branch missing: %q", line)
+		}
+		start := lipgloss.Width(line[:idx])
+		if column >= 0 && start != column {
+			t.Fatalf("branch column moved from %d to %d: %q", column, start, line)
+		}
+		column = start
+		if lipgloss.Width(line) != 40 {
+			t.Fatalf("row width: %q", line)
+		}
+	}
+	if !strings.Contains(strip(rows[2]), "…") {
+		t.Fatal("long workflow was not truncated")
+	}
+	b.cursor[boxRuns] = 2
+	if got := b.rows(boxRuns, 40, 1, false, now); strip(got[0]) != strip(rows[2]) {
+		t.Fatalf("scrolling changed column widths: %q", got)
+	}
+}
+
+func TestRepositoryAgeColumnsStayAligned(t *testing.T) {
+	m := seeded(t)
+	now := time.Now()
+	l := repoList{loaded: true, repos: []domain.Repo{
+		{RepoRef: domain.RepoRef{Name: "short"}, LastActivity: now.Add(-time.Hour)},
+		{RepoRef: domain.RepoRef{Name: strings.Repeat("long", 20)}, LastActivity: now.Add(-12 * time.Hour)},
+	}}
+	rows := strings.Split(strip(l.view(40, 6, m.svc, "PR", now)), "\n")
+	a, b := strings.Index(rows[2], "1h"), strings.Index(rows[3], "12h")
+	if a < 0 || b < 0 || lipgloss.Width(rows[2][:a]) != lipgloss.Width(rows[3][:b]) || !strings.Contains(rows[3], "…") {
+		t.Fatalf("repository columns do not align:\n%s", strings.Join(rows, "\n"))
+	}
+}
+
+func TestLabelsUseForgeColorsAndFallback(t *testing.T) {
+	got := renderLabels([]string{"bug", "feature"}, map[string]string{"bug": "ff0000"})
+	want := lipgloss.NewStyle().Foreground(lipgloss.Color("#ff0000")).Render("bug")
+	if !strings.Contains(got, want) || strip(got) != "bug feature" {
+		t.Fatalf("colored labels: %q", got)
+	}
+	if style.Label("feature", "invalid").Render("feature") != style.Label("feature", "").Render("feature") {
+		t.Fatal("invalid color should use the stable fallback")
+	}
+	for _, item := range []any{
+		domain.Issue{Labels: []string{"bug"}, LabelColors: map[string]string{"bug": "ff0000"}},
+		domain.ChangeRequest{Labels: []string{"bug"}, LabelColors: map[string]string{"bug": "ff0000"}},
+	} {
+		if !strings.Contains(overview(item, domain.RepoRef{}, time.Now(), func(body string) string { return body }), want) {
+			t.Fatalf("overview lost label color for %T", item)
+		}
+	}
+}

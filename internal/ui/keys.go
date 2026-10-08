@@ -8,7 +8,7 @@ import (
 type keyMap struct {
 	Up, Down, Left, Right, NextBox, PrevBox, PrevTab, NextTab,
 	Top, Bottom, HalfDown, HalfUp, Jump, Refresh, Help, Quit, Interrupt, Close,
-	Merge, Approve, CloseItem, Comment, Open, Rerun, Mark, Confirm, Settings, Enter key.Binding
+	Merge, Approve, CloseItem, Comment, Labels, Open, Rerun, Mark, Confirm, Settings, Enter key.Binding
 }
 
 // defaultKeys gives help text only to the first binding of each pair, so the overlay lists the pair once.
@@ -35,6 +35,7 @@ func defaultKeys() keyMap {
 		Merge:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),
 		Approve:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "approve")),
 		CloseItem: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "close")),
+		Labels:    key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "labels")),
 		Comment:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 		Open:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
 		Rerun:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "run page")),
@@ -70,7 +71,7 @@ func (k keyMap) fullHelp() [][]key.Binding {
 }
 
 func (k keyMap) actions() []key.Binding {
-	return []key.Binding{k.Merge, k.Mark, k.Approve, k.CloseItem, k.Comment, k.Open, k.Rerun}
+	return []key.Binding{k.Merge, k.Mark, k.Approve, k.CloseItem, k.Comment, k.Open, k.Rerun, k.Labels}
 }
 
 // gPrefix runs the gg prefix: the first g is consumed (swallowed), a g right after it reports gg,
