@@ -127,7 +127,7 @@ func TestSplashGivesOnboardingTheWidth(t *testing.T) {
 
 func TestSplashViewFits(t *testing.T) {
 	for _, sz := range []struct{ w, h int }{{100, 30}, {80, 24}, {20, 6}, {1, 1}} {
-		for frame := range 3 * strikeEvery {
+		for frame := range 36 {
 			s := splash{frame: frame, tagline: taglines[0]}
 			out := strings.Split(s.view(sz.w, sz.h), "\n")
 			if len(out) != sz.h {
@@ -145,33 +145,43 @@ func TestSplashViewFits(t *testing.T) {
 		t.Errorf("0x0 splash rendered %q", out)
 	}
 	big := strip((splash{tagline: taglines[0]}).view(80, 24))
-	for _, want := range []string{"lazyforge", taglines[0], "press any key", "|____________|"} {
+	for _, want := range []string{"lazyforge", taglines[0], "press any key", "|__________|"} {
 		if !strings.Contains(big, want) {
 			t.Errorf("80x24 splash lacks %q:\n%s", want, big)
 		}
 	}
 	small := strip((splash{tagline: taglines[0]}).view(40, 8))
-	if !strings.Contains(small, "lazyforge") || strings.Contains(small, "|____________|") {
+	if !strings.Contains(small, "lazyforge") || strings.Contains(small, "|__________|") {
 		t.Errorf("40x8 splash should drop the art and keep the name:\n%s", small)
 	}
 }
 
-func TestSplashSparksFly(t *testing.T) {
-	sparks := func(frame int) int {
-		n := 0
-		for _, row := range (splash{frame: frame}).sky() {
-			for _, c := range row {
-				if strings.ContainsRune("*+·.", c.r) && c.r != 0 {
-					n++
+func TestSplashWorkshopMotion(t *testing.T) {
+	first := (splash{}).workshop()
+	fireChanged, smokeChanged := false, false
+	for frame := 1; frame < 36; frame++ {
+		next := (splash{frame: frame}).workshop()
+		for y := range workshopH {
+			for x := range workshopW {
+				if first[y][x].r == next[y][x].r {
+					continue
+				}
+				switch {
+				case x < 24 && y < 3:
+					smokeChanged = true
+				case x >= 7 && x <= 11 && y >= 6 && y <= 7:
+					fireChanged = true
+				default:
+					t.Fatalf("static workshop changed at (%d,%d), frame %d", x, y, frame)
 				}
 			}
 		}
-		return n
 	}
-	if sparks(0) != 0 {
-		t.Fatal("sparks before the first strike")
+	if !fireChanged || !smokeChanged {
+		t.Fatalf("fire animated: %v, smoke animated: %v", fireChanged, smokeChanged)
 	}
-	if sparks(strikeEvery-1) == 0 {
-		t.Fatal("no sparks right after the strike")
+	// The glowing work sits directly on the anvil top.
+	if first[9][29].r != '━' || first[9][28].r != '_' {
+		t.Fatal("billet is not on the anvil")
 	}
 }
