@@ -129,6 +129,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.branchesLoaded(msg)
 	case commitsLoadedMsg:
 		m.commitsLoaded(msg)
+	case treeLoadedMsg:
+		cmd = m.treeLoaded(msg)
+	case previewLoadedMsg:
+		m.previewLoaded(msg)
 	case renovateScannedMsg:
 		m.scanned(msg)
 	case starRecheckedMsg:
@@ -164,6 +168,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.imagePlaced(msg)
 	}
 	m.boxes.clampCursors()
+	if !m.filesActive() {
+		m.details.filesFocus = false
+	}
 	m.syncDetails()
 	m.syncKeys()
 	return m, tea.Batch(cmd, m.syncImages())
@@ -328,6 +335,11 @@ func (m *Model) scrollKey(msg tea.KeyPressMsg, gg bool) bool {
 }
 
 func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) tea.Cmd {
+	if m.filesActive() {
+		if cmd, ok := m.filesKey(msg, gg); ok {
+			return cmd
+		}
+	}
 	if m.branchesActive() {
 		if cmd, ok := m.branchesKey(msg, gg); ok {
 			return cmd
@@ -514,6 +526,9 @@ func (m Model) breadcrumb(w int) string {
 		if m.level != levelRepos {
 			crumbs = append(crumbs, fmt.Sprintf("[%d] %s", m.boxes.focus+1, boxTitle(m.boxes.focus, m.info.ChangeRequestTerm)))
 			if c := itemCrumb(m.boxes.selected()); c != "" {
+				crumbs = append(crumbs, c)
+			}
+			if c := m.filesCrumb(); c != "" {
 				crumbs = append(crumbs, c)
 			}
 		}

@@ -59,7 +59,7 @@ func (f *Forge) ListBranches(ctx context.Context, r domain.RepoRef) ([]domain.Br
 			Commit: domain.Commit{
 				SHA: b.Commit.ID, Message: subject(b.Commit.Message), Author: b.Commit.Author.Name, Date: b.Commit.Timestamp,
 			},
-			WebURL: f.base + "/" + r.String() + "/src/branch/" + escapeBranch(b.Name),
+			WebURL: f.base + "/" + r.String() + "/src/branch/" + escapePath(b.Name),
 		}
 	}
 	return out, nil
@@ -96,8 +96,8 @@ func subject(msg string) string {
 	return strings.TrimSpace(line)
 }
 
-// escapeBranch escapes each segment of a branch name so its slashes stay path separators.
-func escapeBranch(name string) string {
+// escapePath escapes each segment of a repo path so its slashes stay path separators.
+func escapePath(name string) string {
 	segs := strings.Split(name, "/")
 	for i, s := range segs {
 		segs[i] = url.PathEscape(s)

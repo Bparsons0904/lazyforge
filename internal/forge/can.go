@@ -22,6 +22,7 @@ const (
 	ActAssets
 	ActReadme
 	ActBranches
+	ActFiles
 )
 
 // Availability says whether an action is allowed and, if not, why.
@@ -70,6 +71,8 @@ func hasCapability(f Forge, a Action) bool {
 		_, ok = f.(ReadmeReader)
 	case ActBranches:
 		_, ok = f.(BranchReader)
+	case ActFiles:
+		_, ok = f.(TreeReader)
 	default:
 		ok = true
 	}

@@ -155,3 +155,28 @@ type Branch struct {
 	Commit  Commit
 	WebURL  string
 }
+
+// EntryType is what a repo tree entry is.
+type EntryType int
+
+// Entry types.
+const (
+	EntryFile EntryType = iota
+	EntryDir
+	EntrySymlink
+	EntrySubmodule
+)
+
+// TreeEntry is one entry of a repo directory; Path is from the repo root with / separators.
+type TreeEntry struct {
+	Name, Path string
+	Type       EntryType
+	Size       int64 // bytes, as the listing reports it
+	WebURL     string
+}
+
+// FilePreview is a file's text for the Files tab, or why there is none; Text is "" when Binary or TooLarge.
+type FilePreview struct {
+	Text             string
+	Binary, TooLarge bool
+}

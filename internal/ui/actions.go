@@ -105,14 +105,19 @@ func webURL(item any) string {
 		return it.WebURL
 	case domain.Branch:
 		return it.WebURL
+	case domain.TreeEntry:
+		return it.WebURL
 	}
 	return ""
 }
 
-// openTarget is what o opens: the cursor branch on the Branches tab, otherwise item.
+// openTarget is what o opens: the cursor branch on the Branches tab, the cursor entry on the Files tab, otherwise item.
 func (m Model) openTarget(item any) any {
 	if m.branchesActive() {
 		return m.boxes.branches.list[m.details.branchCur]
+	}
+	if e, ok := m.details.cursorEntry(m.boxes.files); ok && m.filesActive() {
+		return e
 	}
 	return item
 }

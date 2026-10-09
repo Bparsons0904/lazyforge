@@ -84,18 +84,27 @@ func (withBranches) ListCommits(context.Context, domain.RepoRef, string) ([]doma
 	return nil, nil
 }
 
+type withTree struct{ base }
+
+func (withTree) ListTree(context.Context, domain.RepoRef, string) ([]domain.TreeEntry, error) {
+	return nil, nil
+}
+
+func (withTree) ReadFile(context.Context, domain.RepoRef, string) ([]byte, error) { return nil, nil }
+
 type full struct {
 	withApprover
 	withRuns
 	withLogs
 	withReadme
 	withBranches
+	withTree
 	base
 }
 
 var allActions = []forge.Action{
 	forge.ActMerge, forge.ActApprove, forge.ActClose, forge.ActComment,
-	forge.ActEditIssue, forge.ActRuns, forge.ActLogs, forge.ActBranches,
+	forge.ActEditIssue, forge.ActRuns, forge.ActLogs, forge.ActBranches, forge.ActFiles,
 }
 
 func repoWith(a domain.Access) domain.Repo {
@@ -127,6 +136,7 @@ func TestCanCapability(t *testing.T) {
 		{"logs without LogReader", withRuns{base{kind: forge.KindGitea}}, forge.ActLogs},
 		{"readme without ReadmeReader", withRuns{base{kind: forge.KindGitea}}, forge.ActReadme},
 		{"branches without BranchReader", withRuns{base{kind: forge.KindGitea}}, forge.ActBranches},
+		{"files without TreeReader", withRuns{base{kind: forge.KindGitea}}, forge.ActFiles},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -192,6 +202,8 @@ func TestCanPermission(t *testing.T) {
 		{forge.ActReadme, domain.AccessRead, true},
 		{forge.ActBranches, domain.AccessNone, false},
 		{forge.ActBranches, domain.AccessRead, true},
+		{forge.ActFiles, domain.AccessNone, false},
+		{forge.ActFiles, domain.AccessRead, true},
 	}
 	f := newFull(nil)
 	for _, tt := range tests {

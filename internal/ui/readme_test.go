@@ -137,8 +137,8 @@ func TestRepoDetailsTabs(t *testing.T) {
 		}
 	}
 	m = press(t, m, "]")
-	if m.details.tab != 1 || !strings.Contains(screen(m), "Coming soon") {
-		t.Errorf("]: tab %d, want Files showing Coming soon:\n%s", m.details.tab, screen(m))
+	if v := screen(m); m.details.tab != 1 || !strings.Contains(v, "— empty —") || strings.Contains(v, "Coming soon") {
+		t.Errorf("]: tab %d, want Files showing an empty listing:\n%s", m.details.tab, v)
 	}
 	m = press(t, m, "]")
 	if v := screen(m); m.details.tab != 2 || !strings.Contains(v, "No branches") || strings.Contains(v, "Coming soon") {

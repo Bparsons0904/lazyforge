@@ -72,6 +72,8 @@ type Release struct { /* Tag, Name, Notes, Draft, Prerelease, PublishedAt, WebUR
 type Readme struct { /* Name, Body; Name is "" when the repo has no README */ }
 type Commit struct { /* SHA, Message, Author, Date */ }
 type Branch struct { /* Name, Default, Commit (the tip), WebURL */ }
+type TreeEntry struct { /* Name, Path, Type (file, dir, symlink, submodule), Size, WebURL */ }
+type FilePreview struct { /* Text, Binary, TooLarge */ }
 ```
 
 ## Forge interface
@@ -111,6 +113,10 @@ type BranchReader interface {
     ListBranches(ctx context.Context, r domain.RepoRef) ([]domain.Branch, error) // GitHub: at most 100
     ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error) // ErrNotFound when the branch is gone
 }
+type TreeReader interface {
+    ListTree(ctx context.Context, r domain.RepoRef, dir string) ([]domain.TreeEntry, error) // dir "" is the root; ErrNotFound when dir is missing or the repo is empty
+    ReadFile(ctx context.Context, r domain.RepoRef, path string) ([]byte, error) // ErrNotFound when the file is missing
+}
 type Labeler interface {
     ListLabels(ctx context.Context, r domain.RepoRef) ([]domain.Label, error)
     ItemLabels(ctx context.Context, item ItemRef) ([]domain.Label, error)
@@ -123,7 +129,7 @@ type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.Read
 
 ## API mapping (first pass)
 
-The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The README row is unverified on every forge: it was written from the API docs for #104 and has not yet run against a live server. The branch rows (Branches, Branch commits) are unverified on every forge too: they were written from the API docs for #105 and have not yet run against a live server. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
+The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The README row is unverified on every forge: it was written from the API docs for #104 and has not yet run against a live server. The branch rows (Branches, Branch commits) are unverified on every forge too: they were written from the API docs for #105 and have not yet run against a live server. The file rows (Files (list), File contents) are unverified on every forge as well: they were written from the API docs for #106 and have not yet run against a live server. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
@@ -145,6 +151,8 @@ The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1
 | README | `GET …/contents` (root listing; the best name wins: `README.md`, then `README.markdown`, then a bare `README`, then other `README.*` files), then `GET …/contents/{name}` (base64 `content`) | `GET …/readme` (base64 `content`) | `GET /projects/:id/repository/tree` to find the name, then `GET /projects/:id/repository/files/:path?ref=` |
 | Branches | `GET …/branches` (paginated; the default is flagged from `GET /repos/{o}/{r}`) | `GET …/branches?per_page=100` (first page only; the default is fetched by `GET …/branches/{name}`, and each other branch's tip commit by `GET …/commits/{sha}`, 8 at a time) | `GET /projects/:id/repository/branches` |
 | Branch commits | `GET …/commits?sha={branch}&limit=30` | `GET …/commits?sha={branch}&per_page=30` | `GET /projects/:id/repository/commits?ref_name={branch}` |
+| Files (list) | `GET …/contents/{dir}` (the root without `{dir}`; default branch; 409 means no commits and maps to an empty listing) | `GET …/contents/{dir}` (default branch; at most 1,000 entries) | `GET /projects/:id/repository/tree?path={dir}` |
+| File contents | `GET …/contents/{path}` (base64 `content`; any other `encoding` is an error) | `GET …/contents/{path}` (base64 `content`; `download_url` null means a submodule, not a file) | `GET /projects/:id/repository/files/:path?ref=` (base64 `content`) |
 
 How the forges differ in practice:
 
@@ -154,6 +162,7 @@ How the forges differ in practice:
 - **README lookup:** Forgejo has no README endpoint, so its adapter reads the repo root only. GitHub's `/readme` also finds a README in `docs/` and `.github/`, so on Forgejo a README kept only there shows as "No README" (#104).
 - **Branch lists:** GitHub's branch list carries only SHAs, so its adapter makes one commit call per branch: at most 100 branches, the default always kept, and the GETs ETag-revalidated like the rest. Repos with more branches show the first 100. Gitea's list already carries each tip's message and time. The open-PR marker on the Branches tab is derived from the loaded change requests' `SourceBranch`, with no extra call, so a fork PR whose head branch has the same name as one of this repo's branches can false-match it.
 - **Branch dates:** Gitea's commit list dates come from `commit.author.date`, its branch tips from the branch's `commit.timestamp`, and GitHub's from the committer date. Which time the Gitea tip timestamp carries is unverified, so the Branches tab can mix the two kinds.
+- **File browsing:** the Files tab reads a directory's listing, then a file's contents only when it is previewed. A file whose listing `Size` is over 256 KiB (`core.MaxPreviewSize`) is never downloaded and shows as too large. A file is binary when it has a NUL byte or isn't valid UTF-8, and previews are plain text only. GitHub's contents API returns at most 1,000 entries per directory, and the adapter doesn't page past that. A GitHub submodule is a file entry whose `download_url` is null, so it maps to `EntrySubmodule` and is never read. Each cursor landing issues its own request, and only the directory or file the user has moved to is cancelled when the cursor moves on. Holding `j` therefore queues one load per row behind the core semaphore, and the stale ones finish and cache without being shown (#106).
 - **Reviews:** the domain model stays deliberately small: approve, comment, merge, close.
 
 ## Configuration and stored state

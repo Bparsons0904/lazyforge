@@ -55,11 +55,13 @@ type boxes struct {
 	showRuns     bool
 	showRepo     bool
 	showBranches bool
+	showFiles    bool
 	crs          []domain.ChangeRequest
 	issues       []domain.Issue
 	runs         []domain.Run
 	readme       readmeState
 	branches     branchesState
+	files        filesState
 	loaded       [boxRepo + 1]bool
 	cursor       [boxRepo + 1]int
 	focus        boxKind

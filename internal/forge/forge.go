@@ -130,3 +130,11 @@ type BranchReader interface {
 	// ListCommits returns the newest-first commits of branch, at most 30; ErrNotFound when the branch is gone.
 	ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error)
 }
+
+// TreeReader is implemented by adapters that can list a repo directory and read a file on the default branch.
+type TreeReader interface {
+	// ListTree returns the entries of dir ("" is the root), in any order; ErrNotFound when dir is missing or the repo is empty.
+	ListTree(ctx context.Context, r domain.RepoRef, dir string) ([]domain.TreeEntry, error)
+	// ReadFile returns the bytes of the file at path; ErrNotFound when it is missing.
+	ReadFile(ctx context.Context, r domain.RepoRef, path string) ([]byte, error)
+}

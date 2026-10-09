@@ -1,0 +1,14 @@
+{
+  "name": "empty.txt",
+  "path": "empty.txt",
+  "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "type": "file",
+  "size": 0,
+  "encoding": "base64",
+  "content": "",
+  "target": null,
+  "url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/contents/empty.txt?ref=main",
+  "html_url": "https://git.bobparsons.dev/deadstyle/lazyforge/src/branch/main/empty.txt",
+  "git_url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "download_url": "https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/empty.txt"
+}

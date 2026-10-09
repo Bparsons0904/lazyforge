@@ -39,6 +39,7 @@ var (
 	_ forge.AssetReader  = (*Forge)(nil)
 	_ forge.ReadmeReader = (*Forge)(nil)
 	_ forge.BranchReader = (*Forge)(nil)
+	_ forge.TreeReader   = (*Forge)(nil)
 )
 
 // New connects to a Gitea or Forgejo host; baseURL is the web root (no /api/v1).

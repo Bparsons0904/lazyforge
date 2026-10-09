@@ -70,7 +70,7 @@ func (f *Forge) ListBranches(ctx context.Context, r domain.RepoRef) ([]domain.Br
 		}
 	}
 	var def branchDetail
-	if err := f.call(ctx, http.MethodGet, repoPath(r)+"/branches/"+escapeBranch(repo.DefaultBranch), nil, &def); err != nil {
+	if err := f.call(ctx, http.MethodGet, repoPath(r)+"/branches/"+escapePath(repo.DefaultBranch), nil, &def); err != nil {
 		return nil, fmt.Errorf("read default branch of %s: %w", r, err)
 	}
 	details := make([]domain.Branch, len(others))
@@ -114,7 +114,7 @@ func (f *Forge) ListCommits(ctx context.Context, r domain.RepoRef, branch string
 func (f *Forge) branch(r domain.RepoRef, name string, isDefault bool, tip commitBody) domain.Branch {
 	return domain.Branch{
 		Name: name, Default: isDefault, Commit: tip.toCommit(),
-		WebURL: f.web + "/" + r.String() + "/tree/" + escapeBranch(name),
+		WebURL: f.web + "/" + r.String() + "/tree/" + escapePath(name),
 	}
 }
 
@@ -130,8 +130,8 @@ func subject(msg string) string {
 	return strings.TrimSpace(line)
 }
 
-// escapeBranch escapes each segment of a branch name so its slashes stay path separators.
-func escapeBranch(name string) string {
+// escapePath escapes each segment of a repo path so its slashes stay path separators.
+func escapePath(name string) string {
 	segs := strings.Split(name, "/")
 	for i, s := range segs {
 		segs[i] = url.PathEscape(s)

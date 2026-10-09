@@ -258,8 +258,35 @@ func NewDemo(now time.Time) *Fake {
 		if r.name != "dotfiles" {
 			f.SetReadme(ref, domain.Readme{Name: "README.md", Body: demoReadme(r.name)})
 		}
+		seedTree(f, ref, base)
 	}
 	return f
+}
+
+// seedTree gives a demo repo a small default-branch tree: two directories, a nested one, a text file, a binary, and a file too large to preview.
+func seedTree(f *Fake, ref domain.RepoRef, base string) {
+	entry := func(path string, t domain.EntryType, size int64) domain.TreeEntry {
+		return domain.TreeEntry{
+			Name: path[strings.LastIndex(path, "/")+1:], Path: path, Type: t, Size: size,
+			WebURL: base + "/src/branch/main/" + path,
+		}
+	}
+	f.SetTree(ref, "", []domain.TreeEntry{
+		entry("cmd", domain.EntryDir, 0),
+		entry("internal", domain.EntryDir, 0),
+		entry("README.md", domain.EntryFile, 1200),
+		entry("go.mod", domain.EntryFile, 96),
+		entry("logo.png", domain.EntryFile, 2048),
+		entry("dump.sql", domain.EntryFile, 300<<10),
+	})
+	f.SetTree(ref, "cmd", []domain.TreeEntry{entry("cmd/main.go", domain.EntryFile, 45)})
+	f.SetTree(ref, "internal", []domain.TreeEntry{entry("internal/ui", domain.EntryDir, 0)})
+	f.SetTree(ref, "internal/ui", []domain.TreeEntry{entry("internal/ui/model.go", domain.EntryFile, 2048)})
+	f.SetFile(ref, "cmd/main.go", []byte("package main\n\nfunc main() {}\n"))
+	f.SetFile(ref, "go.mod", []byte(fmt.Sprintf("module %s\n\ngo 1.24\n", ref)))
+	f.SetFile(ref, "README.md", []byte(demoReadme(ref.Name)))
+	f.SetFile(ref, "logo.png", []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"))
+	f.SetFile(ref, "internal/ui/model.go", []byte("package ui\n\n// Model is the root of the UI.\ntype Model struct{}\n"))
 }
 
 func (p demoPR) toDomain(ref domain.RepoRef, base string, now time.Time) domain.ChangeRequest {

@@ -83,6 +83,8 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 
 The Branches tab lists the repo's branches, the default branch first and then by most recent commit. Each row shows the name, the tip's subject and age, a `default` marker, and `#N` when an open PR comes from that branch. The selected branch's recent commits show below the list. `j`/`k` move the cursor, and `o` opens the branch in the browser. The tab is read-only, with no ahead/behind counts.
 
+The Files tab browses the repo's tree at the default branch, in two columns. The left column is the current directory, directories first and then by name. The right column previews the cursor entry: a directory's names, or a text file's contents. `j`/`k` move the cursor, `l` opens a directory or, on a file, moves into its preview, and `h` goes back out, to the list and then up a directory. `o` opens the cursor entry in the browser. Files over 256 KiB and binary files show a note instead of a preview, and submodules and symlinks show as entries with no preview. The tab is read-only.
+
 ### ★ Renovate (virtual, spans the repos you own or belong to)
 
 Its job is to show at a glance which repos have Renovate updates waiting, how many and how much they matter, and then to let you act on them, including in bulk.
@@ -102,13 +104,13 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 
 | Key | Action |
 |---|---|
-| `j` / `k` | Move. In the details pane: scroll, or move the branch cursor on the Branches tab. |
-| `h` / `l` | Back / in |
+| `j` / `k` | Move. In the details pane: scroll, or move the cursor on the Branches or Files tab. |
+| `h` / `l` | Back / in. On the Files tab: `l` enters a directory or a file's preview, and `h` leaves the preview, then goes up a directory. |
 | `1`–`6` | Jump to a box (also works from the repo list) |
 | `tab` / `shift-tab` | Next / previous box |
 | `[` / `]` | Previous / next details tab |
 | `gg` / `G` | Top / bottom |
-| `ctrl-d` / `ctrl-u` | Half-page scroll in the details pane, or half-page move on the Branches tab |
+| `ctrl-d` / `ctrl-u` | Half-page scroll in the details pane, or half-page move on the Branches or Files tab |
 | `space` | Mark a PR for bulk actions, or tick a Renovate dashboard entry |
 | `m` | Merge: the marked PRs, the current PR, or every PR in an update group (`[2]` of ★ Renovate) |
 | `a` | Approve |
@@ -162,7 +164,7 @@ Answered by the PM on 2026-10-02 (#13):
 
 ## v1 scope
 
-- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]` and the Repo box `[6]` with its README and Branches tabs, details with the Overview tab
+- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]` and the Repo box `[6]` with its README, Files and Branches tabs, details with the Overview tab
 - ★ Renovate view, all five boxes
 - Merge, approve, close, comment (`$EDITOR`), open in browser, refresh, `R` (opens the run page)
 - Bulk merge (marked PRs and update groups), with the CI warning and the "only merge when green" setting

@@ -184,11 +184,11 @@ table.doc th{color:var(--muted);font-weight:600}
     <div class="card">
       <h2>Suggested v1</h2>
       <ul>
-        <li>Repo list plus boxes [1]–[3], the Repo box [6] with its README and Branches tabs, and details with the Overview tab</li>
+        <li>Repo list plus boxes [1]–[3], the Repo box [6] with its README, Files and Branches tabs, and details with the Overview tab</li>
         <li>★ Renovate view, including [2] Updates by dependency</li>
         <li>Merge, approve, close, comment (in <code>$EDITOR</code>), open in browser and refresh</li>
         <li>Bulk merge, with a warning when CI isn't green</li>
-        <li>Next after v1: the Files tab with diffs (optionally via <code>delta</code>), the Logs tab, boxes [4] and [5], and the Repo box's Files tab</li>
+        <li>Next after v1: the Files tab with diffs (optionally via <code>delta</code>), the Logs tab, boxes [4] and [5]</li>
       </ul>
     </div>
   </section>
@@ -333,7 +333,7 @@ function boxesFor(r) {
     {title:'Actions', items:r.runs},
     {title:'Renovate', items:r.deps},
     {title:'Releases', items:r.releases},
-    {title:'Repo', noCount:true, items:[{kind:'repo', repo:r.name, desc:r.desc, readme:r.name === 'dotfiles' ? '' : r.desc + '.\n\n- clone the repo\n- run make check', branches:demoBranches()}]},
+    {title:'Repo', noCount:true, items:[{kind:'repo', repo:r.name, desc:r.desc, readme:r.name === 'dotfiles' ? '' : r.desc + '.\n\n- clone the repo\n- run make check', branches:demoBranches(), files:demoFiles()}]},
   ];
 }
 
@@ -351,6 +351,22 @@ function demoBranches() {
       {sha:'c09e5a8', subj:'docs: note the keymap change', who:'you', ago:'1w'},
     ],
   };
+}
+
+// demo tree for the Repo box's Files tab: the root listing, with the cursor on go.mod and its contents previewed
+function demoFiles() {
+  return {
+    entries: ['cmd/', 'internal/', 'dump.sql', 'go.mod', 'logo.png', 'README.md'],
+    cur: 'go.mod',
+    text: 'module git.bobparsons.dev/deadstyle/homelab\n\ngo 1.24\n',
+  };
+}
+
+function filesBody(it) {
+  const {entries, cur, text} = it.files;
+  const list = entries.map(e => `<div class="row${e === cur ? ' sel' : ''}"><span>${esc(e)}</span></div>`).join('');
+  const preview = text.split('\n').map(l => `<div>${esc(l)}</div>`).join('');
+  return `<div style="display:flex;gap:8px"><div style="width:40%;min-width:0">${list}</div><div class="dim">│</div><div style="flex:1;min-width:0">${preview}</div></div>`;
 }
 
 function branchesBody(it) {
@@ -447,6 +463,7 @@ function detail(it, tab) {
   if (it.kind === 'release') return `<div class="h1">${esc(it.tag)}</div><div class="dim">${esc(it.repo)} · released ${it.ago} ago</div>${textBlock(it.notes)}`;
   if (it.kind === 'repo') {
     if (name === 'Branches') return branchesBody(it);
+    if (name === 'Files') return filesBody(it);
     return name !== 'README' ? '<div class="dim">Coming soon</div>' : it.readme ? textBlock(it.readme) : '<div class="dim">No README</div>';
   }
   // group

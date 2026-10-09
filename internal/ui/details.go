@@ -25,8 +25,12 @@ type details struct {
 	imgGen int       // bumped whenever rendered image output can change; part of the memo key
 	want   []imageRef
 	// branchCur is the Branches tab's cursor; it is clamped to the list wherever the list changes.
-	branchCur int
-	branchHL  bool // highlight the cursor; only at the details level
+	branchCur  int
+	branchHL   bool // highlight the cursor; only at the details level
+	filesDir   string
+	filesCur   int
+	filesOff   int
+	filesFocus bool
 }
 
 // branchesTab is the Branches tab's index in tabs for a Repo.
@@ -104,8 +108,8 @@ func (d *details) repoText(b boxes, cw, ch int, now time.Time) string {
 	if d.tab == branchesTab {
 		return d.branchesText(b.branches, b.crs, b.loaded[boxCRs], b.showBranches, cw, ch, now)
 	}
-	if d.tab != 0 {
-		return style.Faint.Render("Coming soon")
+	if d.tab == filesTab {
+		return d.filesText(b, cw, ch)
 	}
 	switch {
 	case !b.readme.ok:

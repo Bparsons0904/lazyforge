@@ -55,6 +55,18 @@ type commitsLoadedMsg struct {
 	err     error
 }
 
+type treeLoadedMsg struct {
+	key     core.Key // Kind KindTree, Ref = dir
+	entries []domain.TreeEntry
+	err     error
+}
+
+type previewLoadedMsg struct {
+	key     core.Key // Kind KindPreview, Ref = path
+	preview domain.FilePreview
+	err     error
+}
+
 type refreshTickMsg struct{}
 
 func tickEvery() tea.Cmd {
@@ -110,6 +122,20 @@ func loadCommits(ctx context.Context, svc *core.Service, r domain.RepoRef, branc
 	}
 }
 
+func loadTree(ctx context.Context, svc *core.Service, r domain.RepoRef, dir string) tea.Cmd {
+	return func() tea.Msg {
+		es, err := svc.Tree(ctx, r, dir)
+		return treeLoadedMsg{key: core.Key{Kind: core.KindTree, Repo: r, Ref: dir}, entries: es, err: err}
+	}
+}
+
+func loadPreview(ctx context.Context, svc *core.Service, r domain.RepoRef, e domain.TreeEntry) tea.Cmd {
+	return func() tea.Msg {
+		p, err := svc.Preview(ctx, r, e)
+		return previewLoadedMsg{key: core.Key{Kind: core.KindPreview, Repo: r, Ref: e.Path}, preview: p, err: err}
+	}
+}
+
 // landOn shows the cursor branch's cached commits while the refetch runs; the cursor must be in range.
 func (m *Model) landOn() tea.Cmd {
 	r, name := m.boxes.repo, m.boxes.branches.list[m.details.branchCur].Name
@@ -137,10 +163,11 @@ func (m *Model) selectRepo(cached bool) tea.Cmd {
 	m.stopScan()
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.selCtx, m.cancel = ctx, cancel
-	m.boxes = boxes{repo: r.RepoRef, repoRow: r, showRuns: m.svc.Can(forge.ActRuns, r).OK, showRepo: m.svc.Can(forge.ActReadme, r).OK, showBranches: m.svc.Can(forge.ActBranches, r).OK}
+	m.boxes = boxes{repo: r.RepoRef, repoRow: r, showRuns: m.svc.Can(forge.ActRuns, r).OK, showRepo: m.svc.Can(forge.ActReadme, r).OK, showBranches: m.svc.Can(forge.ActBranches, r).OK, showFiles: m.svc.Can(forge.ActFiles, r).OK}
 	m.boxes.loaded[boxRepo] = true
-	// The cursor must be reset before loadBoxes, which reads it to pick the branch whose commits it fetches.
+	// The cursors must be reset before loadBoxes, which reads them to pick the branch and the entry it fetches for.
 	m.details.branchCur = 0
+	m.details.filesDir, m.details.filesCur, m.details.filesOff, m.details.filesFocus = "", 0, 0, false
 	return m.loadBoxes(cached)
 }
 
@@ -186,6 +213,19 @@ func (m *Model) loadBoxes(cached bool) tea.Cmd {
 		if n := len(b.branches.list); n > 0 {
 			m.details.branchCur = max(min(m.details.branchCur, n-1), 0)
 			cmds = append(cmds, m.landOn())
+		}
+	}
+	if b.showFiles {
+		dir := m.details.filesDir
+		es, _, peeked := svc.PeekTree(ref, dir)
+		if peeked {
+			b.files.setDir(dir, es)
+		}
+		if !cached || !peeked {
+			cmds = append(cmds, loadTree(ctx, svc, ref, dir))
+		}
+		if _, known := b.files.dirs[dir]; known {
+			cmds = append(cmds, m.landOnEntry())
 		}
 	}
 	return tea.Batch(cmds...)

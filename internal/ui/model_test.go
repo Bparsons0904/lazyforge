@@ -63,10 +63,10 @@ func TestTinyWindowDoesNotPanic(t *testing.T) {
 func TestSelectionShowsBoxes(t *testing.T) {
 	m := sized(t, 120, 40)
 	m, msgs := step(t, m, "j")
-	// The ★ scan at startup already cached the change requests and issues, so only the runs, README and branches miss.
+	// The ★ scan at startup already cached the change requests and issues, so only the runs, README, branches and root tree miss.
 	// The commits load waits for the branch list, so it isn't issued yet.
-	if c := counts(msgs); c["crs"] != 0 || c["issues"] != 0 || c["runs"] != 1 || c["readme"] != 1 || c["branches"] != 1 || len(msgs) != 3 {
-		t.Fatalf("selecting homelab issued %v, want only the uncached runs, README and branches loads", c)
+	if c := counts(msgs); c["crs"] != 0 || c["issues"] != 0 || c["runs"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["tree"] != 1 || c["preview"] != 0 || len(msgs) != 4 {
+		t.Fatalf("selecting homelab issued %v, want only the uncached runs, README, branches and root tree loads", c)
 	}
 	for _, msg := range msgs {
 		m = run(t, m, msg)
@@ -84,8 +84,8 @@ func TestRunsGateHidesActions(t *testing.T) {
 	f.SetGate(forge.ActRuns, errors.New("no actions"))
 	m := sizedWith(t, seededWith(t, f), 120, 40)
 	m, msgs := step(t, m, "j")
-	if c := counts(msgs); c["runs"] != 0 || c["crs"] != 0 || c["issues"] != 0 || c["readme"] != 1 || c["branches"] != 1 || len(msgs) != 2 {
-		t.Fatalf("gated select issued %v, want only the README and branches loads", c)
+	if c := counts(msgs); c["runs"] != 0 || c["crs"] != 0 || c["issues"] != 0 || c["readme"] != 1 || c["branches"] != 1 || c["tree"] != 1 || len(msgs) != 3 {
+		t.Fatalf("gated select issued %v, want only the README, branches and root tree loads", c)
 	}
 	for _, msg := range msgs {
 		m = run(t, m, msg)
@@ -135,9 +135,9 @@ func TestCachedReselectIssuesNoFetch(t *testing.T) {
 	m = press(t, m, "j")
 	m, _ = step(t, m, "k")
 	m, msgs := step(t, m, "j")
-	// Landing on a branch always refetches its commits; everything else stays cached.
-	if c := counts(msgs); c["commits"] != 1 || len(msgs) != 1 {
-		t.Fatalf("cached re-select fetched %v, want only the cursor branch's commits", c)
+	// Landing on a branch always refetches its commits, and the Files tab reloads the root listing; everything else stays cached.
+	if c := counts(msgs); c["commits"] != 1 || c["tree"] != 1 || len(msgs) != 2 {
+		t.Fatalf("cached re-select fetched %v, want only the cursor branch's commits and the root tree", c)
 	}
 	if len(m.boxes.crs) != 3 {
 		t.Fatalf("cache not seeded: %d CRs", len(m.boxes.crs))
@@ -149,13 +149,13 @@ func TestRefreshRefetchesEvenWhenCached(t *testing.T) {
 	m = press(t, m, "j")
 	_, msgs := step(t, m, "r")
 	c := counts(msgs)
-	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["commits"] != 1 || len(msgs) != 7 {
+	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["commits"] != 1 || c["tree"] != 2 || len(msgs) != 9 {
 		t.Fatalf("r issued %v", c)
 	}
 
 	_, cmd := m.Update(refreshTickMsg{})
 	c = counts(exec(t, cmd))
-	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["commits"] != 1 || c["tick"] != 1 {
+	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["commits"] != 1 || c["tree"] != 2 || c["tick"] != 1 {
 		t.Fatalf("tick issued %v, want the loads plus one new tick", c)
 	}
 }

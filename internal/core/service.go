@@ -29,9 +29,11 @@ const (
 	KindReadme
 	KindBranches
 	KindCommits
+	KindTree
+	KindPreview
 )
 
-// Key identifies a cache entry; Repo is zero for KindRepos, Number is for per-item kinds and Ref for branch kinds.
+// Key identifies a cache entry; Repo is zero for KindRepos, Number is for per-item kinds, and Ref is a branch for branch kinds and a path for tree kinds.
 type Key struct {
 	Kind   Kind
 	Repo   domain.RepoRef
