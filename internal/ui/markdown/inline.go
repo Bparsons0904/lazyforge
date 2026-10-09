@@ -7,9 +7,9 @@ import (
 	"unicode"
 
 	"charm.land/lipgloss/v2"
-	"github.com/yuin/goldmark/ast"
-	east "github.com/yuin/goldmark/extension/ast"
-	"github.com/yuin/goldmark/util"
+	"github.com/yuin/goldmark/v2/ast"
+	east "github.com/yuin/goldmark/v2/extension/ast"
+	"github.com/yuin/goldmark/v2/text"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
@@ -42,44 +42,33 @@ func (r renderer) inline(n ast.Node, base lipgloss.Style) []atom {
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 			switch c := c.(type) {
 			case *ast.Text:
-				add(decode(c.Segment.Value(r.src)), st, url)
+				add(clean(c.Value.Value(r.src)), st, url)
 				if c.HardLineBreak() {
 					out = append(out, atom{nl: true})
 					pendingSpace = false
 				} else if c.SoftLineBreak() {
 					pendingSpace = true
 				}
-			case *ast.String:
-				add(decode(c.Value), st, url)
 			case *ast.CodeSpan:
-				add(plain(r.src, c, false), style.Code, url)
+				add(strings.Join(strings.Fields(c.Value.Value(r.src)), " "), style.Code, url)
 			case *ast.Emphasis:
-				es := st.Italic(true)
-				if c.Level == 2 {
-					es = st.Bold(true)
-				}
-				walk(c, es, url)
+				walk(c, st.Italic(true), url)
+			case *ast.Strong:
+				walk(c, st.Bold(true), url)
 			case *east.Strikethrough:
 				walk(c, st.Strikethrough(true), url)
 			case *ast.Link:
-				walk(c, style.Link, safeURL(string(c.Destination)))
+				walk(c, style.Link, safeURL(c.Destination.Value(r.src)))
 			case *ast.AutoLink:
-				add(string(c.Label(r.src)), style.Link, safeURL(string(c.URL(r.src))))
+				add(clean(c.Label.Value(r.src)), style.Link, safeURL(c.Destination.Value(r.src)))
 			case *ast.Image:
 				u := url
 				if u == "" {
-					u = safeURL(string(c.Destination))
+					u = safeURL(c.Destination.Value(r.src))
 				}
-				add("🖼 "+plain(r.src, c, true), style.Link, u)
-			case *east.TaskCheckBox:
-				box := "☐"
-				if c.IsChecked {
-					box = "☑"
-				}
-				add(box, style.Faint, "")
-				pendingSpace = true
+				add("🖼 "+plain(r.src, c), style.Link, u)
 			case *ast.RawHTML:
-				if brRE.MatchString(strings.TrimSpace(string(c.Segments.Value(r.src)))) {
+				if brRE.MatchString(strings.TrimSpace(c.Value.Str(r.src))) {
 					out = append(out, atom{nl: true})
 					pendingSpace = false
 				}
@@ -107,27 +96,20 @@ func words(s string, st lipgloss.Style) []atom {
 	return out
 }
 
-// plain skips escape and entity decoding when decoded is false, which code spans need.
-func plain(src []byte, n ast.Node, decoded bool) string {
+// plain returns the text of n with raw HTML dropped; entities are decoded, then control characters stripped.
+func plain(src []byte, n ast.Node) string {
 	var b strings.Builder
-	read := func(v []byte) {
-		if decoded {
-			b.WriteString(decode(v))
-			return
-		}
-		b.Write(v)
-	}
 	var walk func(ast.Node)
 	walk = func(n ast.Node) {
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
 			switch c := c.(type) {
 			case *ast.Text:
-				read(c.Segment.Value(src))
+				b.WriteString(c.Value.Value(src))
 				if c.SoftLineBreak() || c.HardLineBreak() {
 					b.WriteByte(' ')
 				}
-			case *ast.String:
-				read(c.Value)
+			case *ast.CodeSpan:
+				b.WriteString(c.Value.Value(src))
 			case *ast.RawHTML:
 			default:
 				walk(c)
@@ -135,12 +117,14 @@ func plain(src []byte, n ast.Node, decoded bool) string {
 		}
 	}
 	walk(n)
-	return strings.Join(strings.Fields(b.String()), " ")
+	return strings.Join(strings.Fields(clean(b.String())), " ")
 }
 
-// decode resolves the backslash escapes and entity references goldmark leaves in text.
+var decoder = text.NewDecoder()
+
+// decode resolves the backslash escapes and entity references that stay in raw HTML block text.
 func decode(b []byte) string {
-	return clean(string(util.ResolveNumericReferences(util.ResolveEntityNames(util.UnescapePunctuations(b)))))
+	return clean(string(decoder.Decode(b)))
 }
 
 // clean drops control characters other than newline and tab, so forge text can't inject terminal sequences.

@@ -7,17 +7,16 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
-	east "github.com/yuin/goldmark/extension/ast"
-	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/v2/ast"
+	"github.com/yuin/goldmark/v2/extension"
+	east "github.com/yuin/goldmark/v2/extension/ast"
+	"github.com/yuin/goldmark/v2/parser"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
 
 var (
-	parser    = goldmark.New(goldmark.WithExtensions(extension.GFM))
+	md        = parser.New(parser.WithExtensions(extension.GFMParser))
 	summaryRE = regexp.MustCompile(`(?is)<summary[^>]*>(.*?)</summary>`)
 	tagRE     = regexp.MustCompile(`<[^>]*>`)
 	hiddenRE  = regexp.MustCompile(`(?is)<!--.*?-->|<(script|style)[^>]*>.*?</(script|style)>`)
@@ -28,7 +27,7 @@ var (
 func Render(body string, width int) string {
 	width = max(width, 1)
 	src := []byte(clean(body))
-	doc := parser.Parser().Parse(text.NewReader(src))
+	doc := md.Parse(src)
 	r := renderer{src: src}
 	lines := r.blocks(doc, width)
 	for len(lines) > 0 && lines[len(lines)-1] == "" {
@@ -66,7 +65,7 @@ func (r renderer) block(n ast.Node, w int) []string {
 	switch n := n.(type) {
 	case *ast.Heading:
 		return wrap(r.inline(n, style.Heading), w)
-	case *ast.Paragraph, *ast.TextBlock:
+	case *ast.Paragraph:
 		return wrap(r.inline(n, style.Text), w)
 	case *ast.List:
 		return r.list(n, w)
@@ -74,7 +73,7 @@ func (r renderer) block(n ast.Node, w int) []string {
 		return prefixed(r.blocks(n, max(w-2, 1)), style.Faint.Render("│ "), style.Faint.Render("│"))
 	case *ast.ThematicBreak:
 		return []string{style.Faint.Render(strings.Repeat("─", w))}
-	case *ast.FencedCodeBlock, *ast.CodeBlock:
+	case *ast.CodeBlock:
 		return r.code(n, w)
 	case *east.Table:
 		return r.table(n, w)
@@ -95,12 +94,14 @@ func (r renderer) list(l *ast.List, w int) []string {
 			num++
 		}
 		pad := strings.Repeat(" ", lipgloss.Width(marker))
-		if hasCheckbox(it) {
-			marker = "" // the ☐/☑ atom is the marker
+		if status, ok := extension.TaskStatusOf(it); ok {
+			marker = "☐ "
+			if status == extension.TaskStatusCompleted {
+				marker = "☑ "
+			}
 			pad = "  "
 		}
-		// goldmark gives a tight item a TextBlock and a loose one a Paragraph.
-		_, loose := it.FirstChild().(*ast.Paragraph)
+		loose := !l.IsTight
 		sub := r.join(it, max(w-len(pad), 1), loose)
 		if len(sub) == 0 {
 			sub = []string{""}
@@ -126,20 +127,10 @@ func (r renderer) list(l *ast.List, w int) []string {
 	return out
 }
 
-func hasCheckbox(item ast.Node) bool {
-	if c := item.FirstChild(); c != nil {
-		_, ok := c.FirstChild().(*east.TaskCheckBox)
-		return ok
-	}
-	return false
-}
-
-func (r renderer) code(n ast.Node, w int) []string {
+func (r renderer) code(n *ast.CodeBlock, w int) []string {
 	var out []string
-	ls := n.Lines()
-	for i := range ls.Len() {
-		seg := ls.At(i)
-		line := strings.TrimRight(string(seg.Value(r.src)), "\r\n")
+	for _, seg := range n.Value.Segments() {
+		line := strings.TrimRight(string(seg.Bytes(r.src)), "\r\n")
 		line = strings.ReplaceAll(line, "\t", "    ")
 		for _, piece := range chunks(line, max(w-2, 1)) {
 			out = append(out, style.Code.Render("  "+piece))
@@ -151,16 +142,7 @@ func (r renderer) code(n ast.Node, w int) []string {
 // summaries renders an HTML block as its <summary> headings followed by its remaining text; tags,
 // comments and script or style contents are dropped.
 func (r renderer) summaries(n *ast.HTMLBlock, w int) []string {
-	var b strings.Builder
-	ls := n.Lines()
-	for i := range ls.Len() {
-		seg := ls.At(i)
-		b.Write(seg.Value(r.src))
-	}
-	if n.HasClosure() {
-		b.Write(n.ClosureLine.Value(r.src))
-	}
-	src := hiddenRE.ReplaceAllString(b.String(), "")
+	src := hiddenRE.ReplaceAllString(n.Value.Str(r.src), "")
 	var out []string
 	for _, m := range summaryRE.FindAllStringSubmatch(src, -1) {
 		text := decode([]byte(tagRE.ReplaceAllString(m[1], "")))

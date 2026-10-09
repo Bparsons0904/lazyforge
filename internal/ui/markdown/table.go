@@ -4,7 +4,8 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	east "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/v2/ast"
+	east "github.com/yuin/goldmark/v2/extension/ast"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
@@ -16,23 +17,24 @@ func (r renderer) table(t *east.Table, w int) []string {
 	var header [][]atom
 	var headerText []string
 	var rows [][][]atom
-	for row := t.FirstChild(); row != nil; row = row.NextSibling() {
-		_, isHeader := row.(*east.TableHeader)
-		base := style.Text
-		if isHeader {
-			base = style.Heading
-		}
+	cellsOf := func(row ast.Node, base lipgloss.Style, isHeader bool) [][]atom {
 		var cells [][]atom
 		for c := row.FirstChild(); c != nil; c = c.NextSibling() {
 			cells = append(cells, r.inline(c, base))
 			if isHeader {
-				headerText = append(headerText, plain(r.src, c, true))
+				headerText = append(headerText, plain(r.src, c))
 			}
 		}
-		if isHeader {
-			header = cells
-		} else {
-			rows = append(rows, cells)
+		return cells
+	}
+	for part := t.FirstChild(); part != nil; part = part.NextSibling() {
+		switch part := part.(type) {
+		case *east.TableHeader:
+			header = cellsOf(part, style.Heading, true)
+		case *east.TableBody:
+			for row := part.FirstChild(); row != nil; row = row.NextSibling() {
+				rows = append(rows, cellsOf(row, style.Text, false))
+			}
 		}
 	}
 	cols := len(header)

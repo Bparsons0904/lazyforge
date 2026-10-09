@@ -343,3 +343,71 @@ func TestRenderNeverDropsWordsWhenWrapping(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderListsAndCodeBlocks(t *testing.T) {
+	tests := []struct {
+		name, body, want string
+	}{
+		{"tight list", "- a\n- b\n", "• a\n• b"},
+		{"loose list", "- a\n\n- b\n", "• a\n\n• b"},
+		{"ordered list keeps its start", "3. x\n4. y\n", "3. x\n4. y"},
+		{"indented code", "para\n\n    code line\n", "para\n\n  code line"},
+		{"checked loose task", "- [x] a\n\n- [ ] b\n", "☑ a\n\n☐ b"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := strip(Render(tt.body, 80)); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderStripsDecodedControlCharsFromAltAndHeaders(t *testing.T) {
+	for name, body := range map[string]string{
+		"image alt":    "![a&#27;[2Jb](https://i.io/p.png)",
+		"table header": "| a&#27;[2Jb | c&#x9b;d |\n|---|---|\n| 1 | 2 |\n",
+	} {
+		for _, w := range []int{80, 5} {
+			if got := Render(body, w); strings.Contains(strip(got), "\x1b") || strings.ContainsRune(got, '\u009b') {
+				t.Errorf("%s at %d: control sequence reached output: %q", name, w, got)
+			}
+		}
+	}
+}
+
+func TestRenderNumberedTaskItemContinuationIndents(t *testing.T) {
+	got := strip(Render("10. [ ] one two three four five six\n", 14))
+	if want := "☐ one two\n  three four\n  five six"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestRenderAutolinksAreHyperlinks(t *testing.T) {
+	got := Render("<https://auto.io/a> and https://bare.io/b", 80)
+	for _, u := range []string{"https://auto.io/a", "https://bare.io/b"} {
+		if !strings.Contains(got, "\x1b]8;;"+u+"\x1b\\") {
+			t.Errorf("no hyperlink to %s in %q", u, got)
+		}
+	}
+	if want := "https://auto.io/a and https://bare.io/b"; strip(got) != want {
+		t.Errorf("got %q, want %q", strip(got), want)
+	}
+}
+
+func TestRenderDecodesEntitiesOutsideParagraphs(t *testing.T) {
+	tests := []struct {
+		name, body, want string
+	}{
+		{"heading", "# a &amp; b", "a & b"},
+		{"link text", "[x &lt; y](https://e.io)", "x < y"},
+		{"code span stays literal", "`&amp; \\* a  b`", `&amp; \* a b`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := strip(Render(tt.body, 80)); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
