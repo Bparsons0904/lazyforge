@@ -4,7 +4,7 @@ A keyboard-driven terminal UI for your git forge: pull requests, issues, Actions
 
 [lazygit](https://github.com/jesseduffield/lazygit) handles the git side of your work. lazyforge handles the forge side: everything that lives on the server.
 
-**Status:** v1 supports **Forgejo, Gitea and GitHub** (github.com or GitHub Enterprise Server). A GitLab adapter is planned. Prebuilt binaries for Linux and macOS (Intel and ARM), or build from source.
+**Status:** v1 supports **Forgejo, Gitea and GitHub** (github.com or GitHub Enterprise Server). A GitLab adapter is planned. Prebuilt binaries for Linux, macOS and Windows (Intel and ARM), or build from source.
 
 ![lazyforge demo showing pull requests, issues, Actions and a PR overview](docs/screenshots/demo-pull-requests.png)
 
@@ -26,7 +26,13 @@ curl -fsSL https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/instal
 
 Make sure `~/.local/bin` is on your `PATH`. Set `LAZYFORGE_INSTALL_DIR` to install elsewhere, or `LAZYFORGE_VERSION` (for example `v0.1.0`) to pick a release. Once installed, lazyforge offers newer releases at launch and updates itself.
 
-Windows isn't supported yet.
+Windows, on Intel or ARM, from PowerShell:
+
+```powershell
+irm https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/install.ps1 | iex
+```
+
+This installs `lazyforge.exe` to `%LOCALAPPDATA%\Programs\lazyforge` and adds that folder to your user `PATH`. Set `LAZYFORGE_INSTALL_DIR` to install elsewhere, or `LAZYFORGE_VERSION` to pick a release.
 
 ## Install from source
 

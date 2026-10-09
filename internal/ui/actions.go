@@ -47,11 +47,26 @@ var errEmptyComment = errors.New("comment is empty")
 
 // openBrowser starts the platform's URL opener without waiting for it.
 func openBrowser(ctx context.Context, u string) error {
-	name := "xdg-open"
-	if runtime.GOOS == "darwin" {
-		name = "open"
+	name, args := browserCommand(runtime.GOOS, u)
+	return osexec.CommandContext(ctx, name, args...).Start()
+}
+
+func browserCommand(goos, u string) (name string, args []string) {
+	switch goos {
+	case "darwin":
+		return "open", []string{u}
+	case "windows":
+		// rundll32 opens the URL without cmd.exe, which would read a & in the URL as a command separator.
+		return "rundll32", []string{"url.dll,FileProtocolHandler", u}
 	}
-	return osexec.CommandContext(ctx, name, u).Start()
+	return "xdg-open", []string{u}
+}
+
+func defaultEditor(goos string) string {
+	if goos == "windows" {
+		return "notepad"
+	}
+	return "vi"
 }
 
 // syncKeys enables each action key only where it applies, which also hides it from the hints and help.
@@ -292,7 +307,7 @@ func (m *Model) closeItem(item forge.ItemRef) tea.Cmd {
 	}
 }
 
-// editComment opens $EDITOR (vi when unset) on a fresh temp file; the result arrives as editorDoneMsg.
+// editComment opens $EDITOR (vi, or notepad on Windows, when unset) on a fresh temp file; the result arrives as editorDoneMsg.
 func editComment(ctx context.Context, item forge.ItemRef) tea.Cmd {
 	return func() tea.Msg {
 		f, err := os.CreateTemp("", "lazyforge-comment-*.md")
@@ -305,7 +320,7 @@ func editComment(ctx context.Context, item forge.ItemRef) tea.Cmd {
 		}
 		args := strings.Fields(os.Getenv("EDITOR"))
 		if len(args) == 0 {
-			args = []string{"vi"}
+			args = []string{defaultEditor(runtime.GOOS)}
 		}
 		c := osexec.CommandContext(ctx, args[0], append(args[1:], path)...)
 		// ExecProcess's cmd only returns a message; running it here keeps the file creation off Update.

@@ -91,10 +91,11 @@ case_release_artifacts() {
   local want got
   want=$(printf '%s\n' checksums.txt \
     "lazyforge_${VERSION}_darwin_amd64.tar.gz" "lazyforge_${VERSION}_darwin_arm64.tar.gz" \
-    "lazyforge_${VERSION}_linux_amd64.tar.gz" "lazyforge_${VERSION}_linux_arm64.tar.gz" | sort)
+    "lazyforge_${VERSION}_linux_amd64.tar.gz" "lazyforge_${VERSION}_linux_arm64.tar.gz" \
+    "lazyforge_${VERSION}_windows_amd64.zip" "lazyforge_${VERSION}_windows_arm64.zip" | sort)
   got=$(find "$ROOT/dist" -type f -exec basename {} \; | sort)
   [[ "$got" == "$want" ]] || { echo "dist contents: $got"; return 1; }
-  [[ $(wc -l <"$ROOT/dist/checksums.txt") -eq 4 ]] || { echo "checksums.txt should list 4 archives"; return 1; }
+  [[ $(wc -l <"$ROOT/dist/checksums.txt") -eq 6 ]] || { echo "checksums.txt should list 6 archives"; return 1; }
   if command -v sha256sum >/dev/null; then
     (cd "$ROOT/dist" && sha256sum -c checksums.txt) || return 1
   else
@@ -103,6 +104,19 @@ case_release_artifacts() {
   mkdir -p "$TMP/host"
   tar -xzf "$ROOT/dist/lazyforge_${VERSION}_${HOST_OS}_${HOST_ARCH}.tar.gz" -C "$TMP/host" lazyforge || return 1
   "$TMP/host/lazyforge" --version | grep -qF "$VERSION"
+}
+
+case_windows_zips() {
+  [[ $BUILD_OK == 1 ]] || { cat "$TMP/build.log"; return 1; }
+  local arch name entries
+  for arch in amd64 arm64; do
+    name="lazyforge_${VERSION}_windows_${arch}.zip"
+    [[ -f "$ROOT/dist/$name" ]] || { echo "missing $name"; return 1; }
+    entries=$(python3 -m zipfile -l "$ROOT/dist/$name" | awk 'NR > 1 { print $1 }')
+    [[ "$entries" == lazyforge.exe ]] || { echo "$name entries: $entries"; return 1; }
+    awk -v n="$name" '$2 == n { found = 1 } END { exit !found }' "$ROOT/dist/checksums.txt" \
+      || { echo "checksums.txt has no line for $name"; return 1; }
+  done
 }
 
 case_fresh_install() {
@@ -188,7 +202,7 @@ run_case() {
   fi
 }
 
-for name in release_artifacts fresh_install reinstall corrupt_keeps_existing \
+for name in release_artifacts windows_zips fresh_install reinstall corrupt_keeps_existing \
   corrupt_fresh_installs_nothing missing_checksum_line_installs_nothing pinned_version_skips_latest \
   path_hint_when_off_path no_path_hint_when_on_path; do
   run_case "$name"

@@ -1,7 +1,7 @@
 BIN     := bin/lazyforge
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: build test lint fmt fmt-check vuln check run clean release install-test
+.PHONY: build test lint fmt fmt-check vuln check run clean release install-test vet-windows
 
 GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.8.0
 
@@ -27,7 +27,13 @@ install-test:
 	shellcheck install.sh scripts/*.sh
 	bash scripts/test-install.sh
 
-check: fmt-check lint test vuln build install-test
+vet-windows:
+	GOOS=windows GOARCH=amd64 go vet ./...
+	GOOS=windows GOARCH=arm64 go vet ./...
+	GOOS=windows GOARCH=amd64 go build -o /dev/null ./cmd/lazyforge
+	GOOS=windows GOARCH=arm64 go build -o /dev/null ./cmd/lazyforge
+
+check: fmt-check lint test vuln build install-test vet-windows
 
 run: build
 	./$(BIN)
@@ -36,6 +42,7 @@ clean:
 	rm -rf bin dist
 
 PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64
+WINDOWS_ARCHES := amd64 arm64
 
 release:
 	rm -rf dist
@@ -48,4 +55,11 @@ release:
 		tar -C $$stage -czf dist/lazyforge_$(VERSION)_$${os}_$${arch}.tar.gz lazyforge || exit 1; \
 		rm -rf $$stage; \
 	done
-	cd dist && (sha256sum *.tar.gz 2>/dev/null || shasum -a 256 *.tar.gz) > checksums.txt
+	for arch in $(WINDOWS_ARCHES); do \
+		stage=$$(mktemp -d); \
+		CGO_ENABLED=0 GOOS=windows GOARCH=$$arch go build -trimpath \
+			-ldflags "-s -w -X main.version=$(VERSION)" -o $$stage/lazyforge.exe ./cmd/lazyforge || exit 1; \
+		(cd $$stage && python3 -m zipfile -c $(CURDIR)/dist/lazyforge_$(VERSION)_windows_$$arch.zip lazyforge.exe) || exit 1; \
+		rm -rf $$stage; \
+	done
+	cd dist && (sha256sum *.tar.gz *.zip 2>/dev/null || shasum -a 256 *.tar.gz *.zip) > checksums.txt

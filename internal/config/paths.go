@@ -13,16 +13,20 @@ import (
 type Paths struct{ Config, State string }
 
 // DefaultPaths resolves the file locations. The XDG variables win when set;
-// otherwise darwin keeps both files under the user config dir and other
-// platforms use ~/.config and ~/.local/state.
+// otherwise darwin and windows keep both files under the user config dir and
+// other platforms use ~/.config and ~/.local/state.
 func DefaultPaths() (Paths, error) {
+	return defaultPaths(runtime.GOOS)
+}
+
+func defaultPaths(goos string) (Paths, error) {
 	const dir = "lazyforge"
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return Paths{}, fmt.Errorf("find home dir: %w", err)
 	}
 	var cfgBase, stateBase string
-	if runtime.GOOS == "darwin" {
+	if goos == "darwin" || goos == "windows" {
 		cfgBase, err = os.UserConfigDir()
 		if err != nil {
 			return Paths{}, fmt.Errorf("find config dir: %w", err)

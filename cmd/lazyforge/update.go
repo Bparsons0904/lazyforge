@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"syscall"
 	"time"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/update"
@@ -62,7 +61,7 @@ func maybeUpdate(ctx context.Context, checkEnabled bool) {
 		return
 	}
 	// The marker stops a loop if the new build still reports an older version.
-	err = syscall.Exec(exe, os.Args, append(os.Environ(), noUpdateEnv+"=1"))
+	err = restart(exe, os.Args, append(os.Environ(), noUpdateEnv+"=1"))
 	if rbErr := update.Rollback(exe); rbErr != nil {
 		err = fmt.Errorf("%w (rollback: %w)", err, rbErr)
 	}

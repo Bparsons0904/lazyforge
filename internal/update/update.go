@@ -3,6 +3,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
 	"compress/gzip"
 	"context"
@@ -14,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -114,6 +116,11 @@ func Ask(in io.Reader, out io.Writer, current string, rel Release) bool {
 func (c Checker) Apply(ctx context.Context, rel Release, exe string) (err error) {
 	dir := filepath.Dir(exe)
 	archive := fmt.Sprintf("lazyforge_%s_%s_%s.tar.gz", rel.Tag, c.GOOS, c.GOARCH)
+	extract := extractTarGz
+	if c.GOOS == "windows" {
+		archive = fmt.Sprintf("lazyforge_%s_%s_%s.zip", rel.Tag, c.GOOS, c.GOARCH)
+		extract = extractZip
+	}
 	base := c.BaseURL + "/" + repoPath + "/releases/download/" + rel.Tag + "/"
 
 	arc, err := c.download(ctx, base+archive, dir)
@@ -201,8 +208,8 @@ func verify(arc, sums, name string) error {
 	return nil
 }
 
-// extract writes the archive's lazyforge entry to a 0755 temp file in dir and returns its path.
-func extract(arc, dir string) (string, error) {
+// extractTarGz writes the archive's lazyforge entry to a 0755 temp file in dir and returns its path.
+func extractTarGz(arc, dir string) (string, error) {
 	f, err := os.Open(arc)
 	if err != nil {
 		return "", err
@@ -224,23 +231,49 @@ func extract(arc, dir string) (string, error) {
 		if h.Typeflag != tar.TypeReg || filepath.Clean(h.Name) != "lazyforge" {
 			continue
 		}
-		out, err := os.CreateTemp(dir, ".lazyforge-new-*")
-		if err != nil {
-			return "", err
-		}
-		_, err = io.Copy(out, tr)
-		if cerr := out.Close(); err == nil {
-			err = cerr
-		}
-		if err == nil {
-			err = os.Chmod(out.Name(), 0o755)
-		}
-		if err != nil {
-			_ = os.Remove(out.Name())
-			return "", fmt.Errorf("extract binary: %w", err)
-		}
-		return out.Name(), nil
+		return writeBinary(dir, tr)
 	}
+}
+
+// extractZip writes the archive's lazyforge.exe entry to a 0755 temp file in dir and returns its path.
+func extractZip(arc, dir string) (string, error) {
+	zr, err := zip.OpenReader(arc)
+	if err != nil {
+		return "", fmt.Errorf("open archive: %w", err)
+	}
+	defer discard(zr.Close)
+	for _, f := range zr.File {
+		if !f.Mode().IsRegular() || path.Clean(f.Name) != "lazyforge.exe" {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return "", fmt.Errorf("read archive: %w", err)
+		}
+		defer discard(rc.Close)
+		return writeBinary(dir, rc)
+	}
+	return "", errors.New("archive has no lazyforge binary")
+}
+
+// writeBinary copies src to a 0755 temp file in dir and returns its path; a failed copy leaves nothing behind.
+func writeBinary(dir string, src io.Reader) (string, error) {
+	out, err := os.CreateTemp(dir, ".lazyforge-new-*")
+	if err != nil {
+		return "", err
+	}
+	_, err = io.Copy(out, src)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(out.Name(), 0o755)
+	}
+	if err != nil {
+		_ = os.Remove(out.Name())
+		return "", fmt.Errorf("extract binary: %w", err)
+	}
+	return out.Name(), nil
 }
 
 // Rollback restores exe+".old" over exe.

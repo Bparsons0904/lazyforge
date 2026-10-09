@@ -137,7 +137,7 @@ Every merge and close goes through a confirm dialog. The dialog lists the target
 
 ## Install and updates
 
-- **Install:** one command, `curl -fsSL https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/install.sh | bash`. It picks the right binary for the OS and architecture, verifies its checksum, and installs to `~/.local/bin`. Running it again upgrades in place.
+- **Install:** one command, `curl -fsSL https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/install.sh | bash`. It picks the right binary for the OS and architecture, verifies its checksum, and installs to `~/.local/bin`. Running it again upgrades in place. Windows has the PowerShell equivalent, `install.ps1`, which installs to `%LOCALAPPDATA%\Programs\lazyforge` from zip archives.
 - **Updates:** at every startup, before the UI opens, lazyforge checks for a newer release. If there is one, it asks whether to update first. Yes downloads, verifies and replaces the binary, then starts the new version. No starts the current version, and the next launch asks again.
 - The check never delays startup by more than about two seconds and never blocks when offline. It can be turned off with a flag, an environment variable or config. When lazyforge was installed by a package manager, it says an update is available instead of replacing itself.
 
