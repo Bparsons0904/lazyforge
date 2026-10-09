@@ -572,6 +572,13 @@ func (o onboarding) view(w, h int) string {
 	case stepURL:
 		title = "Server address"
 		lines = []string{fmt.Sprintf("Address of your %s server", kindName(o.kind)), "", o.addr.View()}
+		if o.kind == forge.KindGitHub {
+			title = "GitHub host"
+			lines = []string{
+				"Press enter for github.com.",
+				"Using GitHub Enterprise Server? Enter its address.", "", o.addr.View(),
+			}
+		}
 	case stepSignIn:
 		title = "Sign in"
 		token, command := "● Paste a token", "○ Command that prints one"
