@@ -28,6 +28,8 @@ linters:
           deny:
             - pkg: git.bobparsons.dev/deadstyle/lazyforge/internal/forge/gitea
               desc: only cmd/ wires concrete adapters
+            - pkg: git.bobparsons.dev/deadstyle/lazyforge/internal/forge/github
+              desc: only cmd/ wires concrete adapters
             - pkg: git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest
               desc: forgetest is for tests only
     nolintlint:

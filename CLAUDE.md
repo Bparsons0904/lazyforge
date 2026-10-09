@@ -92,7 +92,8 @@ Claiming "done", "fixed" or "passing" requires command output pasted from this s
 cmd/lazyforge/          entry point: flags, config load, host pick, start the UI
 internal/domain/        lazyforge's own types (Repo, ChangeRequest, Issue, Run…). No imports from other internal packages.
 internal/forge/         Forge interface, optional capability interfaces, HostInfo
-internal/forge/gitea/   Gitea + Forgejo adapter (github/, gitlab/ later)
+internal/forge/gitea/   Gitea + Forgejo adapter
+internal/forge/github/  GitHub adapter (github.com and GHES); gitlab/ later
 internal/core/          cache, refresh, Renovate logic (★ view, grouping, dashboard ticks)
 internal/config/        config file + token_cmd
 internal/ui/            Bubble Tea models and Lip Gloss styles

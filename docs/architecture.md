@@ -30,7 +30,7 @@ Forgejo is a fork of Gitea and their APIs are still largely the same. One adapte
 **Go, Bubble Tea and Lip Gloss** ([ADR 0001](adr/0001-go-and-charm.md)):
 
 - Lip Gloss makes the bordered, titled boxes easy to build.
-- Existing CLIs (`tea`, `gh`) can supply auth tokens. Adapters use thin hand-written HTTP clients rather than SDKs ([ADR 0005](adr/0005-thin-forgejo-client.md)).
+- Existing CLIs (`tea`, `gh`) can supply auth tokens. Adapters use thin hand-written HTTP clients rather than SDKs ([ADR 0005](adr/0005-thin-forgejo-client.md), [ADR 0017](adr/0017-github-adapter.md)).
 - It builds to a single static binary.
 
 ## Domain model
@@ -115,17 +115,17 @@ type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.Read
 
 ## API mapping (first pass)
 
-The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub and GitLab columns are unverified, and each row needs checking against current API docs before that adapter is built.
+The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)); its runs, jobs, logs and re-run rows remain unverified until #85, and its changed-files row is unused. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
-| List repos by activity | `GET /user/repos` (owned, collaborator and team repos; sorted by `updated_at` client-side) | `GET /user/repos?sort=updated` | `GET /projects?membership=true&order_by=last_activity_at` |
-| List change requests | `GET /repos/{o}/{r}/pulls?state=open` | `GET /repos/{o}/{r}/pulls?state=open` | `GET /projects/:id/merge_requests?state=opened` |
-| Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` with `Do` (sent explicitly from the repo's `default_merge_style`, because an empty `Do` means `merge`) and `head_commit_id`; a stale head is 409 `head out of date` | `PUT /repos/{o}/{r}/pulls/{n}/merge` | `PUT /projects/:id/merge_requests/:iid/merge` |
+| List repos by activity | `GET /user/repos` (owned, collaborator and team repos; sorted by `updated_at` client-side) | `GET /user/repos?affiliation=owner,collaborator,organization_member&sort=pushed` (sorted by `pushed_at` client-side; `allow_*` merge flags are null here) | `GET /projects?membership=true&order_by=last_activity_at` |
+| List change requests | `GET /repos/{o}/{r}/pulls?state=open` | `GET /repos/{o}/{r}/pulls?state=open` (closed with `merged_at` set is merged) | `GET /projects/:id/merge_requests?state=opened` |
+| Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` with `Do` (sent explicitly from the repo's `default_merge_style`, because an empty `Do` means `merge`) and `head_commit_id`; a stale head is 409 `head out of date` | `PUT /repos/{o}/{r}/pulls/{n}/merge` with `sha` and `merge_method` (first allowed of merge, squash, rebase from `GET /repos/{o}/{r}`); a stale head is 409 | `PUT /projects/:id/merge_requests/:iid/merge` |
 | Approve | `POST …/pulls/{n}/reviews` (`event: APPROVED`) | `POST …/pulls/{n}/reviews` (`event: APPROVE`) | `POST /projects/:id/merge_requests/:iid/approve` |
 | Changed files | `GET …/pulls/{n}/files` | `GET …/pulls/{n}/files` | `GET /projects/:id/merge_requests/:iid/diffs` |
-| PR CI state | `GET …/commits/{ref}/status` | check-runs + combined status for the head SHA | MR head pipeline |
-| Issues | `GET …/issues?type=issues` | `GET …/issues` (filter out PRs) | `GET /projects/:id/issues` |
+| PR CI state | `GET …/commits/{ref}/status` | `GET …/commits/{sha}/check-runs` (paginated) + `GET …/commits/{sha}/status`, folded; a status `total_count: 0` counts as none | MR head pipeline |
+| Issues | `GET …/issues?type=issues` | `GET …/issues` (drop items with a `pull_request` key) | `GET /projects/:id/issues` |
 | Edit issue body | `PATCH …/issues/{n}` | `PATCH …/issues/{n}` | `PUT /projects/:id/issues/:iid` |
 | Comment | `POST …/issues/{n}/comments` | `POST …/issues/{n}/comments` | `POST …/notes` |
 | List runs | `GET …/actions/runs` (send `page`, else `limit` is ignored; `ref` needs the full `refs/heads/<branch>` form; total in the body's `total_count`) | `GET …/actions/runs` | `GET /projects/:id/pipelines` |
@@ -137,7 +137,7 @@ The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1
 How the forges differ in practice:
 
 - **Pagination:** GitHub uses `Link` headers, Gitea uses `X-Total-Count`, and GitLab offers keyset pagination. Each adapter hides this.
-- **Rate limits:** GitHub allows about 5,000 requests per hour, so the core cache is required there, not optional.
+- **Rate limits:** GitHub allows about 5,000 requests per hour, so the core cache is required there, not optional. The github adapter also revalidates GETs with ETags, so an unchanged refresh costs no budget, and maps a rate-limit 403 to `ErrRateLimited` ([ADR 0017](adr/0017-github-adapter.md)).
 - **CI shape:** GitHub and Forgejo use runs → jobs → steps. GitLab uses pipelines → stages → jobs, which maps to `Job.Stage`.
 - **Reviews:** the domain model stays deliberately small: approve, comment, merge, close.
 
