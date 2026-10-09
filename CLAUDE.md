@@ -24,18 +24,7 @@ lazyforge is a keyboard-driven terminal UI for git forges (Forgejo/Gitea first, 
 
 **Opus may ask Fable for a second opinion** on high-stakes or uncertain calls. The `engineering-decision` skill covers how. Fable advises and Opus decides.
 
-What counts as a technical decision:
-
-- adding a dependency
-- package boundaries
-- interface or domain-model shape
-- concurrency approach
-- error-handling strategy
-- test approach
-- CI and tooling changes
-- anything that would change `docs/architecture.md`
-
-Following a pattern that's already established is not a technical decision.
+The `engineering-decision` skill lists what counts as a technical decision. Following a pattern that's already established is not one.
 
 **Talking to the PM:** `.claude/skills/product-voice` sets the voice. It loads automatically at session start, so nothing here restates it. Take only product questions to the PM, and settle engineering questions internally.
 
@@ -86,19 +75,6 @@ Technical uncertainty is never a product question. It goes to Opus (see Roles). 
 
 Claiming "done", "fixed" or "passing" requires command output pasted from this session. Report a failing test as failing, never as "unrelated". Treat every agent's factual claim, including your own brief, as a claim until a command or the source backs it up.
 
-## Where things live
+## Code layout
 
-```
-cmd/lazyforge/          entry point: flags, config load, host pick, start the UI
-internal/domain/        lazyforge's own types (Repo, ChangeRequest, Issue, Run…). No imports from other internal packages.
-internal/forge/         Forge interface, optional capability interfaces, HostInfo
-internal/forge/gitea/   Gitea + Forgejo adapter
-internal/forge/github/  GitHub adapter (github.com and GHES); gitlab/ later
-internal/core/          cache, refresh, Renovate logic (★ view, grouping, dashboard ticks)
-internal/config/        config file + token_cmd
-internal/ui/            Bubble Tea models and Lip Gloss styles
-internal/ui/markdown/   markdown bodies to styled, width-fitted text (goldmark)
-internal/ui/termimg/    kitty graphics escape sequences, image IDs, terminal detection
-```
-
-The dependency direction is `ui → core → forge → domain`. Only `cmd/` knows about concrete adapters. `go-development` owns the detail.
+The dependency direction is `ui → core → forge → domain`, and only `cmd/` knows about concrete adapters. `go-development` owns the detail.

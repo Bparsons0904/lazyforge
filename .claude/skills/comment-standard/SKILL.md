@@ -89,7 +89,7 @@ lazyforge has a real multi-implementation interface: `Forge` and its capability 
 
 ### Tests
 
-Tests are exempt from everything above, so comment freely. Any per-test comment requirement, such as attribution, lives in `go-development`.
+Tests are exempt from everything above, so comment freely.
 
 ### Non-Go files
 
