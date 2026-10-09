@@ -61,6 +61,11 @@ type RenovateUpdate struct {
 	Ecosystem, Package, DepType, UpdateType, From, To, SourceURL string
 }
 
+// Attachment is an upload on the item itself, not a file its body embeds.
+type Attachment struct {
+	Name, URL string
+}
+
 // ChangeRequest is a PR on Gitea, Forgejo and GitHub, an MR on GitLab.
 type ChangeRequest struct {
 	Number              int
@@ -76,6 +81,7 @@ type ChangeRequest struct {
 	CreatedAt           time.Time
 	WebURL              string
 	Renovate            []RenovateUpdate // nil from adapters; core fills it
+	Attachments         []Attachment
 }
 
 // Issue is a forge issue.
@@ -88,6 +94,7 @@ type Issue struct {
 	Comments            int
 	UpdatedAt           time.Time
 	WebURL              string
+	Attachments         []Attachment
 }
 
 // Comment is one comment on an issue or change request.

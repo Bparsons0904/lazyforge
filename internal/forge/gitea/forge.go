@@ -37,6 +37,19 @@ type repo struct {
 	} `json:"permissions"`
 }
 
+type asset struct {
+	Name string `json:"name"`
+	URL  string `json:"browser_download_url"`
+}
+
+func attachments(as []asset) []domain.Attachment {
+	var out []domain.Attachment
+	for _, a := range as {
+		out = append(out, domain.Attachment{Name: a.Name, URL: a.URL})
+	}
+	return out
+}
+
 type pull struct {
 	Number int    `json:"number"`
 	Title  string `json:"title"`
@@ -55,6 +68,7 @@ type pull struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	HTMLURL   string    `json:"html_url"`
+	Assets    []asset   `json:"assets"`
 }
 
 type issue struct {
@@ -67,6 +81,7 @@ type issue struct {
 	Comments  int       `json:"comments"`
 	UpdatedAt time.Time `json:"updated_at"`
 	HTMLURL   string    `json:"html_url"`
+	Assets    []asset   `json:"assets"`
 }
 
 type comment struct {
@@ -175,6 +190,7 @@ func (f *Forge) changeRequest(ctx context.Context, r domain.RepoRef, p pull) (do
 		UpdatedAt:    p.UpdatedAt,
 		CreatedAt:    p.CreatedAt,
 		WebURL:       p.HTMLURL,
+		Attachments:  attachments(p.Assets),
 	}, nil
 }
 
@@ -281,6 +297,7 @@ func (f *Forge) ListIssues(ctx context.Context, r domain.RepoRef, flt forge.Filt
 			Comments:    is.Comments,
 			UpdatedAt:   is.UpdatedAt,
 			WebURL:      is.HTMLURL,
+			Attachments: attachments(is.Assets),
 		}
 	}
 	return out, nil

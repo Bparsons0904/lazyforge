@@ -348,6 +348,9 @@ func TestChangeRequestMapping(t *testing.T) {
 		cr.WebURL != "https://git.bobparsons.dev/deadstyle/lazyforge/pulls/18" || len(cr.Labels) != 0 {
 		t.Errorf("cr = %+v", cr)
 	}
+	if want := []domain.Attachment{{Name: "pr.png", URL: "https://git.bobparsons.dev/attachments/bbbb-2222"}}; !slices.Equal(cr.Attachments, want) {
+		t.Errorf("attachments = %+v, want %+v", cr.Attachments, want)
+	}
 	if cr.UpdatedAt.IsZero() {
 		t.Error("UpdatedAt is zero")
 	}
@@ -528,6 +531,9 @@ func TestIssues(t *testing.T) {
 			got.State != domain.StateOpen || !slices.Equal(got.Labels, []string{"docs", "opus"}) ||
 			got.WebURL != "https://git.bobparsons.dev/deadstyle/lazyforge/issues/17" || got.UpdatedAt.IsZero() {
 			t.Errorf("issue = %+v", got)
+		}
+		if want := []domain.Attachment{{Name: "shot.png", URL: "https://git.bobparsons.dev/attachments/aaaa-1111"}}; !slices.Equal(got.Attachments, want) {
+			t.Errorf("attachments = %+v, want %+v", got.Attachments, want)
 		}
 	})
 

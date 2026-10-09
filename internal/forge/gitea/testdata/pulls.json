@@ -3,6 +3,7 @@
         "id": 842,
         "url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/pulls/18",
         "number": 18,
+        "assets": [{"id": 2, "name": "pr.png", "browser_download_url": "https://git.bobparsons.dev/attachments/bbbb-2222"}],
         "user": {
             "id": 1,
             "login": "deadstyle",

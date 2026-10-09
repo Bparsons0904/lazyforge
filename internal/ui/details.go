@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -143,7 +145,7 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(domain.RepoR
 			ci,
 			style.Faint.Render(it.SourceBranch + " → " + it.TargetBranch),
 			"",
-			md(repo, it.Body),
+			md(repo, withAttachments(it.Body, it.Attachments)),
 		}
 	case domain.Issue:
 		lines = []string{
@@ -153,7 +155,7 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(domain.RepoR
 		if len(it.Labels) > 0 {
 			lines = append(lines, renderLabels(it.Labels, it.LabelColors))
 		}
-		lines = append(lines, "", md(repo, it.Body))
+		lines = append(lines, "", md(repo, withAttachments(it.Body, it.Attachments)))
 	case domain.Run:
 		commit := it.Commit[:min(7, len(it.Commit))]
 		lines = []string{
@@ -173,4 +175,33 @@ func renderLabels(names []string, colors map[string]string) string {
 		labels[i] = style.Label(name, colors[name]).Render(name)
 	}
 	return strings.Join(labels, " ")
+}
+
+// withAttachments appends each attached image the body doesn't already reference as a markdown image,
+// so it takes the same fetch, draw and link-fallback path as an image written into the body.
+func withAttachments(body string, as []domain.Attachment) string {
+	var b strings.Builder
+	b.WriteString(body)
+	for _, a := range as {
+		u, err := url.Parse(a.URL)
+		if err != nil || u.Path == "" || !isImageName(a.Name) || strings.Contains(b.String(), u.Path) {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		fmt.Fprintf(&b, "![%s](%s)", markdownAlt.Replace(a.Name), a.URL)
+	}
+	return b.String()
+}
+
+var markdownAlt = strings.NewReplacer(`\`, `\\`, "[", `\[`, "]", `\]`)
+
+// isImageName reports whether name has an extension the image pipeline decodes.
+func isImageName(name string) bool {
+	switch strings.ToLower(path.Ext(name)) {
+	case ".png", ".jpg", ".jpeg", ".gif":
+		return true
+	}
+	return false
 }

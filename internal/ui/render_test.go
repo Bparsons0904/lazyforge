@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/markdown"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
 
@@ -302,5 +304,38 @@ func TestLabelsUseForgeColorsAndFallback(t *testing.T) {
 		if !strings.Contains(overview(item, domain.RepoRef{}, time.Now(), func(_ domain.RepoRef, body string) string { return body }), want) {
 			t.Fatalf("overview lost label color for %T", item)
 		}
+	}
+}
+
+func TestWithAttachments(t *testing.T) {
+	shot := domain.Attachment{Name: "shot.png", URL: "https://git.bobparsons.dev/attachments/aaaa-1111"}
+	tests := []struct {
+		name string
+		body string
+		as   []domain.Attachment
+		want string
+	}{
+		{"appended after the body", "text", []domain.Attachment{shot}, "text\n\n![shot.png](https://git.bobparsons.dev/attachments/aaaa-1111)"},
+		{"empty body gets no leading gap", "", []domain.Attachment{shot}, "![shot.png](https://git.bobparsons.dev/attachments/aaaa-1111)"},
+		{"already embedded in the body is skipped", "![x](/attachments/aaaa-1111)", []domain.Attachment{shot}, "![x](/attachments/aaaa-1111)"},
+		{"same URL twice is drawn once", "", []domain.Attachment{shot, shot}, "![shot.png](https://git.bobparsons.dev/attachments/aaaa-1111)"},
+		{"empty URL is skipped", "text", []domain.Attachment{{Name: "x.png"}}, "text"},
+		{"non-image is skipped", "text", []domain.Attachment{{Name: "log.txt", URL: "https://git.bobparsons.dev/attachments/bbbb"}}, "text"},
+		{"brackets in the name are escaped", "", []domain.Attachment{{Name: "a]b.PNG", URL: "https://h/attachments/c"}}, `![a\]b.PNG](https://h/attachments/c)`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := withAttachments(tt.body, tt.as); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAttachedImageFallsBackToLink(t *testing.T) {
+	it := domain.Issue{Attachments: []domain.Attachment{{Name: "shot.png", URL: "https://git.bobparsons.dev/attachments/aaaa-1111"}}}
+	got := overview(it, domain.RepoRef{}, time.Now(), func(_ domain.RepoRef, body string) string { return markdown.Render(body, 80) })
+	if text := ansi.Strip(got); !strings.Contains(text, "🖼 shot.png") {
+		t.Errorf("overview = %q, want the 🖼 shot.png link", text)
 	}
 }
