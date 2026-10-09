@@ -14,23 +14,46 @@ import (
 )
 
 type details struct {
-	vp    viewport.Model
-	tab   int
-	shown string // the item and tab on screen; a change scrolls back to the top
-	md    mdMemo
+	vp     viewport.Model
+	tab    int
+	shown  string // the item and tab on screen; a change scrolls back to the top
+	md     mdMemo
+	img    *imageSet // nil while images are off
+	imgGen int       // bumped whenever rendered image output can change; part of the memo key
+	want   []imageRef
+}
+
+type imageRef struct {
+	repo domain.RepoRef
+	raw  string
 }
 
 // Only one item is on screen, so one memo entry is enough.
 type mdMemo struct {
+	repo  domain.RepoRef
 	body  string
 	width int
+	gen   int
 	out   string
+	imgs  []string // markdown.Images(body); nil while images are off
 	ok    bool
 }
 
-func (d *details) markdown(body string, width int) string {
-	if !d.md.ok || d.md.body != body || d.md.width != width {
-		d.md = mdMemo{body: body, width: width, out: markdown.Render(body, width), ok: true}
+// markdown renders body for repo, splicing ready images, and appends body's block images to d.want while images are on.
+func (d *details) markdown(repo domain.RepoRef, body string, width int) string {
+	if !d.md.ok || d.md.repo != repo || d.md.body != body || d.md.width != width || d.md.gen != d.imgGen {
+		d.md = mdMemo{repo: repo, body: body, width: width, gen: d.imgGen, ok: true}
+		if d.img != nil {
+			d.md.imgs = markdown.Images(body)
+			d.md.out = markdown.RenderWithImages(body, width, d.img.blocks(repo, d.md.imgs))
+		} else {
+			d.md.out = markdown.Render(body, width)
+		}
+	}
+	if d.img != nil {
+		for _, raw := range d.md.imgs {
+			d.want = append(d.want, imageRef{repo: repo, raw: raw})
+		}
 	}
 	return d.md.out
 }
@@ -49,7 +72,7 @@ func contentWidth(w int) int { return max(w-4, 1) }
 
 func (d *details) sync(item any, repo domain.RepoRef, w, h int, now time.Time) {
 	cw := contentWidth(w)
-	d.syncText(fmt.Sprintf("%v %s", repo, itemID(item)), overview(item, repo, now, func(b string) string { return d.markdown(b, cw) }), w, h)
+	d.syncText(fmt.Sprintf("%v %s", repo, itemID(item)), overview(item, repo, now, func(r domain.RepoRef, b string) string { return d.markdown(r, b, cw) }), w, h)
 }
 
 // syncText shows text in the pane; a changed id scrolls back to the top.
@@ -106,7 +129,7 @@ func itemCrumb(item any) string {
 	}
 }
 
-func overview(item any, repo domain.RepoRef, now time.Time, md func(string) string) string {
+func overview(item any, repo domain.RepoRef, now time.Time, md func(domain.RepoRef, string) string) string {
 	var lines []string
 	switch it := item.(type) {
 	case domain.ChangeRequest:
@@ -120,7 +143,7 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(string) stri
 			ci,
 			style.Faint.Render(it.SourceBranch + " → " + it.TargetBranch),
 			"",
-			md(it.Body),
+			md(repo, it.Body),
 		}
 	case domain.Issue:
 		lines = []string{
@@ -130,7 +153,7 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(string) stri
 		if len(it.Labels) > 0 {
 			lines = append(lines, renderLabels(it.Labels, it.LabelColors))
 		}
-		lines = append(lines, "", md(it.Body))
+		lines = append(lines, "", md(repo, it.Body))
 	case domain.Run:
 		commit := it.Commit[:min(7, len(it.Commit))]
 		lines = []string{

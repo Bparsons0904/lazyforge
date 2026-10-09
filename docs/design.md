@@ -30,6 +30,8 @@ Two columns are visible at any time. The left column is where you are, and the r
 - A breadcrumb in the header shows where you are: `host › repo › [1] Pull requests › #42`.
 - Action keys (`m`, `a`, `x`, `c`, `R`, `o`) work at both the box and details levels.
 
+**Images.** An image that stands alone in a top-level paragraph of a PR or issue body draws inline in the Details pane, scrolling and clipping with the text. It must be hosted on the connected forge. It fits the pane width, shrinking a larger image but never enlarging a smaller one, and is capped at the visible height; a resize re-fits it. Kitty and Ghostty draw images, detected automatically; inside tmux the terminal needs `allow-passthrough`. Everywhere else, and while the setting is off, an image stays the `🖼 alt` link, as it does while it loads, after a failed load, when it sits inside text, a list, a quote, a table or an HTML `<img>`, or when it is on another host. Images load only while the Details pane is showing, never from the repo list. They stay held while you're on the host picker or Settings, and are deleted on quit or when you switch host. A force-killed lazyforge leaves them until the terminal clears them.
+
 ## Splash
 
 Every launch opens on a splash screen: a hammer striking an anvil with sparks flying, the lazyforge name, and a tagline picked at random. It stays up for five seconds, and any key skips it. The key does nothing else. `ctrl+c` quits.
@@ -57,6 +59,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 - **Hosts:** add (the onboarding flow from step 2), edit, remove, and set the default.
 - **Updates:** turn the startup update check on or off.
 - **Splash screen:** turn the startup splash on or off.
+- **Images:** show images inline in the details pane, on by default.
 - **Merging:** "only merge when CI is green" per host, with a per-repo override.
 - The host picker has a **+ Add host** entry, which opens the same flow.
 - Settings are saved to the config file right away. There's no separate save step.

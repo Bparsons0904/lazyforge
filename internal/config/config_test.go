@@ -88,6 +88,50 @@ func TestUpdateCheckDefault(t *testing.T) {
 	}
 }
 
+func TestImagesShowDefault(t *testing.T) {
+	minimal := "[hosts.a]\ntype = \"github\"\ntoken_cmd = \"x\"\n"
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"absent section", minimal, true},
+		{"absent key", "[images]\n" + minimal, true},
+		{"explicit false", "[images]\nshow = false\n" + minimal, false},
+		{"explicit true", "[images]\nshow = true\n" + minimal, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := config.Load(writeFile(t, tt.body, 0o600))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Images.Show != tt.want {
+				t.Fatalf("Images.Show = %v, want %v", c.Images.Show, tt.want)
+			}
+		})
+	}
+	if !config.Defaults().Images.Show {
+		t.Fatal("Defaults leaves images off")
+	}
+}
+
+func TestImagesShowRoundTrip(t *testing.T) {
+	c := config.Defaults()
+	c.Images.Show = false
+	out := filepath.Join(t.TempDir(), "config.toml")
+	if err := config.Save(out, c); err != nil {
+		t.Fatal(err)
+	}
+	got, err := config.Load(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Images.Show {
+		t.Fatal("images off did not survive a save and load")
+	}
+}
+
 func TestSplashShowDefault(t *testing.T) {
 	minimal := "[hosts.a]\ntype = \"github\"\ntoken_cmd = \"x\"\n"
 	tests := []struct {

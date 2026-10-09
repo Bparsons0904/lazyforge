@@ -18,6 +18,7 @@ type Config struct {
 	DefaultHost string          `toml:"default_host,omitempty"`
 	Update      Update          `toml:"update"`
 	Splash      Splash          `toml:"splash"`
+	Images      Images          `toml:"images"`
 	Hosts       map[string]Host `toml:"hosts"`
 }
 
@@ -28,6 +29,11 @@ type Update struct {
 
 // Splash controls the startup splash screen; Load defaults Show to true when the file omits it.
 type Splash struct {
+	Show bool `toml:"show"`
+}
+
+// Images controls inline images in the details pane; Load defaults Show to true when the file omits it.
+type Images struct {
 	Show bool `toml:"show"`
 }
 
@@ -68,8 +74,10 @@ func (c Config) Clone() Config {
 	return c
 }
 
-// Defaults is the config a file without update or splash settings loads as, and the one onboarding starts from.
-func Defaults() Config { return Config{Update: Update{Check: true}, Splash: Splash{Show: true}} }
+// Defaults is the config a file without update, splash or images settings loads as, and the one onboarding starts from.
+func Defaults() Config {
+	return Config{Update: Update{Check: true}, Splash: Splash{Show: true}, Images: Images{Show: true}}
+}
 
 // Load reads and validates the config at path. A missing file yields an error
 // satisfying errors.Is(err, fs.ErrNotExist), which the caller treats as "start

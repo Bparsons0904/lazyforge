@@ -44,7 +44,7 @@ func TestSettingsRowsAndMarkers(t *testing.T) {
 	for _, r := range settingsRows(v) {
 		got = append(got, strings.Join([]string{r.host, r.repo}, "|"))
 	}
-	want := []string{"a|", "b|", "|", "|", "|", "a|", "a|x/new", "a|x/old", "b|", "b|y/only"}
+	want := []string{"a|", "b|", "|", "|", "|", "|", "a|", "a|x/new", "a|x/old", "b|", "b|y/only"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("rows = %v, want %v", got, want)
 	}
@@ -68,7 +68,7 @@ func TestSettingsToggles(t *testing.T) {
 	if in.kind != intentChange || !in.cfg.Splash.Show {
 		t.Fatalf("splash toggle: %+v", in)
 	}
-	_, in = sKeys(v, "j", "j", "j", "j", "j", "enter") // host a merging
+	_, in = sKeys(v, "j", "j", "j", "j", "j", "j", "enter") // host a merging
 	if !in.cfg.Hosts["a"].RequireGreenCI {
 		t.Fatalf("host merge toggle: %+v", in.cfg.Hosts["a"])
 	}
@@ -88,6 +88,40 @@ func TestSettingsToggles(t *testing.T) {
 	}
 	if !reflect.DeepEqual(v.cfg, before) {
 		t.Fatal("input config mutated")
+	}
+}
+
+func TestSettingsImagesRow(t *testing.T) {
+	v := settingsFixture()
+	v.cfg.Images.Show = true
+	out := (settings{}).view(80, 30, v)
+	lines := strings.Split(out, "\n")
+	at := func(s string) int {
+		for i, l := range lines {
+			if strings.Contains(strip(l), s) {
+				return i
+			}
+		}
+		t.Fatalf("view lacks %q:\n%s", s, out)
+		return -1
+	}
+	splash, images, merging := at("Splash screen"), at("Show images"), at("Merging")
+	if splash >= images || images >= merging {
+		t.Fatalf("Show images at line %d, want between Splash screen (%d) and Merging (%d)", images, splash, merging)
+	}
+	if !strings.Contains(strip(lines[images]), "on") || strings.Contains(strip(lines[images]), "off") {
+		t.Fatalf("images row reads %q with the setting on", strip(lines[images]))
+	}
+	if !strings.Contains(out, "Images") {
+		t.Fatalf("view lacks the Images section:\n%s", out)
+	}
+
+	for _, on := range []bool{false, true} {
+		v.cfg.Images.Show = on
+		_, in := sKeys(v, "j", "j", "j", "j", "j", "space") // images row
+		if in.kind != intentChange || in.cfg.Images.Show == on {
+			t.Fatalf("images toggle from %v: %+v", on, in)
+		}
 	}
 }
 

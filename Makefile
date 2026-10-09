@@ -9,7 +9,7 @@ build:
 	go build -ldflags "-X main.version=$(VERSION)" -o $(BIN) ./cmd/lazyforge
 
 test:
-	go test -race ./...
+	go test -race -timeout=2m ./...
 
 lint:
 	golangci-lint run

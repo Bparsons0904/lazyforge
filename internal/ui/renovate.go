@@ -413,7 +413,7 @@ func updateLines(us []domain.RenovateUpdate) []string {
 	return out
 }
 
-func (s starModel) detail(now time.Time, md func(string) string) string {
+func (s starModel) detail(now time.Time, md func(domain.RepoRef, string) string) string {
 	var lines []string
 	switch it := s.selected().(type) {
 	case renovate.RepoSummary:
@@ -534,7 +534,7 @@ func (m *Model) starDetailsKey(msg tea.KeyPressMsg, gg bool) {
 
 func (m *Model) syncStarDetails() {
 	bodyH, _, rightW := m.layout()
-	m.details.syncText("★ "+fmt.Sprint(m.star.focus)+" "+m.star.crumb(), m.star.detail(m.now(), func(b string) string { return m.details.markdown(b, contentWidth(rightW)) }), rightW, bodyH)
+	m.details.syncText("★ "+fmt.Sprint(m.star.focus)+" "+m.star.crumb(), m.star.detail(m.now(), func(r domain.RepoRef, b string) string { return m.details.markdown(r, b, contentWidth(rightW)) }), rightW, bodyH)
 }
 
 // syncStarKeys enables each action key only where the ★ row under the cursor supports it.

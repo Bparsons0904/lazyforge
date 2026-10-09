@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
@@ -42,11 +43,17 @@ func sizedWith(t *testing.T, m Model, w, h int) Model {
 	return boot(t, m)
 }
 
+// maxSettleSteps bounds how many messages run and settle process, so a feedback loop fails the test instead of hanging it.
+const maxSettleSteps = 5000
+
 // run feeds msg to m and then every message its commands produce, skipping commands that don't return quickly.
 func run(t *testing.T, m Model, msg tea.Msg) Model {
 	t.Helper()
 	queue := []tea.Msg{msg}
-	for len(queue) > 0 {
+	for steps := 0; len(queue) > 0; steps++ {
+		if steps > maxSettleSteps {
+			t.Fatalf("messages did not settle after %d steps: a command keeps producing messages", maxSettleSteps)
+		}
 		next, cmd := m.Update(queue[0])
 		m, queue = next.(Model), queue[1:]
 		queue = append(queue, exec(t, cmd)...)
@@ -81,6 +88,13 @@ func exec(t *testing.T, cmd tea.Cmd) []tea.Msg {
 		if b, ok := msg.(tea.BatchMsg); ok {
 			var msgs []tea.Msg
 			for _, c := range b {
+				msgs = append(msgs, exec(t, c)...)
+			}
+			return msgs
+		}
+		if cmds, ok := sequenceCmds(msg); ok {
+			var msgs []tea.Msg
+			for _, c := range cmds {
 				msgs = append(msgs, exec(t, c)...)
 			}
 			return msgs
@@ -158,3 +172,15 @@ func lines(m Model) []string { return splitLines(strip(m.View().Content)) }
 func splitLines(s string) []string { return strings.Split(s, "\n") }
 
 func newDemo() *forgetest.Fake { return forgetest.NewDemo(time.Now()) }
+
+// sequenceCmds returns the commands of a tea.Sequence result, a type bubbletea keeps unexported, and whether msg is one.
+func sequenceCmds(msg tea.Msg) ([]tea.Cmd, bool) {
+	if _, isBatch := msg.(tea.BatchMsg); isBatch {
+		return nil, false
+	}
+	v := reflect.ValueOf(msg)
+	if v.Kind() != reflect.Slice || v.Type().Elem() != reflect.TypeOf(tea.Cmd(nil)) {
+		return nil, false
+	}
+	return v.Convert(reflect.TypeOf([]tea.Cmd(nil))).Interface().([]tea.Cmd), true
+}

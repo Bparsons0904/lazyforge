@@ -166,7 +166,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case termimg.DetectedMsg:
 		a.support = msg.Support
-		return a, nil
+		return a, a.toSession(a.imagesMsg())
 	}
 	// The rest are sizes, onboarding results, or session messages the runtime delivered unstamped
 	// (editorDoneMsg from the $EDITOR callback); each side ignores the other's.
@@ -219,7 +219,7 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch in.kind {
 	case intentChange:
 		a.apply(in.cfg)
-		return a.save(in.cfg)
+		return tea.Batch(a.save(in.cfg), a.toSession(a.imagesMsg()))
 	case intentAdd:
 		a.openOnboarding(a.ctx, onboardStart{})
 	case intentEdit:
@@ -330,7 +330,12 @@ func (a *App) saved(msg configSavedMsg) tea.Cmd {
 }
 
 // openSession replaces the live session with one for host name over f, cancelling the old one's work.
-func (a *App) openSession(ctx context.Context, name string, f forge.Forge) {
+// It returns the terminal sequences that delete the old session's images, which the caller must write.
+func (a *App) openSession(ctx context.Context, name string, f forge.Forge) string {
+	var del string
+	if a.host != "" {
+		del = a.session.details.img.release()
+	}
 	if a.endSession != nil {
 		a.endSession()
 	}
@@ -346,12 +351,28 @@ func (a *App) openSession(ctx context.Context, name string, f forge.Forge) {
 	if a.size != nil {
 		a.session.width, a.session.height = a.size.Width, a.size.Height
 	}
+	return del
 }
 
 // startSession opens a session that the user chose, so it also records name as the last host.
 func (a *App) startSession(ctx context.Context, name string, f forge.Forge) tea.Cmd {
-	a.openSession(ctx, name, f)
-	return tea.Batch(stamp(a.gen, a.session.Init()), rememberHost(a.deps.StatePath, name))
+	del := a.openSession(ctx, name, f)
+	// A fresh session holds no images, so applying the setting directly skips a full Update pass and yields no output.
+	a.session.imagesChanged(a.imagesMsg())
+	return tea.Sequence(rawCmd(del), tea.Batch(stamp(a.gen, a.session.Init()), rememberHost(a.deps.StatePath, name)))
+}
+
+// imagesMsg is the setting and terminal support the live session's images follow.
+func (a App) imagesMsg() imagesMsg {
+	return imagesMsg{support: a.support, show: a.cfg().Images.Show}
+}
+
+// ReleaseImages returns the terminal sequences that delete every image the live session holds; "" when none.
+func (a App) ReleaseImages() string {
+	if a.host == "" {
+		return ""
+	}
+	return a.session.details.img.release()
 }
 
 // toSession delivers msg to the live session and stamps what it returns; a no-op without one.
@@ -459,6 +480,8 @@ func (actionDoneMsg) fromSession()           {}
 func (renovateScannedMsg) fromSession()      {}
 func (starRecheckedMsg) fromSession()        {}
 func (starMergeDoneMsg) fromSession()        {}
+func (imageLoadedMsg) fromSession()          {}
+func (imagePlacedMsg) fromSession()          {}
 
 type stampedMsg struct {
 	gen int

@@ -38,47 +38,51 @@ func (r renderer) inline(n ast.Node, base lipgloss.Style) []atom {
 		}
 	}
 	var walk func(n ast.Node, st lipgloss.Style, url string)
+	var visit func(c ast.Node, st lipgloss.Style, url string)
 	walk = func(n ast.Node, st lipgloss.Style, url string) {
 		for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-			switch c := c.(type) {
-			case *ast.Text:
-				add(clean(c.Value.Value(r.src)), st, url)
-				if c.HardLineBreak() {
-					out = append(out, atom{nl: true})
-					pendingSpace = false
-				} else if c.SoftLineBreak() {
-					pendingSpace = true
-				}
-			case *ast.CodeSpan:
-				add(strings.Join(strings.Fields(c.Value.Value(r.src)), " "), style.Code, url)
-			case *ast.Emphasis:
-				walk(c, st.Italic(true), url)
-			case *ast.Strong:
-				walk(c, st.Bold(true), url)
-			case *east.Strikethrough:
-				walk(c, st.Strikethrough(true), url)
-			case *ast.Link:
-				walk(c, style.Link, safeURL(c.Destination.Value(r.src)))
-			case *ast.AutoLink:
-				add(clean(c.Label.Value(r.src)), style.Link, safeURL(c.Destination.Value(r.src)))
-			case *ast.Image:
-				u := url
-				if u == "" {
-					u = safeURL(c.Destination.Value(r.src))
-				}
-				add("🖼 "+plain(r.src, c), style.Link, u)
-			case *ast.RawHTML:
-				if brRE.MatchString(strings.TrimSpace(c.Value.Str(r.src))) {
-					out = append(out, atom{nl: true})
-					pendingSpace = false
-				}
-				// Other raw HTML is dropped so hidden markers like <!-- rebase-check --> never show.
-			default:
-				walk(c, st, url)
-			}
+			visit(c, st, url)
 		}
 	}
-	walk(n, base, "")
+	visit = func(c ast.Node, st lipgloss.Style, url string) {
+		switch c := c.(type) {
+		case *ast.Text:
+			add(clean(c.Value.Value(r.src)), st, url)
+			if c.HardLineBreak() {
+				out = append(out, atom{nl: true})
+				pendingSpace = false
+			} else if c.SoftLineBreak() {
+				pendingSpace = true
+			}
+		case *ast.CodeSpan:
+			add(strings.Join(strings.Fields(c.Value.Value(r.src)), " "), style.Code, url)
+		case *ast.Emphasis:
+			walk(c, st.Italic(true), url)
+		case *ast.Strong:
+			walk(c, st.Bold(true), url)
+		case *east.Strikethrough:
+			walk(c, st.Strikethrough(true), url)
+		case *ast.Link:
+			walk(c, style.Link, safeURL(c.Destination.Value(r.src)))
+		case *ast.AutoLink:
+			add(clean(c.Label.Value(r.src)), style.Link, safeURL(c.Destination.Value(r.src)))
+		case *ast.Image:
+			u := url
+			if u == "" {
+				u = safeURL(c.Destination.Value(r.src))
+			}
+			add("🖼 "+plain(r.src, c), style.Link, u)
+		case *ast.RawHTML:
+			if brRE.MatchString(strings.TrimSpace(c.Value.Str(r.src))) {
+				out = append(out, atom{nl: true})
+				pendingSpace = false
+			}
+			// Other raw HTML is dropped so hidden markers like <!-- rebase-check --> never show.
+		default:
+			walk(c, st, url)
+		}
+	}
+	visit(n, base, "")
 	return out
 }
 

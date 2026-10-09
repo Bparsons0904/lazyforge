@@ -3,6 +3,7 @@ package markdown
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -24,11 +25,14 @@ var (
 
 // Render returns body as styled lines no wider than width, joined by newlines.
 // Raw HTML is dropped except <br> and <summary> text; only http, https and mailto links become hyperlinks.
-func Render(body string, width int) string {
+func Render(body string, width int) string { return RenderWithImages(body, width, nil) }
+
+// RenderWithImages is Render with each block image whose destination is a key of blocks replaced by those lines.
+func RenderWithImages(body string, width int, blocks map[string][]string) string {
 	width = max(width, 1)
 	src := []byte(clean(body))
 	doc := md.Parse(src)
-	r := renderer{src: src}
+	r := renderer{src: src, imgs: blocks}
 	lines := r.blocks(doc, width)
 	for len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
@@ -42,7 +46,35 @@ func Render(body string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-type renderer struct{ src []byte }
+// Images returns the destinations of body's block images, deduplicated in first-seen order; nil when there are none.
+func Images(body string) []string {
+	src := []byte(clean(body))
+	doc := md.Parse(src)
+	var out []string
+	seen := map[string]bool{}
+	for n := doc.FirstChild(); n != nil; n = n.NextSibling() {
+		p, isPara := n.(*ast.Paragraph)
+		if !isPara {
+			continue
+		}
+		units, ok := blockImages(p, src)
+		if !ok {
+			continue
+		}
+		for _, u := range units {
+			if k := unitKey(u, src); !seen[k] {
+				seen[k] = true
+				out = append(out, k)
+			}
+		}
+	}
+	return out
+}
+
+type renderer struct {
+	src  []byte
+	imgs map[string][]string // block-image lines by destination; nil or empty draws every image as a link
+}
 
 func (r renderer) blocks(n ast.Node, w int) []string { return r.join(n, w, true) }
 
@@ -66,6 +98,9 @@ func (r renderer) block(n ast.Node, w int) []string {
 	case *ast.Heading:
 		return wrap(r.inline(n, style.Heading), w)
 	case *ast.Paragraph:
+		if ls, ok := r.splice(n, w); ok {
+			return ls
+		}
 		return wrap(r.inline(n, style.Text), w)
 	case *ast.List:
 		return r.list(n, w)
@@ -153,6 +188,64 @@ func (r renderer) summaries(n *ast.HTMLBlock, w int) []string {
 		out = append(out, wrap(words(rest, style.Text), w)...)
 	}
 	return out
+}
+
+// splice renders p unit by unit, each unit with prepared lines replaced by them; ok is false when none has any.
+func (r renderer) splice(p *ast.Paragraph, w int) ([]string, bool) {
+	units, isBlock := blockImages(p, r.src)
+	if !isBlock || !slices.ContainsFunc(units, r.prepared) {
+		return nil, false
+	}
+	var lines []string
+	for _, u := range units {
+		if ls, has := r.imgs[unitKey(u, r.src)]; has {
+			lines = append(lines, ls...)
+		} else {
+			lines = append(lines, wrap(r.inline(u, style.Text), w)...)
+		}
+	}
+	return lines, true
+}
+
+func (r renderer) prepared(u ast.Node) bool {
+	_, ok := r.imgs[unitKey(u, r.src)]
+	return ok
+}
+
+// blockImages returns p's units, each an image or a link wrapping one, when p is a top-level paragraph
+// of only images and whitespace; ok is false otherwise.
+func blockImages(p *ast.Paragraph, src []byte) (units []ast.Node, ok bool) {
+	if p.Parent().Kind() != ast.KindDocument {
+		return nil, false
+	}
+	for c := p.FirstChild(); c != nil; c = c.NextSibling() {
+		switch c := c.(type) {
+		case *ast.Image:
+			units = append(units, c)
+		case *ast.Link:
+			img, isImg := c.FirstChild().(*ast.Image)
+			if !isImg || img.NextSibling() != nil {
+				return nil, false
+			}
+			units = append(units, c)
+		case *ast.Text:
+			if strings.TrimSpace(c.Value.Value(src)) != "" {
+				return nil, false
+			}
+		default:
+			return nil, false
+		}
+	}
+	return units, len(units) > 0
+}
+
+// unitKey returns the destination of the image a block-image unit draws, the key Images reports and blocks use.
+func unitKey(u ast.Node, src []byte) string {
+	img, ok := u.(*ast.Image)
+	if !ok {
+		img = u.FirstChild().(*ast.Image)
+	}
+	return img.Destination.Value(src)
 }
 
 // prefixed puts prefix before every line and blank before empty ones, so a blank line leaves no trailing space.

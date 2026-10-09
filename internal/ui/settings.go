@@ -52,6 +52,7 @@ const (
 	rowAdd
 	rowUpdate
 	rowSplash
+	rowImages
 	rowHostCI
 	rowRepoCI
 )
@@ -75,7 +76,7 @@ func settingsRows(v settingsView) []settingsRow {
 	for _, n := range names {
 		rows = append(rows, settingsRow{kind: rowHost, host: n})
 	}
-	rows = append(rows, settingsRow{kind: rowAdd}, settingsRow{kind: rowUpdate}, settingsRow{kind: rowSplash})
+	rows = append(rows, settingsRow{kind: rowAdd}, settingsRow{kind: rowUpdate}, settingsRow{kind: rowSplash}, settingsRow{kind: rowImages})
 	for _, n := range names {
 		rows = append(rows, settingsRow{kind: rowHostCI, host: n})
 		repos := slices.Sorted(maps.Keys(v.cfg.Hosts[n].Repos))
@@ -104,6 +105,12 @@ func toggleUpdateCheck(c config.Config) config.Config {
 func toggleSplash(c config.Config) config.Config {
 	c = c.Clone()
 	c.Splash.Show = !c.Splash.Show
+	return c
+}
+
+func toggleImages(c config.Config) config.Config {
+	c = c.Clone()
+	c.Images.Show = !c.Images.Show
 	return c
 }
 
@@ -220,6 +227,10 @@ func (s settings) activate(msg tea.KeyPressMsg, r settingsRow, v settingsView, k
 		if toggle {
 			return s, change(toggleSplash(v.cfg))
 		}
+	case rowImages:
+		if toggle {
+			return s, change(toggleImages(v.cfg))
+		}
 	case rowHostCI:
 		if toggle {
 			return s, change(toggleHostCI(v.cfg, r.host))
@@ -291,7 +302,9 @@ func (s settings) view(w, h int, v settingsView) string {
 			section("Updates")
 		case r.kind == rowSplash:
 			section("Splash screen")
-		case r.kind == rowHostCI && (i == 0 || rows[i-1].kind == rowSplash):
+		case r.kind == rowImages:
+			section("Images")
+		case r.kind == rowHostCI && (i == 0 || rows[i-1].kind == rowImages):
 			section("Merging")
 		}
 		base := lipgloss.NewStyle()
@@ -328,6 +341,8 @@ func (s settings) rowLine(r settingsRow, v settingsView, w int, base lipgloss.St
 		return row("Check for updates at startup", faint.Render(onOff(v.cfg.Update.Check)), w, base)
 	case rowSplash:
 		return row("Show the splash screen at startup", faint.Render(onOff(v.cfg.Splash.Show)), w, base)
+	case rowImages:
+		return row("Show images", faint.Render(onOff(v.cfg.Images.Show)), w, base)
 	case rowHostCI:
 		return row(r.host+": Only merge when CI is green", faint.Render(onOff(v.cfg.Hosts[r.host].RequireGreenCI)), w, base)
 	default:

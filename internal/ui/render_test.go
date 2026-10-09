@@ -212,14 +212,14 @@ func TestDetailsRendersMarkdownBody(t *testing.T) {
 
 func TestDetailsMarkdownFollowsBodyAndWidth(t *testing.T) {
 	var d details
-	a := d.markdown("one two three four five six seven", 10)
-	if d.markdown("one two three four five six seven", 10) != a {
+	a := d.markdown(domain.RepoRef{}, "one two three four five six seven", 10)
+	if d.markdown(domain.RepoRef{}, "one two three four five six seven", 10) != a {
 		t.Fatal("same body and width gave a different result")
 	}
-	if d.markdown("one two three four five six seven", 40) == a {
+	if d.markdown(domain.RepoRef{}, "one two three four five six seven", 40) == a {
 		t.Error("a new width didn't re-render")
 	}
-	if d.markdown("different", 40) == a {
+	if d.markdown(domain.RepoRef{}, "different", 40) == a {
 		t.Error("a new body didn't re-render")
 	}
 }
@@ -299,7 +299,7 @@ func TestLabelsUseForgeColorsAndFallback(t *testing.T) {
 		domain.Issue{Labels: []string{"bug"}, LabelColors: map[string]string{"bug": "ff0000"}},
 		domain.ChangeRequest{Labels: []string{"bug"}, LabelColors: map[string]string{"bug": "ff0000"}},
 	} {
-		if !strings.Contains(overview(item, domain.RepoRef{}, time.Now(), func(body string) string { return body }), want) {
+		if !strings.Contains(overview(item, domain.RepoRef{}, time.Now(), func(_ domain.RepoRef, body string) string { return body }), want) {
 			t.Fatalf("overview lost label color for %T", item)
 		}
 	}

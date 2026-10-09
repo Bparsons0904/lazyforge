@@ -147,11 +147,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case editorDoneMsg:
 		cmd = m.postComment(msg)
+	case imagesMsg:
+		cmd = m.imagesChanged(msg)
+	case imageLoadedMsg:
+		cmd = m.imageLoaded(msg)
+	case imagePlacedMsg:
+		cmd = m.imagePlaced(msg)
 	}
 	m.boxes.clampCursors()
 	m.syncDetails()
 	m.syncKeys()
-	return m, cmd
+	return m, tea.Batch(cmd, m.syncImages())
 }
 
 func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -184,6 +190,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case key.Matches(msg, k.Refresh):
 		m.svc.ClearImages()
+		m.details.img.forgetFailed()
 		return m.refresh()
 	}
 	if m.level != levelRepos {
@@ -351,6 +358,7 @@ func (m Model) layout() (bodyH, leftW, rightW int) {
 
 func (m *Model) syncDetails() {
 	bodyH, _, rightW := m.layout()
+	m.details.want = nil
 	if m.onStar() {
 		if m.level != levelRepos {
 			m.syncStarDetails()

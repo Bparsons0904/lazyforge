@@ -58,7 +58,11 @@ func run(configPath, hostName string, noUpdateCheck, demo bool) error {
 		}
 		root = ui.NewApp(ctx, d)
 	}
-	_, err := tea.NewProgram(root).Run()
+	final, err := tea.NewProgram(root).Run()
+	// Run returns on every exit, signals included, so this one write frees the images on any quit path.
+	if a, ok := final.(ui.App); ok {
+		_, _ = os.Stdout.WriteString(a.ReleaseImages())
+	}
 	return err
 }
 
