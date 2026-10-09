@@ -42,7 +42,7 @@ func windowsZipPath(goarch string) string {
 }
 
 func windowsChecker(url, goarch string) update.Checker {
-	return update.Checker{BaseURL: url, Client: &http.Client{Timeout: 5 * time.Second}, GOOS: "windows", GOARCH: goarch}
+	return update.Checker{Sources: []update.Source{update.Forgejo(url)}, Client: &http.Client{Timeout: 5 * time.Second}, GOOS: "windows", GOARCH: goarch}
 }
 
 // windowsRelease serves the zip at archivePath and the checksums file at the ADR 0008 path.
@@ -76,7 +76,7 @@ func TestApplyWindowsZipSwapsBinary(t *testing.T) {
 			srv := windowsRelease(t, windowsZipPath(goarch), archive, sum(archive)+"  "+windowsZipName(goarch)+"\n")
 			exe := windowsInstall(t)
 
-			if err := windowsChecker(srv.URL, goarch).Apply(context.Background(), update.Release{Tag: testTag}, exe); err != nil {
+			if err := windowsChecker(srv.URL, goarch).Apply(context.Background(), update.Release{Tag: testTag, Source: update.Forgejo(srv.URL)}, exe); err != nil {
 				t.Fatalf("Apply: %v", err)
 			}
 			if got, _ := os.ReadFile(exe); string(got) != "new" {
@@ -108,7 +108,7 @@ func TestApplyWindowsZipFailsLeaveExeUntouched(t *testing.T) {
 			srv := windowsRelease(t, windowsZipPath("amd64"), good, tt.checksums)
 			exe := windowsInstall(t)
 
-			if err := windowsChecker(srv.URL, "amd64").Apply(context.Background(), update.Release{Tag: testTag}, exe); err == nil {
+			if err := windowsChecker(srv.URL, "amd64").Apply(context.Background(), update.Release{Tag: testTag, Source: update.Forgejo(srv.URL)}, exe); err == nil {
 				t.Fatal("want error")
 			}
 			if got, _ := os.ReadFile(exe); string(got) != "old" {
@@ -126,7 +126,7 @@ func TestApplyWindowsZipWithoutBinaryErrors(t *testing.T) {
 	srv := windowsRelease(t, windowsZipPath("amd64"), archive, sum(archive)+"  "+windowsZipName("amd64")+"\n")
 	exe := windowsInstall(t)
 
-	err := windowsChecker(srv.URL, "amd64").Apply(context.Background(), update.Release{Tag: testTag}, exe)
+	err := windowsChecker(srv.URL, "amd64").Apply(context.Background(), update.Release{Tag: testTag, Source: update.Forgejo(srv.URL)}, exe)
 	if err == nil || !strings.Contains(err.Error(), "archive has no lazyforge binary") {
 		t.Fatalf("Apply error = %v, want one containing %q", err, "archive has no lazyforge binary")
 	}

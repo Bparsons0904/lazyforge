@@ -238,7 +238,7 @@ Details and rationale in [ADR 0010](adr/0010-ui-shell.md).
 
 ## Releases
 
-Tagged commits on `main` publish four platform tarballs to Forgejo releases, installed by `install.sh` ([ADR 0008](adr/0008-release-and-install.md)). CI and release share one setup action and its caches, and a release verifies the same archives it publishes ([ADR 0015](adr/0015-ci-caching-and-release-pipeline.md)). Interactive launches offer a newer release and self-update by rename ([ADR 0009](adr/0009-self-update.md)).
+Tagged commits on `main` publish four platform tarballs to Forgejo releases, installed by `install.sh` ([ADR 0008](adr/0008-release-and-install.md)). A `v*` tag also mirrors the same files to GitHub releases, the fallback when Forgejo is unreachable ([ADR 0009](adr/0009-self-update.md)). CI and release share one setup action and its caches, and a release verifies the same archives it publishes ([ADR 0015](adr/0015-ci-caching-and-release-pipeline.md)). Interactive launches offer a newer release and self-update by rename ([ADR 0009](adr/0009-self-update.md)).
 
 ## Build order
 

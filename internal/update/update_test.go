@@ -27,7 +27,7 @@ const (
 )
 
 func newChecker(url string) update.Checker {
-	return update.Checker{BaseURL: url, Client: &http.Client{Timeout: 5 * time.Second}, GOOS: "linux", GOARCH: "amd64"}
+	return update.Checker{Sources: []update.Source{update.Forgejo(url)}, Client: &http.Client{Timeout: 5 * time.Second}, GOOS: "linux", GOARCH: "amd64"}
 }
 
 func TestLatest(t *testing.T) {
@@ -229,7 +229,7 @@ func TestApplyHappyPath(t *testing.T) {
 	srv := release(t, archive, fmt.Sprintf("%s  %s\n%s  other.tar.gz\n", sum(archive), archiveName, strings.Repeat("0", 64)))
 	exe := installExe(t)
 
-	if err := newChecker(srv.URL).Apply(context.Background(), update.Release{Tag: testTag}, exe); err != nil {
+	if err := newChecker(srv.URL).Apply(context.Background(), update.Release{Tag: testTag, Source: update.Forgejo(srv.URL)}, exe); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
 
@@ -271,7 +271,7 @@ func TestApplyFailsLeaveExeUntouched(t *testing.T) {
 			srv := release(t, tt.archive, tt.checksums)
 			exe := installExe(t)
 
-			if err := newChecker(srv.URL).Apply(context.Background(), update.Release{Tag: testTag}, exe); err == nil {
+			if err := newChecker(srv.URL).Apply(context.Background(), update.Release{Tag: testTag, Source: update.Forgejo(srv.URL)}, exe); err == nil {
 				t.Fatal("want error")
 			}
 			if got, _ := os.ReadFile(exe); string(got) != "old" {
@@ -297,7 +297,7 @@ func TestApplySwapFailureCleansUp(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := newChecker(srv.URL).Apply(context.Background(), update.Release{Tag: testTag}, exe); err == nil {
+	if err := newChecker(srv.URL).Apply(context.Background(), update.Release{Tag: testTag, Source: update.Forgejo(srv.URL)}, exe); err == nil {
 		t.Fatal("want error")
 	}
 	if got, _ := os.ReadFile(exe); string(got) != "old" {

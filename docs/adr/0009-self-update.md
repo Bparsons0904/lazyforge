@@ -17,10 +17,13 @@ Ticket #12 has lazyforge check for a newer release at startup and offer to insta
 - `Apply` downloads the archive and `checksums.txt` next to the executable, verifies SHA-256 (a missing line or a mismatch is an error), extracts to a temp file, renames `exe` to `exe.old`, then the new file to `exe`. The binary is replaced by rename, never overwritten in place: on macOS, overwriting a signed binary's inode trips the kernel's code-signature cache and the process gets SIGKILLed, while a new inode avoids it. The Go linker ad-hoc signs darwin/arm64 binaries and Go's HTTP download sets no quarantine attribute, so Gatekeeper isn't involved.
 - After a successful swap the process re-execs with `syscall.Exec`, adding `LAZYFORGE_NO_UPDATE_CHECK=1` so a new build that reports a stale version can't loop. If exec fails, `exe.old` is renamed back. `CleanupOld` removes `exe.old` at every startup.
 
+- Amended 2026-10-09: the check tries Forgejo first, then the GitHub mirror (`Bparsons0904/lazyforge`). It moves to the next source only on a transport error, a timeout or a 5xx; any other answer ends the check. `Release` records the source it was found on, and `Apply` downloads the archive and `checksums.txt` from that source alone, so the two hosts are never mixed.
+
 ## Consequences
 
 - Windows is out of scope: it can't rename over a running binary and has no `syscall.Exec`.
 - One network request, capped at 2s, is added to every interactive launch.
+- Amended 2026-10-09: with Forgejo down, the launch check takes up to 4s, two 2s timeouts in a row. Each source keeps its own 2s timeout.
 
 ## Alternatives
 

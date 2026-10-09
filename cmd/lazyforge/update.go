@@ -34,13 +34,16 @@ func maybeUpdate(ctx context.Context, checkEnabled bool) {
 	}
 
 	c := update.Checker{
-		BaseURL: update.DefaultBaseURL,
-		Client:  &http.Client{Timeout: 2 * time.Second},
-		GOOS:    runtime.GOOS,
-		GOARCH:  runtime.GOARCH,
+		Sources: []update.Source{
+			update.Forgejo(update.DefaultBaseURL),
+			update.GitHub(update.DefaultGitHubAPIURL, update.DefaultGitHubURL),
+		},
+		Client: &http.Client{Timeout: 2 * time.Second},
+		GOOS:   runtime.GOOS,
+		GOARCH: runtime.GOARCH,
 	}
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	rel, err := c.Latest(ctx)
+	latestCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	rel, err := c.Latest(latestCtx)
 	cancel()
 	if err != nil || !update.Newer(version, rel.Tag) {
 		return

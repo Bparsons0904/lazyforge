@@ -24,7 +24,7 @@ Linux and macOS, on Intel or ARM. This downloads the latest release, checks its 
 curl -fsSL https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/install.sh | bash
 ```
 
-Make sure `~/.local/bin` is on your `PATH`. Set `LAZYFORGE_INSTALL_DIR` to install elsewhere, or `LAZYFORGE_VERSION` (for example `v0.1.0`) to pick a release. Once installed, lazyforge offers newer releases at launch and updates itself.
+Make sure `~/.local/bin` is on your `PATH`. Set `LAZYFORGE_INSTALL_DIR` to install elsewhere, or `LAZYFORGE_VERSION` (for example `v0.1.0`) to pick a release. Once installed, lazyforge offers newer releases at launch and updates itself. If the Forgejo server is unreachable, installs and updates fall back to the GitHub mirror of the releases.
 
 Windows, on Intel or ARM, from PowerShell:
 
