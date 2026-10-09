@@ -1,0 +1,18 @@
+﻿2026-10-09T14:47:52.0491201Z Current runner version: '2.337.0'
+2026-10-09T14:47:52.0507946Z ##[group]Runner Image Provisioner
+2026-10-09T14:47:52.0508529Z Hosted Compute Agent
+2026-10-09T14:47:52.0508901Z Version: 20261002.596
+2026-10-09T14:47:52.0509288Z Commit: c3d12f3313a95f25162a1503be624f3b0617f8c0
+2026-10-09T14:47:52.0509743Z Build Date: 2026-10-02T22:28:27Z
+2026-10-09T14:47:52.0510123Z Worker ID: {568cf06e-2f75-4c7e-8c03-afc897419278}
+2026-10-09T14:47:52.0510580Z Region: southcentralus
+2026-10-09T14:47:52.0510944Z Cloud: Azure
+2026-10-09T14:47:52.0511285Z ##[endgroup]
+2026-10-09T14:47:52.0512095Z ##[group]Operating System
+2026-10-09T14:47:52.0512569Z Ubuntu
+2026-10-09T14:47:52.0512924Z 24.04.5
+2026-10-09T14:47:52.0513258Z LTS
+2026-10-09T14:47:52.0513552Z ##[endgroup]
+2026-10-09T14:48:27.9487229Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-09T14:48:27.9651744Z Removing credentials config '/home/runner/work/_temp/git-credentials-f967093c-a846-4c96-922a-fcfbd8b663a1.config'
+2026-10-09T14:48:27.9765537Z Cleaning up orphan processes

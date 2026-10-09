@@ -1,0 +1,119 @@
+{
+  "state": {
+    "run": {
+      "link": "/deadstyle/waugzee/actions/runs/9",
+      "title": "update migration step",
+      "titleHTML": "update migration step",
+      "status": "failure",
+      "description": "Commit <a href=\"/deadstyle/waugzee/commit/c7be4b1af57f151e6108993766b6eeb96032f453\">c7be4b1af5</a> pushed by <a href=\"/deadstyle\">deadstyle</a>",
+      "canCancel": false,
+      "canApprove": false,
+      "canRerun": false,
+      "canDeleteArtifact": false,
+      "canDelete": false,
+      "done": true,
+      "jobs": [
+        {
+          "id": 73,
+          "name": "build-frontend",
+          "status": "success",
+          "canRerun": false,
+          "duration": "26s"
+        },
+        {
+          "id": 74,
+          "name": "build-backend",
+          "status": "success",
+          "canRerun": false,
+          "duration": "39s"
+        },
+        {
+          "id": 75,
+          "name": "build-migration",
+          "status": "success",
+          "canRerun": false,
+          "duration": "37s"
+        },
+        {
+          "id": 76,
+          "name": "build-server-image",
+          "status": "success",
+          "canRerun": false,
+          "duration": "26s"
+        },
+        {
+          "id": 77,
+          "name": "build-client-image",
+          "status": "success",
+          "canRerun": false,
+          "duration": "14s"
+        },
+        {
+          "id": 78,
+          "name": "build-valkey-image",
+          "status": "success",
+          "canRerun": false,
+          "duration": "12s"
+        },
+        {
+          "id": 79,
+          "name": "start-valkey",
+          "status": "success",
+          "canRerun": false,
+          "duration": "19s"
+        },
+        {
+          "id": 80,
+          "name": "migration",
+          "status": "failure",
+          "canRerun": false,
+          "duration": "12s"
+        },
+        {
+          "id": 81,
+          "name": "deploy",
+          "status": "skipped",
+          "canRerun": false,
+          "duration": "0s"
+        }
+      ],
+      "commit": {
+        "localeWorkflow": "Workflow",
+        "localeAllRuns": "all runs",
+        "shortSHA": "c7be4b1af5",
+        "link": "/deadstyle/waugzee/commit/c7be4b1af57f151e6108993766b6eeb96032f453",
+        "pusher": {
+          "displayName": "deadstyle",
+          "link": "/deadstyle"
+        },
+        "branch": {
+          "name": "main",
+          "link": "/deadstyle/waugzee/src/branch/main",
+          "isDeleted": false
+        }
+      },
+      "preExecutionError": "",
+      "preExecutionWarnings": null
+    },
+    "currentJob": {
+      "title": "migration",
+      "details": [
+        "Failure"
+      ],
+      "steps": [],
+      "allAttempts": [
+        {
+          "number": 1,
+          "time_since_started_html": "<relative-time prefix=\"\" tense=\"past\" datetime=\"2025-12-14T22:22:59-06:00\" data-tooltip-content data-tooltip-interactive=\"true\">2025-12-14 22:22:59 -06:00</relative-time>",
+          "status": "failure",
+          "status_diagnostics": [
+            "Failure"
+          ]
+        }
+      ]
+    }
+  },
+  "logs": {
+    "stepsLog": []
+  }
+}

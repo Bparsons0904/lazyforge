@@ -13,7 +13,7 @@
 ┌──────────────────────────────────────────────┐
 │ UI (Bubble Tea + Lip Gloss)                  │  host picker · repos · boxes · details
 ├──────────────────────────────────────────────┤
-│ Core                                         │  domain model · cache · Renovate logic
+│ Core (+ core/renovate)                       │  domain model · cache · Renovate logic
 │                                              │  (★ view, grouping, bulk merge, dashboard ticks)
 ├──────────────────────────────────────────────┤
 │ Forge interface + capabilities               │
@@ -23,23 +23,28 @@
 └──────────────┴──────────────┴────────────────┘
 ```
 
-Forgejo is a fork of Gitea and their APIs are still largely the same. The plan is one adapter that covers both, with version checks wherever they diverge.
+Forgejo is a fork of Gitea and their APIs are still largely the same. One adapter covers both. It detects which one it is talking to once at connect (a `+gitea-` version suffix means Forgejo) rather than gating on Gitea semver (ADR 0005).
 
 ## Stack
 
-**Go, Bubble Tea and Lip Gloss** (not yet confirmed):
+**Go, Bubble Tea and Lip Gloss** ([ADR 0001](adr/0001-go-and-charm.md)):
 
 - Lip Gloss makes the bordered, titled boxes easy to build.
-- Go has SDKs for Gitea and Forgejo, and existing CLIs (`tea`, `gh`) can supply auth tokens.
+- Existing CLIs (`tea`, `gh`) can supply auth tokens. Adapters use thin hand-written HTTP clients rather than SDKs ([ADR 0005](adr/0005-thin-forgejo-client.md), [ADR 0017](adr/0017-github-adapter.md)).
 - It builds to a single static binary.
 
-## Domain model (sketch)
+## Domain model
+
+The types live in `internal/domain`; ADR 0006 records the decisions behind them.
 
 ```go
+type RepoRef struct{ Owner, Name string } // Owner may contain slashes (GitLab subgroups)
 type Repo struct {
-    Owner, Name, Description string
-    LastActivity             time.Time
-    WebURL                   string
+    RepoRef
+    Description, WebURL string
+    LastActivity        time.Time
+    Access              Access // none, read, write, admin
+    MergeStyle          string // the repo's default merge style; "" when unknown
 }
 
 type ChangeRequest struct { // PR on Gitea/Forgejo/GitHub, MR on GitLab
@@ -47,122 +52,183 @@ type ChangeRequest struct { // PR on Gitea/Forgejo/GitHub, MR on GitLab
     Title, Body, Author        string
     State                      State // open, merged, closed
     SourceBranch, TargetBranch string
-    CI                         CIState // pass, fail, running, none
+    HeadSHA                    string
+    CI                         CIState // none, pending, running, pass, fail, cancelled, skipped
     Labels                     []string
-    UpdatedAt                  time.Time
-    Renovate                   *RenovateUpdate // nil unless authored by the Renovate user
+    UpdatedAt, CreatedAt       time.Time
+    WebURL                     string
+    Renovate                   []RenovateUpdate // nil from adapters; core fills it
 }
 
-type RenovateUpdate struct {
-    Package, From, To string
-    Bump              string // major, minor, patch, digest
+type RenovateUpdate struct { // one row of the PR's update table
+    Ecosystem, Package, DepType, UpdateType, From, To, SourceURL string
 }
 
-type Issue struct { /* Number, Title, Body, Author, State, Labels, Comments… */ }
-type Run struct    { ID int64; Workflow, Branch, Commit, Trigger string; Status CIState; Jobs []Job }
-type Job struct    { ID int64; Name, Stage string; Status CIState } // Stage is only set on GitLab
-type Release struct { Tag, Name, Notes string; PublishedAt time.Time }
+type Issue struct { /* Number, Title, Body, Author, State, Labels, Comments, UpdatedAt, WebURL */ }
+type Comment struct { /* ID, Author, Body, CreatedAt */ }
+type Run struct { /* ID, Number, Workflow, Title, Branch, Commit, Event, Status, StartedAt, Duration, WebURL */ }
+type Job struct { /* ID, RunID, Name, Stage (GitLab only), Status, Attempt */ }
+type Release struct { /* Tag, Name, Notes, Draft, Prerelease, PublishedAt, WebURL */ }
 ```
 
-## Forge interface (sketch)
+## Forge interface
 
-A core interface that every adapter implements, plus optional interfaces for features that not every forge supports. Capabilities come from type assertions, so a capability can't be claimed without being implemented.
+A core interface that every adapter implements, plus optional interfaces for features that not every forge supports. Capabilities come from type assertions, so a capability can't be claimed without being implemented. See ADR 0006.
 
 ```go
 type Forge interface {
-    Info() HostInfo // kind, display terms ("PR" vs "MR"), user
+    Info() HostInfo // kind, URL, version, user, "PR" vs "MR"
 
-    ListRepos(ctx context.Context, opts ListOpts) ([]Repo, error)
+    ListRepos(ctx context.Context) ([]domain.Repo, error)
 
-    ListChangeRequests(ctx context.Context, r RepoRef, f Filter) ([]ChangeRequest, error)
-    GetChangeRequest(ctx context.Context, r RepoRef, n int) (ChangeRequest, error)
-    Merge(ctx context.Context, r RepoRef, n int, opts MergeOpts) error
+    ListChangeRequests(ctx context.Context, r domain.RepoRef, f Filter) ([]domain.ChangeRequest, error)
+    GetChangeRequest(ctx context.Context, r domain.RepoRef, n int) (domain.ChangeRequest, error)
+    Merge(ctx context.Context, r domain.RepoRef, n int, opts MergeOpts) error // opts.HeadSHA required; ErrHeadChanged on mismatch, ErrRefused when the forge declines
 
-    ListIssues(ctx context.Context, r RepoRef, f Filter) ([]Issue, error)
-    EditIssueBody(ctx context.Context, r RepoRef, n int, body string) error // Renovate dashboard ticks
-    Comment(ctx context.Context, r RepoRef, n int, body string) error
-    Close(ctx context.Context, r RepoRef, n int) error
+    ListIssues(ctx context.Context, r domain.RepoRef, f Filter) ([]domain.Issue, error)
+    EditIssueBody(ctx context.Context, r domain.RepoRef, n int, body string) error // Renovate dashboard ticks
+    ListComments(ctx context.Context, item ItemRef) ([]domain.Comment, error)
+    Comment(ctx context.Context, item ItemRef, body string) error
+    Close(ctx context.Context, item ItemRef) error // ItemRef says issue or change request
 
-    ListReleases(ctx context.Context, r RepoRef) ([]Release, error)
+    ListReleases(ctx context.Context, r domain.RepoRef) ([]domain.Release, error)
+
+    Gate(a Action) error // server-version gates learned at connect; no I/O
 }
 
 // Optional: the UI checks for these with type assertions.
-type Approver   interface { Approve(ctx context.Context, r RepoRef, n int) error }
-type DiffReader interface { ChangedFiles(ctx context.Context, r RepoRef, n int) ([]FileDiff, error) }
-type RunLister  interface { ListRuns(ctx context.Context, r RepoRef, f Filter) ([]Run, error) }
-type LogReader  interface { JobLog(ctx context.Context, r RepoRef, jobID int64) (io.ReadCloser, error) }
-type Rerunner   interface { Rerun(ctx context.Context, r RepoRef, runID int64) error }
+type Approver  interface { Approve(ctx context.Context, r domain.RepoRef, n int) error }
+type RunLister interface {
+    ListRuns(ctx context.Context, r domain.RepoRef, f RunFilter) ([]domain.Run, error)
+    ListJobs(ctx context.Context, r domain.RepoRef, runID int64) ([]domain.Job, error)
+}
+type LogReader interface { JobLog(ctx context.Context, r domain.RepoRef, jobID int64) (io.ReadCloser, error) }
+type Labeler interface {
+    ListLabels(ctx context.Context, r domain.RepoRef) ([]domain.Label, error)
+    ItemLabels(ctx context.Context, item ItemRef) ([]domain.Label, error)
+    SetLabels(ctx context.Context, item ItemRef, ids []int64) ([]domain.Label, error)
+}
+type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error) }
 ```
+
+`forge.Can(f, action, repo)` answers whether the UI should enable an action. It checks the capability interface, then `f.Gate`, then `repo.Access`, and the first failure supplies the user-facing `Reason`. `forgetest.Fake` and `forgetest.RunContract` give core and every adapter a shared fake and behavior suite.
 
 ## API mapping (first pass)
 
-This mapping is unverified. Each row needs checking against current API docs, and against the Forgejo version actually deployed, before the interface is frozen.
+The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
-| List repos by activity | `GET /repos/search?sort=updated` | `GET /user/repos?sort=updated` | `GET /projects?membership=true&order_by=last_activity_at` |
-| List change requests | `GET /repos/{o}/{r}/pulls?state=open` | `GET /repos/{o}/{r}/pulls?state=open` | `GET /projects/:id/merge_requests?state=opened` |
-| Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` | `PUT /repos/{o}/{r}/pulls/{n}/merge` | `PUT /projects/:id/merge_requests/:iid/merge` |
+| List repos by activity | `GET /user/repos` (owned, collaborator and team repos; sorted by `updated_at` client-side) | `GET /user/repos?affiliation=owner,collaborator,organization_member&sort=pushed` (sorted by `pushed_at` client-side; `allow_*` merge flags are null here) | `GET /projects?membership=true&order_by=last_activity_at` |
+| List change requests | `GET /repos/{o}/{r}/pulls?state=open` | `GET /repos/{o}/{r}/pulls?state=open` (closed with `merged_at` set is merged) | `GET /projects/:id/merge_requests?state=opened` |
+| Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` with `Do` (sent explicitly from the repo's `default_merge_style`, because an empty `Do` means `merge`) and `head_commit_id`; a stale head is 409 `head out of date` | `PUT /repos/{o}/{r}/pulls/{n}/merge` with `sha` and `merge_method` (first allowed of merge, squash, rebase from `GET /repos/{o}/{r}`); a stale head is 409 | `PUT /projects/:id/merge_requests/:iid/merge` |
 | Approve | `POST …/pulls/{n}/reviews` (`event: APPROVED`) | `POST …/pulls/{n}/reviews` (`event: APPROVE`) | `POST /projects/:id/merge_requests/:iid/approve` |
 | Changed files | `GET …/pulls/{n}/files` | `GET …/pulls/{n}/files` | `GET /projects/:id/merge_requests/:iid/diffs` |
-| PR CI state | `GET …/commits/{ref}/status` | check-runs + combined status for the head SHA | MR head pipeline |
-| Issues | `GET …/issues?type=issues` | `GET …/issues` (filter out PRs) | `GET /projects/:id/issues` |
+| PR CI state | `GET …/commits/{ref}/status` | `GET …/commits/{sha}/check-runs` (paginated) + `GET …/commits/{sha}/status`, folded; a status `total_count: 0` counts as none | MR head pipeline |
+| Issues | `GET …/issues?type=issues` | `GET …/issues` (drop items with a `pull_request` key) | `GET /projects/:id/issues` |
 | Edit issue body | `PATCH …/issues/{n}` | `PATCH …/issues/{n}` | `PUT /projects/:id/issues/:iid` |
 | Comment | `POST …/issues/{n}/comments` | `POST …/issues/{n}/comments` | `POST …/notes` |
-| List runs | ⚠ check what the deployed Forgejo version exposes | `GET …/actions/runs` | `GET /projects/:id/pipelines` |
-| Run jobs | ⚠ check | `GET …/actions/runs/{id}/jobs` | `GET /projects/:id/pipelines/:id/jobs` |
-| Job log | ⚠ check | `GET …/actions/jobs/{id}/logs` | `GET /projects/:id/jobs/:id/trace` |
-| Re-run | ⚠ check | `POST …/actions/runs/{id}/rerun` | `POST /projects/:id/pipelines/:id/retry` |
+| Labels | `GET …/labels`; `GET` and `PUT …/issues/{n}/labels` with label IDs | `GET …/labels`; `GET` and `PUT …/issues/{n}/labels` with `{labels: [names]}`, IDs mapped to names through `GET …/labels` | `GET /projects/:id/labels`; `PUT /projects/:id/issues/:iid` with `labels` |
+| List runs | `GET …/actions/runs` (send `page`, else `limit` is ignored; `ref` needs the full `refs/heads/<branch>` form; total in the body's `total_count`) | `GET …/actions/runs` (`branch` takes the bare name; `{total_count, workflow_runs}` body; newest 100 only, `Link` not followed (ADR 0017); status + conclusion folded as check runs) | `GET /projects/:id/pipelines` |
+| Run jobs | `GET …/actions/runs/{id}/jobs` (bare array) | `GET …/actions/runs/{id}/jobs` (`{total_count, jobs}` body, `Link` paging) | `GET /projects/:id/pipelines/:id/jobs` |
+| Job log | `GET …/actions/jobs/{id}/logs` (job `id`, not `task_id`) | `GET …/actions/jobs/{id}/logs` (302 to a signed blob URL on another host; streamed, outside the ETag cache) | `GET /projects/:id/jobs/:id/trace` |
+| Re-run | none on Forgejo 16: no `Rerunner` | `POST …/actions/runs/{id}/rerun` | `POST /projects/:id/pipelines/:id/retry` |
 | Releases | `GET …/releases` | `GET …/releases` | `GET /projects/:id/releases` |
 
 How the forges differ in practice:
 
 - **Pagination:** GitHub uses `Link` headers, Gitea uses `X-Total-Count`, and GitLab offers keyset pagination. Each adapter hides this.
-- **Rate limits:** GitHub allows about 5,000 requests per hour, so the core cache is required there, not optional.
+- **Rate limits:** GitHub allows about 5,000 requests per hour, so the core cache is required there, not optional. The github adapter also revalidates GETs with ETags, so an unchanged refresh costs no budget, and maps a rate-limit 403 to `ErrRateLimited` ([ADR 0017](adr/0017-github-adapter.md)).
 - **CI shape:** GitHub and Forgejo use runs → jobs → steps. GitLab uses pipelines → stages → jobs, which maps to `Job.Stage`.
 - **Reviews:** the domain model stays deliberately small: approve, comment, merge, close.
 
-## Host configuration
+## Configuration and stored state
 
-```yaml
-# ~/.config/lazyforge/config.yml
-default: homelab
-hosts:
-  homelab:
-    type: forgejo
-    url: https://git.bobparsons.dev
-    token_cmd: infisical secrets get FORGEJO_TOKEN --plain
-    renovate_user: renovate
-  github:
-    type: github
-    token_cmd: gh auth token
-    renovate_user: renovate[bot]
+See ADR 0004. There is no database.
+
+```toml
+# ~/.config/lazyforge/config.toml (written by onboarding and the settings screen)
+default_host = "homelab"
+
+[update]
+check = true
+
+[splash]
+show = true
+
+[hosts.homelab]
+type = "forgejo"
+url = "https://git.bobparsons.dev"
+token_cmd = "infisical secrets get FORGEJO_TOKEN --plain"
+renovate_user = "renovate-bot"
+renovate = true # pin the ★ Renovate row; default is on when renovate_user is set
+require_green_ci = true
+
+[hosts.homelab.repos."deadstyle/lazyforge"]
+require_green_ci = false # per-repo override of the host setting
+
+[hosts.github]
+type = "github"
+token_cmd = "gh auth token"
+renovate_user = "renovate[bot]"
 ```
 
-- `token_cmd` keeps secrets out of the config file. It can be a static token, `gh auth token`, a secrets manager, and so on.
+- **The app manages the config.** Onboarding creates it and the settings screen edits it. Hand edits are allowed and picked up on the next start, but a save from the UI rewrites the file, so comments don't survive.
+- **Tokens:** a host has either `token_cmd` (preferred; it keeps secrets out of the file) or `token`, which is a pasted token stored in the file. When `token` is present, the file is written with mode `0600` and lazyforge refuses to read it if it's group- or world-readable. OS keyring support may come later.
+- **Writes are atomic:** write a temp file in the same directory, then rename it. A crash never leaves a half-written config.
+- **State** (`~/.local/state/lazyforge/state.toml`): things the app remembers rather than settings, such as the last update check, a skipped version, and the last-used host. Losing this file is harmless.
+- **Logs:** `~/.local/state/lazyforge/lazyforge.log`.
+- Paths follow the XDG variables (`$XDG_CONFIG_HOME`, `$XDG_STATE_HOME`) on Linux, and the platform equivalents on macOS.
 - The host picker is skipped when only one host is configured or `--host` is passed.
 
 ## Caching and refresh
 
-- The core keeps an in-memory cache, scoped to the session's host and keyed by request.
-- Navigating renders from the cache immediately, and the data refreshes in the background.
-- `r` forces a refresh. Interval polling is an open question (see [design.md](design.md#open-questions)).
+See [ADR 0007](adr/0007-core-cache-and-concurrency.md).
+
+- `core.Service` wraps the session's one `Forge` and holds an in-memory cache keyed by `core.Key{Kind, Repo, Number}`. Entries never expire on their own, except for the image cache below.
+- Images have a separate 16-entry LRU of decoded images and failures, cleared by `r` and not by the five-minute timer. This is the one exception to "entries never expire" ([ADR 0016](adr/0016-inline-images.md)).
+- Each read has a `Peek…` form (cached value and fetch time, no I/O) and a fetching form that calls the forge and stores the result. A failed fetch keeps the old entry.
+- A semaphore (4 by default) bounds forge calls across all methods. Waiting for a slot honors `ctx`.
+- The UI renders from `Peek…` immediately, then issues the fetching call in a `tea.Cmd`. `r` and a five-minute background timer in the UI trigger refetches ([design.md](design.md#decided)); the UI also owns cancellation and drops stale results.
+- `core.Coverage` tracks per-repo scan outcomes for host-wide scans such as ★ Renovate. `Service.RenovateScan` fetches one repo's open PRs and issues through the cache and returns its Renovate PRs and parsed dashboards, and the UI builds the view with the pure `internal/core/renovate` package ([ADR 0013](adr/0013-renovate-view.md)).
+
+Mutations go through core too ([ADR 0011](adr/0011-merge-contract.md)). `Service.Merge` takes confirmed targets, pinned by head SHA, and returns one result per target: merged, refused (`ErrHeadChanged`, `forge.ErrRefused`, or the green-CI gate that cmd injects through `core.Options.RequireGreenCI`), failed, unknown (timed out), or not started (cancelled before its turn). Cancelling stops new starts, and started merges finish. `Service.Recheck` re-fetches targets before every merge so a retry is reconciled. Successful merges and closes drop the item from the cached open list.
+
+## UI
+
+Details and rationale in [ADR 0010](adr/0010-ui-shell.md).
+
+- Charm v2, pinned: `charm.land/bubbletea/v2` v2.0.10, `charm.land/bubbles/v2` v2.2.1, `charm.land/lipgloss/v2` v2.0.6. Only the root model returns a `tea.View`; sub-models return strings.
+- A root model in `internal/ui` routes to sub-models for the repo list, the boxes and the details. One keymap generates both the help overlay and the status-bar hints. Every color and style lives in `internal/ui/style`. `internal/ui/markdown` turns PR and issue bodies into styled text for the details pane (ADR 0014). `internal/ui/termimg` emits kitty graphics placeholders and detects once per run whether the terminal shows them (ADR 0016).
+- Loading: selecting a repo cancels the previous selection's fetches, seeds the boxes from `Peek…`, and fetches only the kinds that missed. `r` and the five-minute tick refetch everything visible. Messages carry their `core.Key`, and a message for another repo is dropped.
+- App root ([ADR 0012](adr/0012-ui-app-root-and-settings.md)): `ui.App` sits above the session model and owns the screen (onboarding, host picker, Settings, session), the config and the one live session. It catches `S` and, at the repo list, `h` before the session sees them, unless a dialog or the help overlay is open.
+- Switching host cancels the old session's context and bumps a generation number. Every session command's result is stamped with its generation, and the app drops results from a replaced session, because two hosts can serve the same `owner/name`.
+- `ui` never imports an adapter: cmd injects `Connect` and `Probe` functions. The session's green-CI gate reads the live config through an atomic pointer, so a Settings toggle applies on the next merge without reconnecting.
+- Config saves run as commands, ordered by sequence number so an older snapshot never overwrites a newer one. Settings changes apply at once and report a failed save in the status bar; onboarding's save applies only after the write succeeds.
+- Demo mode: `lazyforge --demo` runs on `forgetest.NewDemo` data and never contacts a host or checks for updates. Verify UI changes by driving it in tmux at 80x24.
+- Tests send messages to `Update` against a real `core.Service` over the demo `Fake` and assert state, commands and plain-text `View` output. There are no golden files and no `teatest`.
 
 ## Testing
 
 - Each adapter has a **contract test suite**: the same tests run against every adapter, using API responses recorded as fixtures.
-- The core and UI are tested against an in-memory fake `Forge`.
+- The core and UI are tested against an in-memory fake `Forge`; the UI approach is in [UI](#ui).
+
+## Releases
+
+Tagged commits on `main` publish four platform tarballs to Forgejo releases, installed by `install.sh` ([ADR 0008](adr/0008-release-and-install.md)). CI and release share one setup action and its caches, and a release verifies the same archives it publishes ([ADR 0015](adr/0015-ci-caching-and-release-pipeline.md)). Interactive launches offer a newer release and self-update by rename ([ADR 0009](adr/0009-self-update.md)).
 
 ## Build order
 
-1. Domain model and `Forge` interface.
-2. The Gitea/Forgejo adapter, built for real and tested against the homelab instance.
-3. A paper check: map GitHub and GitLab onto the interface, then adjust the interface before freezing it.
-4. UI for v1 scope (see [design.md](design.md#v1-scope)).
-5. GitHub adapter, then GitLab adapter.
+Revised after the [plan review](plan-review.md):
+
+1. Run the spikes below.
+2. Domain model and `Forge` interface, revised with the spike findings and checked on paper against GitHub and GitLab before freezing.
+3. One complete path: connect → list repos → inspect a PR → confirm merge → show the result.
+4. Cross-repo grouping and partial-failure handling (★ Renovate).
+5. The remaining v1 features (see [design.md](design.md#v1-scope)), then the GitHub adapter, then GitLab.
 
 ## Spikes to run first
 
-- [ ] Forgejo Actions API on the deployed version: list runs, jobs, job logs, re-run.
-- [ ] Renovate PR body parsing: collect real PR bodies across the different managers (docker, gomod, github-actions, terraform).
-- [ ] The Gitea and Forgejo Go SDKs against the deployed instance: is the SDK useful, or is a thin hand-written client simpler?
+- [x] Forgejo Actions API on the deployed version (#1): runs, jobs and logs exist; re-run doesn't. Samples in `internal/forge/gitea/testdata/actions/`.
+- [x] Renovate PR body parsing (#2): fixtures and format notes in `internal/core/testdata/renovate/`. One update per table row; unparseable bodies fall back to the title.
+- [x] Gitea/Forgejo SDKs vs a thin client (#3): thin client, see ADR 0005.

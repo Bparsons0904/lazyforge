@@ -1,0 +1,57 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>deadstyle/forgejo//renovate/default"],
+  "baseBranchPatterns": ["develop"],
+  "packageRules": [
+    {
+      "description": "Non-major updates: a Sonnet session can drive these.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "pinDigest", "digest"],
+      "labels": ["maintenance", "sonnet"]
+    },
+    {
+      "description": "Majors: Opus drives these.",
+      "matchUpdateTypes": ["major"],
+      "labels": ["maintenance", "opus"]
+    },
+    {
+      "description": "Anything Renovate flags as breaking, including 0.x minor bumps (most of the Charm stack is pre-1.0 or recently 1.0): Opus.",
+      "matchIsBreaking": true,
+      "labels": ["maintenance", "opus"]
+    },
+    {
+      "matchManagers": ["custom.regex"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchIsBreaking": false,
+      "groupName": "CI tools non-major"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "golangci-lint is go-installed by the CI setup action rather than declared in go.mod; patterns are slash-wrapped because a bare string is a glob.",
+      "managerFilePatterns": ["/^\\.forgejo/(workflows|actions)/.+\\.ya?ml$/"],
+      "matchStrings": [
+        "golangci-lint/v2/cmd/golangci-lint@v(?<currentValue>[0-9.]+)"
+      ],
+      "depNameTemplate": "golangci/golangci-lint",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    },
+    {
+      "customType": "regex",
+      "description": "govulncheck runs via go run with a pinned version in the Makefile, not declared in go.mod",
+      "managerFilePatterns": ["/^Makefile$/"],
+      "matchStrings": ["golang.org/x/vuln/cmd/govulncheck@(?<currentValue>v[0-9.]+)"],
+      "depNameTemplate": "golang.org/x/vuln",
+      "datasourceTemplate": "go"
+    },
+    {
+      "customType": "regex",
+      "description": "shellcheck is downloaded from its GitHub release by the CI setup action; a bump also needs SHELLCHECK_SHA256 updated",
+      "managerFilePatterns": ["/^\\.forgejo/(workflows|actions)/.+\\.ya?ml$/"],
+      "matchStrings": ["SHELLCHECK_VERSION: (?<currentValue>v[0-9.]+)"],
+      "depNameTemplate": "koalaman/shellcheck",
+      "datasourceTemplate": "github-releases"
+    }
+  ]
+}

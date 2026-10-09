@@ -1,0 +1,55 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - depguard
+    - contextcheck
+    - errorlint
+    - gocritic
+    - godot
+    - misspell
+    - noctx
+    - nolintlint
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    depguard:
+      rules:
+        adapters-only-in-cmd:
+          files:
+            - "!$test"
+            - "!**/cmd/**"
+          deny:
+            - pkg: git.bobparsons.dev/deadstyle/lazyforge/internal/forge/gitea
+              desc: only cmd/ wires concrete adapters
+            - pkg: git.bobparsons.dev/deadstyle/lazyforge/internal/forge/github
+              desc: only cmd/ wires concrete adapters
+            - pkg: git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest
+              desc: forgetest is for tests only
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        - name: unused-parameter
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - git.bobparsons.dev/deadstyle/lazyforge

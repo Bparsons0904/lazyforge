@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+# A new push to a PR cancels that PR's older run. Every other run gets a group of its
+# own, so branch pushes and dispatched runs (whose results github-pull copies) never cancel.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('ci-pr-{0}', github.event.pull_request.number) || format('ci-run-{0}', github.run_id) }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - id: setup
+        uses: ./.forgejo/actions/setup
+
+      - run: make check
+
+      # Only pushes to develop/main write caches, so a PR branch can't plant tools or
+      # build output that a later trusted run would restore. Keep paths identical to the setup action's.
+      - if: github.event_name == 'push' && steps.setup.outputs.tools-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            /opt/hostedtoolcache/go
+            ~/.local/lazyforge-tools
+          key: ${{ steps.setup.outputs.tools-key }}
+
+      - if: github.event_name == 'push' && steps.setup.outputs.go-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.setup.outputs.go-key }}
