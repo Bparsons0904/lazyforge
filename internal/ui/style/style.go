@@ -75,9 +75,9 @@ var (
 // Accents is one hue per box on a page; an index past the end wraps, so extra boxes repeat hues.
 type Accents []color.Color
 
-// Box accents: the repo page's pull requests, issues and actions, and the ★ Renovate page's five boxes.
+// Box accents: the repo page's boxes by number (3 and 4 are reserved), and the ★ Renovate page's five boxes.
 var (
-	RepoAccents = Accents{Mauve, Yellow, Green}
+	RepoAccents = Accents{Mauve, Yellow, Green, Blue, Peach, Red}
 	StarAccents = Accents{Peach, Blue, Mauve, Green, Red}
 )
 

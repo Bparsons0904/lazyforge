@@ -26,7 +26,7 @@ func defaultKeys() keyMap {
 		Bottom:    key.NewBinding(key.WithKeys("G")),
 		HalfDown:  key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("^d/^u", "half page")),
 		HalfUp:    key.NewBinding(key.WithKeys("ctrl+u")),
-		Jump:      key.NewBinding(key.WithKeys("1", "2", "3", "4", "5"), key.WithHelp("1-5", "jump to box")),
+		Jump:      key.NewBinding(key.WithKeys("1", "2", "3", "4", "5", "6"), key.WithHelp("1-6", "jump to box")),
 		Refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
 		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
@@ -49,7 +49,7 @@ func defaultKeys() keyMap {
 func (k keyMap) shortHelp(l level) []key.Binding {
 	switch l {
 	case levelBoxes:
-		return append([]key.Binding{hint(k.Down, "j/k", "move"), hint(k.Jump, "1-5/tab", "box"), hint(k.Right, "l", "details"), hint(k.Left, "h", "back")}, k.actions()...)
+		return append([]key.Binding{hint(k.Down, "j/k", "move"), hint(k.Jump, "1-6/tab", "box"), hint(k.Right, "l", "details"), hint(k.Left, "h", "back")}, k.actions()...)
 	case levelDetails:
 		return append([]key.Binding{hint(k.Down, "j/k", "scroll"), hint(k.NextTab, "[ ]", "tabs"), hint(k.Left, "h", "back")}, k.actions()...)
 	default:

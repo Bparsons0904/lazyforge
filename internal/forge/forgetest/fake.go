@@ -16,11 +16,12 @@ import (
 )
 
 var (
-	_ forge.Forge       = (*Fake)(nil)
-	_ forge.Approver    = (*Fake)(nil)
-	_ forge.RunLister   = (*Fake)(nil)
-	_ forge.LogReader   = (*Fake)(nil)
-	_ forge.AssetReader = (*Fake)(nil)
+	_ forge.Forge        = (*Fake)(nil)
+	_ forge.Approver     = (*Fake)(nil)
+	_ forge.RunLister    = (*Fake)(nil)
+	_ forge.LogReader    = (*Fake)(nil)
+	_ forge.AssetReader  = (*Fake)(nil)
+	_ forge.ReadmeReader = (*Fake)(nil)
 )
 
 // Mutation records one state-changing call; Op is merge, approve, close, comment or edit-issue-body.
@@ -41,6 +42,7 @@ type Fake struct {
 	crs       map[domain.RepoRef][]domain.ChangeRequest
 	issues    map[domain.RepoRef][]domain.Issue
 	releases  map[domain.RepoRef][]domain.Release
+	readmes   map[domain.RepoRef]domain.Readme
 	runs      map[domain.RepoRef][]domain.Run
 	jobs      map[int64][]domain.Job
 	logs      map[int64]string
@@ -61,6 +63,7 @@ func NewFake(info forge.HostInfo) *Fake {
 		crs:      map[domain.RepoRef][]domain.ChangeRequest{},
 		issues:   map[domain.RepoRef][]domain.Issue{},
 		releases: map[domain.RepoRef][]domain.Release{},
+		readmes:  map[domain.RepoRef]domain.Readme{},
 		runs:     map[domain.RepoRef][]domain.Run{},
 		jobs:     map[int64][]domain.Job{},
 		logs:     map[int64]string{},
@@ -102,6 +105,14 @@ func (f *Fake) AddRelease(r domain.RepoRef, rel domain.Release) {
 	defer f.mu.Unlock()
 	f.known[r] = true
 	f.releases[r] = append(f.releases[r], rel)
+}
+
+// SetReadme seeds a repo's README and makes the repo known; a known repo without one answers ErrNotFound.
+func (f *Fake) SetReadme(r domain.RepoRef, rd domain.Readme) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.known[r] = true
+	f.readmes[r] = rd
 }
 
 // AddRun seeds a run with its jobs and per-job log text keyed by job ID.
@@ -327,6 +338,22 @@ func (f *Fake) ListReleases(ctx context.Context, r domain.RepoRef) ([]domain.Rel
 		return nil, err
 	}
 	return slices.Clone(f.releases[r]), nil
+}
+
+// GetReadme implements forge.ReadmeReader.
+func (f *Fake) GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, error) {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return domain.Readme{}, err
+	}
+	if err := f.repoErr(r); err != nil {
+		return domain.Readme{}, err
+	}
+	rd, ok := f.readmes[r]
+	if !ok {
+		return domain.Readme{}, fmt.Errorf("README of %s: %w", r, forge.ErrNotFound)
+	}
+	return rd, nil
 }
 
 // Approve implements forge.Approver.

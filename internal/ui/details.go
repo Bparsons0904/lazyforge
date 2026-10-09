@@ -60,8 +60,13 @@ func (d *details) markdown(repo domain.RepoRef, body string, width int) string {
 	return d.md.out
 }
 
-// tabs lists the details tabs that have content for item; later tickets append to it.
-func tabs(any) []string { return []string{"Overview"} }
+// tabs lists the details tabs for item; a Repo has README, Files and Branches.
+func tabs(item any) []string {
+	if _, ok := item.(domain.Repo); ok {
+		return []string{"README", "Files", "Branches"}
+	}
+	return []string{"Overview"}
+}
 
 // cycleTab moves delta tabs along, wrapping at either end.
 func (d *details) cycleTab(item any, delta int) {
@@ -72,14 +77,37 @@ func (d *details) cycleTab(item any, delta int) {
 // contentWidth subtracts the pane border and its one column of padding per side.
 func contentWidth(w int) int { return max(w-4, 1) }
 
-func (d *details) sync(item any, repo domain.RepoRef, w, h int, now time.Time) {
+func (d *details) sync(item any, repo domain.RepoRef, readme readmeState, w, h int, now time.Time) {
 	cw := contentWidth(w)
-	d.syncText(fmt.Sprintf("%v %s", repo, itemID(item)), overview(item, repo, now, func(r domain.RepoRef, b string) string { return d.markdown(r, b, cw) }), w, h)
+	n := len(tabs(item))
+	// The Repo text depends on d.tab, so clamp before choosing it.
+	d.tab = min(d.tab, n-1)
+	var text string
+	if _, ok := item.(domain.Repo); ok {
+		text = d.repoText(readme, repo, cw)
+	} else {
+		text = overview(item, repo, now, func(r domain.RepoRef, b string) string { return d.markdown(r, b, cw) })
+	}
+	d.syncText(fmt.Sprintf("%v %s", repo, itemID(item)), text, n, w, h)
 }
 
-// syncText shows text in the pane; a changed id scrolls back to the top.
-func (d *details) syncText(id, text string, w, h int) {
-	d.tab = min(d.tab, len(tabs(nil))-1)
+// repoText is the Repo box's text for the active tab.
+func (d *details) repoText(readme readmeState, repo domain.RepoRef, cw int) string {
+	if d.tab != 0 {
+		return style.Faint.Render("Coming soon")
+	}
+	switch {
+	case !readme.ok:
+		return style.Faint.Render("Loading…")
+	case readme.r.Name == "":
+		return style.Faint.Render("No README")
+	}
+	return d.markdown(repo, readme.r.Body, cw)
+}
+
+// syncText shows text in the pane; a changed id scrolls back to the top. tabCount bounds d.tab.
+func (d *details) syncText(id, text string, tabCount, w, h int) {
+	d.tab = min(d.tab, tabCount-1)
 	cw, ch := contentWidth(w), max(h-2, 0)
 	d.vp.SetWidth(cw)
 	d.vp.SetHeight(ch)
@@ -112,6 +140,8 @@ func itemID(item any) string {
 		return fmt.Sprintf("issue %d", it.Number)
 	case domain.Run:
 		return fmt.Sprintf("run %d", it.ID)
+	case domain.Repo:
+		return "repo"
 	default:
 		return ""
 	}

@@ -37,6 +37,12 @@ type runsLoadedMsg struct {
 	err   error
 }
 
+type readmeLoadedMsg struct {
+	key    core.Key
+	readme domain.Readme
+	err    error
+}
+
 type refreshTickMsg struct{}
 
 func tickEvery() tea.Cmd {
@@ -71,6 +77,13 @@ func loadRuns(ctx context.Context, svc *core.Service, r domain.RepoRef) tea.Cmd 
 	}
 }
 
+func loadReadme(ctx context.Context, svc *core.Service, r domain.RepoRef) tea.Cmd {
+	return func() tea.Msg {
+		rd, err := svc.Readme(ctx, r)
+		return readmeLoadedMsg{key: core.Key{Kind: core.KindReadme, Repo: r}, readme: rd, err: err}
+	}
+}
+
 // selectRepo cancels the previous selection's fetches and loads the boxes of the repo under the cursor.
 // With cached=true it seeds from the cache and fetches only what missed; otherwise it refetches everything.
 func (m *Model) selectRepo(cached bool) tea.Cmd {
@@ -89,7 +102,8 @@ func (m *Model) selectRepo(cached bool) tea.Cmd {
 	m.stopScan()
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.selCtx, m.cancel = ctx, cancel
-	m.boxes = boxes{repo: r.RepoRef, showRuns: m.svc.Can(forge.ActRuns, r).OK}
+	m.boxes = boxes{repo: r.RepoRef, repoRow: r, showRuns: m.svc.Can(forge.ActRuns, r).OK, showRepo: m.svc.Can(forge.ActReadme, r).OK}
+	m.boxes.loaded[boxRepo] = true
 	return m.loadBoxes(cached)
 }
 
@@ -115,6 +129,14 @@ func (m *Model) loadBoxes(cached bool) tea.Cmd {
 		}
 		if !cached || !b.loaded[boxRuns] {
 			cmds = append(cmds, loadRuns(ctx, svc, ref))
+		}
+	}
+	if b.showRepo {
+		if rd, _, ok := svc.PeekReadme(ref); ok {
+			b.readme = readmeState{ok: true, r: rd}
+		}
+		if !cached || !b.readme.ok {
+			cmds = append(cmds, loadReadme(ctx, svc, ref))
 		}
 	}
 	return tea.Batch(cmds...)

@@ -68,10 +68,17 @@ func (withLogs) JobLog(context.Context, domain.RepoRef, int64) (io.ReadCloser, e
 	return nil, nil
 }
 
+type withReadme struct{ base }
+
+func (withReadme) GetReadme(context.Context, domain.RepoRef) (domain.Readme, error) {
+	return domain.Readme{}, nil
+}
+
 type full struct {
 	withApprover
 	withRuns
 	withLogs
+	withReadme
 	base
 }
 
@@ -107,6 +114,7 @@ func TestCanCapability(t *testing.T) {
 		{"approve without Approver", withRuns{base{kind: forge.KindGitea}}, forge.ActApprove},
 		{"runs without RunLister", withApprover{base{kind: forge.KindGitea}}, forge.ActRuns},
 		{"logs without LogReader", withRuns{base{kind: forge.KindGitea}}, forge.ActLogs},
+		{"readme without ReadmeReader", withRuns{base{kind: forge.KindGitea}}, forge.ActReadme},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -168,6 +176,8 @@ func TestCanPermission(t *testing.T) {
 		{forge.ActLogs, domain.AccessNone, false},
 		{forge.ActLogs, domain.AccessRead, true},
 		{forge.ActLogs, domain.AccessAdmin, true},
+		{forge.ActReadme, domain.AccessNone, false},
+		{forge.ActReadme, domain.AccessRead, true},
 	}
 	f := newFull(nil)
 	for _, tt := range tests {

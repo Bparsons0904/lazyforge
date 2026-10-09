@@ -63,9 +63,9 @@ func TestTinyWindowDoesNotPanic(t *testing.T) {
 func TestSelectionShowsBoxes(t *testing.T) {
 	m := sized(t, 120, 40)
 	m, msgs := step(t, m, "j")
-	// The ★ scan at startup already cached the change requests and issues, so only the runs miss.
-	if c := counts(msgs); c["crs"] != 0 || c["issues"] != 0 || c["runs"] != 1 || len(msgs) != 1 {
-		t.Fatalf("selecting homelab issued %v, want only the uncached runs load", c)
+	// The ★ scan at startup already cached the change requests and issues, so only the runs and README miss.
+	if c := counts(msgs); c["crs"] != 0 || c["issues"] != 0 || c["runs"] != 1 || c["readme"] != 1 || len(msgs) != 2 {
+		t.Fatalf("selecting homelab issued %v, want only the uncached runs and README loads", c)
 	}
 	for _, msg := range msgs {
 		m = run(t, m, msg)
@@ -83,8 +83,8 @@ func TestRunsGateHidesActions(t *testing.T) {
 	f.SetGate(forge.ActRuns, errors.New("no actions"))
 	m := sizedWith(t, seededWith(t, f), 120, 40)
 	m, msgs := step(t, m, "j")
-	if c := counts(msgs); c["runs"] != 0 || c["crs"] != 0 || c["issues"] != 0 || len(msgs) != 0 {
-		t.Fatalf("gated select issued %v", c)
+	if c := counts(msgs); c["runs"] != 0 || c["crs"] != 0 || c["issues"] != 0 || c["readme"] != 1 || len(msgs) != 1 {
+		t.Fatalf("gated select issued %v, want only the README load", c)
 	}
 	for _, msg := range msgs {
 		m = run(t, m, msg)
@@ -147,13 +147,13 @@ func TestRefreshRefetchesEvenWhenCached(t *testing.T) {
 	m = press(t, m, "j")
 	_, msgs := step(t, m, "r")
 	c := counts(msgs)
-	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || len(msgs) != 4 {
+	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["readme"] != 1 || len(msgs) != 5 {
 		t.Fatalf("r issued %v", c)
 	}
 
 	_, cmd := m.Update(refreshTickMsg{})
 	c = counts(exec(t, cmd))
-	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["tick"] != 1 {
+	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["readme"] != 1 || c["tick"] != 1 {
 		t.Fatalf("tick issued %v, want the loads plus one new tick", c)
 	}
 }
@@ -198,12 +198,16 @@ func TestNavigation(t *testing.T) {
 		t.Fatalf("2: focus %v", m.boxes.focus)
 	}
 	m = press(t, m, "3", "tab")
+	if m.boxes.focus != boxRepo {
+		t.Fatalf("tab from [3]: focus %v, want the Repo box", m.boxes.focus)
+	}
+	m = press(t, m, "tab")
 	if m.boxes.focus != boxCRs {
 		t.Fatalf("tab from last box: focus %v, want wrap to first", m.boxes.focus)
 	}
 	m = press(t, m, "shift+tab")
-	if m.boxes.focus != boxRuns {
-		t.Fatalf("shift+tab from first: focus %v, want wrap to last", m.boxes.focus)
+	if m.boxes.focus != boxRepo {
+		t.Fatalf("shift+tab from first: focus %v, want wrap to the Repo box", m.boxes.focus)
 	}
 	m = press(t, m, "1", "l")
 	if m.level != levelDetails {
@@ -397,8 +401,8 @@ func TestHelpOverlay(t *testing.T) {
 
 func TestStatusBarHintsPerLevel(t *testing.T) {
 	want := map[level][]string{
-		levelRepos:   {"REPOS", "j/k repo · l enter · 1-5 jump to box · ? help"},
-		levelBoxes:   {"BOXES", "j/k move · 1-5/tab box · l details · h back"},
+		levelRepos:   {"REPOS", "j/k repo · l enter · 1-6 jump to box · ? help"},
+		levelBoxes:   {"BOXES", "j/k move · 1-6/tab box · l details · h back"},
 		levelDetails: {"DETAILS", "j/k scroll · [ ] tabs · h back"},
 	}
 	m := sized(t, 120, 40)

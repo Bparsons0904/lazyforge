@@ -116,3 +116,9 @@ type AssetReader interface {
 	// OpenAsset returns the body of u, which must be on the session's host; the caller closes it.
 	OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error)
 }
+
+// ReadmeReader is implemented by adapters that can read a repo's README.
+type ReadmeReader interface {
+	// GetReadme returns the README on the default branch, or an error matching ErrNotFound when the repo has none.
+	GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, error)
+}

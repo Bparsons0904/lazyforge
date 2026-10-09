@@ -69,6 +69,7 @@ type Comment struct { /* ID, Author, Body, CreatedAt */ }
 type Run struct { /* ID, Number, Workflow, Title, Branch, Commit, Event, Status, StartedAt, Duration, WebURL */ }
 type Job struct { /* ID, RunID, Name, Stage (GitLab only), Status, Attempt */ }
 type Release struct { /* Tag, Name, Notes, Draft, Prerelease, PublishedAt, WebURL */ }
+type Readme struct { /* Name, Body; Name is "" when the repo has no README */ }
 ```
 
 ## Forge interface
@@ -103,6 +104,7 @@ type RunLister interface {
     ListJobs(ctx context.Context, r domain.RepoRef, runID int64) ([]domain.Job, error)
 }
 type LogReader interface { JobLog(ctx context.Context, r domain.RepoRef, jobID int64) (io.ReadCloser, error) }
+type ReadmeReader interface { GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, error) } // ErrNotFound when there is no README
 type Labeler interface {
     ListLabels(ctx context.Context, r domain.RepoRef) ([]domain.Label, error)
     ItemLabels(ctx context.Context, item ItemRef) ([]domain.Label, error)
@@ -115,7 +117,7 @@ type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.Read
 
 ## API mapping (first pass)
 
-The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
+The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The README row is unverified on every forge: it was written from the API docs for #104 and has not yet run against a live server. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
@@ -134,12 +136,14 @@ The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1
 | Job log | `GET …/actions/jobs/{id}/logs` (job `id`, not `task_id`) | `GET …/actions/jobs/{id}/logs` (302 to a signed blob URL on another host; streamed, outside the ETag cache) | `GET /projects/:id/jobs/:id/trace` |
 | Re-run | none on Forgejo 16: no `Rerunner` | `POST …/actions/runs/{id}/rerun` | `POST /projects/:id/pipelines/:id/retry` |
 | Releases | `GET …/releases` | `GET …/releases` | `GET /projects/:id/releases` |
+| README | `GET …/contents` (root listing; the best name wins: `README.md`, then `README.markdown`, then a bare `README`, then other `README.*` files), then `GET …/contents/{name}` (base64 `content`) | `GET …/readme` (base64 `content`) | `GET /projects/:id/repository/tree` to find the name, then `GET /projects/:id/repository/files/:path?ref=` |
 
 How the forges differ in practice:
 
 - **Pagination:** GitHub uses `Link` headers, Gitea uses `X-Total-Count`, and GitLab offers keyset pagination. Each adapter hides this.
 - **Rate limits:** GitHub allows about 5,000 requests per hour, so the core cache is required there, not optional. The github adapter also revalidates GETs with ETags, so an unchanged refresh costs no budget, and maps a rate-limit 403 to `ErrRateLimited` ([ADR 0017](adr/0017-github-adapter.md)).
 - **CI shape:** GitHub and Forgejo use runs → jobs → steps. GitLab uses pipelines → stages → jobs, which maps to `Job.Stage`.
+- **README lookup:** Forgejo has no README endpoint, so its adapter reads the repo root only. GitHub's `/readme` also finds a README in `docs/` and `.github/`, so on Forgejo a README kept only there shows as "No README" (#104).
 - **Reviews:** the domain model stays deliberately small: approve, comment, merge, close.
 
 ## Configuration and stored state

@@ -23,7 +23,7 @@ Two columns are visible at any time. The left column is where you are, and the r
 |---|---|---|---|
 | 0. Host picker | Configured hosts | — | Skipped when a single host is configured or `--host` is passed |
 | 1. Repos | Repo list: ★ Renovate pinned first, then by most recent activity | Preview of the selected repo's boxes | `l` from the host picker |
-| 2. Boxes | The repo's numbered boxes; the focused box grows | Details of the selected item | `l` or `1`–`5` from the repo list |
+| 2. Boxes | The repo's numbered boxes; the focused box grows | Details of the selected item | `l` or `1`–`6` from the repo list |
 | 3. Details | Boxes (unfocused) | Details pane, focused, with tabs | `l` from a box |
 
 - `h` always steps back one level. From the repo list, it goes back to the host picker.
@@ -79,6 +79,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 | `[3]` Actions | Recent workflow runs | Overview · Logs |
 | `[4]` Renovate | Dependency Dashboard checkbox entries (open, awaiting schedule, rate-limited) | Overview |
 | `[5]` Releases | Releases and tags | Overview |
+| `[6]` Repo | The repo itself | README · Files · Branches |
 
 ### ★ Renovate (virtual, spans the repos you own or belong to)
 
@@ -101,7 +102,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 |---|---|
 | `j` / `k` | Move. In the details pane: scroll. |
 | `h` / `l` | Back / in |
-| `1`–`5` | Jump to a box (also works from the repo list) |
+| `1`–`6` | Jump to a box (also works from the repo list) |
 | `tab` / `shift-tab` | Next / previous box |
 | `[` / `]` | Previous / next details tab |
 | `gg` / `G` | Top / bottom |
@@ -147,7 +148,7 @@ Answered by the PM on 2026-10-02 (#13):
 
 - `j` at the bottom of a box stops there, like lazygit.
 - The focused box grows, as in the mockup.
-- The boxes stay `[1]`–`[5]` as listed. Others may come later.
+- The boxes stay `[1]`–`[6]` as listed. Others may come later.
 - Refresh: `r`, plus a background refresh every five minutes.
 - Merge strategy: always the repo's default from the forge.
 - ★ Renovate scans the repos you own or belong to, including your orgs.
@@ -159,11 +160,11 @@ Answered by the PM on 2026-10-02 (#13):
 
 ## v1 scope
 
-- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]`, details with the Overview tab
+- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]` and the Repo box `[6]` with its README tab, details with the Overview tab
 - ★ Renovate view, all five boxes
 - Merge, approve, close, comment (`$EDITOR`), open in browser, refresh, `R` (opens the run page)
 - Bulk merge (marked PRs and update groups), with the CI warning and the "only merge when green" setting
 - Forgejo/Gitea and GitHub adapters (the GitHub adapter ships with the public release, the PM's call in #83)
 - Install script, release binaries, and the startup update check
 
-After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, boxes `[4]` and `[5]`, then the GitLab adapter.
+After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, boxes `[4]` and `[5]`, the Repo box's Files and Branches tabs, then the GitLab adapter.

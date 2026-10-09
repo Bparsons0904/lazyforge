@@ -32,11 +32,12 @@ type Forge struct {
 }
 
 var (
-	_ forge.Forge       = (*Forge)(nil)
-	_ forge.Approver    = (*Forge)(nil)
-	_ forge.RunLister   = (*Forge)(nil)
-	_ forge.LogReader   = (*Forge)(nil)
-	_ forge.AssetReader = (*Forge)(nil)
+	_ forge.Forge        = (*Forge)(nil)
+	_ forge.Approver     = (*Forge)(nil)
+	_ forge.RunLister    = (*Forge)(nil)
+	_ forge.LogReader    = (*Forge)(nil)
+	_ forge.AssetReader  = (*Forge)(nil)
+	_ forge.ReadmeReader = (*Forge)(nil)
 )
 
 // New connects to a Gitea or Forgejo host; baseURL is the web root (no /api/v1).

@@ -40,12 +40,13 @@ type Forge struct {
 }
 
 var (
-	_ forge.Forge       = (*Forge)(nil)
-	_ forge.Approver    = (*Forge)(nil)
-	_ forge.RunLister   = (*Forge)(nil)
-	_ forge.LogReader   = (*Forge)(nil)
-	_ forge.Labeler     = (*Forge)(nil)
-	_ forge.AssetReader = (*Forge)(nil)
+	_ forge.Forge        = (*Forge)(nil)
+	_ forge.Approver     = (*Forge)(nil)
+	_ forge.RunLister    = (*Forge)(nil)
+	_ forge.LogReader    = (*Forge)(nil)
+	_ forge.Labeler      = (*Forge)(nil)
+	_ forge.AssetReader  = (*Forge)(nil)
+	_ forge.ReadmeReader = (*Forge)(nil)
 )
 
 // New takes webURL as the web root, not the API base, and reads the token's user up front,

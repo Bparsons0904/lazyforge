@@ -1,0 +1,26 @@
+[
+  {
+    "name": "docs",
+    "path": "docs",
+    "sha": "9c1e2f0a7d6b5a4938271605f4e3d2c1b0a99887",
+    "type": "dir",
+    "size": 0,
+    "target": null
+  },
+  {
+    "name": "go.mod",
+    "path": "go.mod",
+    "sha": "0b1c2d3e4f5061728394a5b6c7d8e9f001122334",
+    "type": "file",
+    "size": 412,
+    "target": null
+  },
+  {
+    "name": "README.md",
+    "path": "README.md",
+    "sha": "3a7bd3e2360a3d80c2dc4f2f0b5b3ac1d7b47a5e",
+    "type": "file",
+    "size": 137,
+    "target": null
+  }
+]

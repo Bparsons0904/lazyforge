@@ -121,6 +121,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loadFailed(msg.key, msg.err) {
 			m.boxes.runs, m.boxes.loaded[boxRuns] = msg.items, true
 		}
+	case readmeLoadedMsg:
+		if !m.loadFailed(msg.key, msg.err) {
+			m.boxes.readme = readmeState{ok: true, r: msg.readme}
+		}
 	case renovateScannedMsg:
 		m.scanned(msg)
 	case starRecheckedMsg:
@@ -254,7 +258,7 @@ func (m *Model) enterBoxes(box int) {
 
 // focusBox focuses box i, or reports false with a status message when the repo has no such box.
 func (m *Model) focusBox(i int) bool {
-	if i < 0 || i >= m.boxes.count() {
+	if !slices.Contains(m.boxes.kinds(), boxKind(i)) {
 		m.setInfo(fmt.Sprintf("No box [%d] here", i+1))
 		return false
 	}
@@ -279,9 +283,9 @@ func (m *Model) boxesKey(msg tea.KeyPressMsg, gg bool) {
 	case key.Matches(msg, k.Jump):
 		m.focusBox(jumpIndex(msg))
 	case key.Matches(msg, k.NextBox):
-		m.focusBox((int(b.focus) + 1) % b.count())
+		m.focusBox(int(b.step(1)))
 	case key.Matches(msg, k.PrevBox):
-		m.focusBox((int(b.focus) + b.count() - 1) % b.count())
+		m.focusBox(int(b.step(-1)))
 	case key.Matches(msg, k.Right):
 		if b.selected() == nil {
 			m.setInfo("This box is empty")
@@ -334,10 +338,10 @@ func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) {
 			m.level = levelBoxes
 		}
 	case key.Matches(msg, k.NextBox):
-		m.focusBox((int(b.focus) + 1) % b.count())
+		m.focusBox(int(b.step(1)))
 		m.level = levelBoxes
 	case key.Matches(msg, k.PrevBox):
-		m.focusBox((int(b.focus) + b.count() - 1) % b.count())
+		m.focusBox(int(b.step(-1)))
 		m.level = levelBoxes
 	case key.Matches(msg, k.Left):
 		m.level = levelBoxes
@@ -366,7 +370,7 @@ func (m *Model) syncDetails() {
 		}
 		return
 	}
-	m.details.sync(m.boxes.selected(), m.boxes.repo, rightW, bodyH, m.now())
+	m.details.sync(m.boxes.selected(), m.boxes.repo, m.boxes.readme, rightW, bodyH, m.now())
 }
 
 // View renders nothing until the first WindowSizeMsg, since layout depends on it.

@@ -138,3 +138,6 @@ type Label struct {
 	ID          int64
 	Name, Color string
 }
+
+// Readme is a repo's README; Name is "" when the repo has none.
+type Readme struct{ Name, Body string }

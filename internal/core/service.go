@@ -3,6 +3,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -24,6 +25,7 @@ const (
 	KindIssues
 	KindReleases
 	KindRuns
+	KindReadme
 )
 
 // Key identifies a cache entry; Repo is zero for KindRepos and Number is reserved for per-item kinds.
@@ -164,6 +166,35 @@ func (s *Service) Runs(ctx context.Context, r domain.RepoRef) ([]domain.Run, err
 // PeekRuns returns the cached runs for r without I/O.
 func (s *Service) PeekRuns(r domain.RepoRef) ([]domain.Run, time.Time, bool) {
 	return peek[domain.Run](s, Key{Kind: KindRuns, Repo: r})
+}
+
+// Readme fetches r's README; a repo without one yields the zero Readme and a nil error, cached like any answer.
+func (s *Service) Readme(ctx context.Context, r domain.RepoRef) (domain.Readme, error) {
+	rr, ok := s.f.(forge.ReadmeReader)
+	if !ok {
+		return domain.Readme{}, fmt.Errorf("README of %s: %w", r, forge.ErrUnsupported)
+	}
+	vals, err := fetch(ctx, s, Key{Kind: KindReadme, Repo: r}, "README of "+r.String(),
+		func(ctx context.Context) ([]domain.Readme, error) {
+			rd, err := rr.GetReadme(ctx, r)
+			if errors.Is(err, forge.ErrNotFound) {
+				return []domain.Readme{{}}, nil
+			}
+			return []domain.Readme{rd}, err
+		})
+	if err != nil {
+		return domain.Readme{}, err
+	}
+	return vals[0], nil
+}
+
+// PeekReadme returns the cached README for r without I/O.
+func (s *Service) PeekReadme(r domain.RepoRef) (domain.Readme, time.Time, bool) {
+	vals, at, ok := peek[domain.Readme](s, Key{Kind: KindReadme, Repo: r})
+	if !ok {
+		return domain.Readme{}, time.Time{}, false
+	}
+	return vals[0], at, true
 }
 
 // acquire takes a semaphore slot, giving up if ctx ends first.

@@ -199,6 +199,9 @@ func NewDemo(now time.Time) *Fake {
 				WebURL: fmt.Sprintf("%s/releases/tag/%s", base, rel.tag),
 			})
 		}
+		if r.name != "dotfiles" {
+			f.SetReadme(ref, domain.Readme{Name: "README.md", Body: demoReadme(r.name)})
+		}
 	}
 	return f
 }
@@ -231,6 +234,11 @@ func seedRun(f *Fake, ref domain.RepoRef, base string, now time.Time, r demoRun)
 		logs[id] = strings.Join(j.log, "\n") + "\n"
 	}
 	f.AddRun(ref, run, jobs, logs)
+}
+
+// demoReadme is a short README; the dotfiles demo repo has none, which shows the "No README" state.
+func demoReadme(name string) string {
+	return fmt.Sprintf("# %s\n\nNotes for the %s repo.\n\n## Setup\n\n- clone the repo\n- run `make check`\n\nSee [the design notes](https://example.com/design).\n", name, name)
 }
 
 func demoSHA(seed []byte) string { return fmt.Sprintf("%x", sha256.Sum256(seed))[:40] }
