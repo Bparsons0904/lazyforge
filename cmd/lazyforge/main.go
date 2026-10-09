@@ -19,6 +19,7 @@ import (
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/gitea"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/termimg"
 )
 
 // version is overridden at build time with -ldflags "-X main.version=<v>".
@@ -85,6 +86,7 @@ func appDeps(ctx context.Context, configPath, hostName string, noUpdateCheck boo
 		Probe: func(ctx context.Context, url string) (forge.Kind, error) {
 			return gitea.Probe(ctx, url, &http.Client{Timeout: 10 * time.Second})
 		},
+		Detect: termimg.NewDetector(termimg.SystemProbes(), time.Second),
 	}
 	cfg, err := config.Load(configPath)
 	if errors.Is(err, fs.ErrNotExist) {

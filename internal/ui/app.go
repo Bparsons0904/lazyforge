@@ -17,6 +17,7 @@ import (
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/termimg"
 )
 
 // Deps is what cmd hands the app; Connect and Probe keep adapters out of ui.
@@ -29,6 +30,7 @@ type Deps struct {
 	Forge                 forge.Forge   // connected forge for Host; nil when Host == ""
 	Connect               func(context.Context, config.Host) (forge.Forge, error)
 	Probe                 func(ctx context.Context, url string) (forge.Kind, error)
+	Detect                termimg.Detector // terminal image detection, run once from Init; the zero value skips it
 }
 
 type appScreen int
@@ -75,6 +77,9 @@ type App struct {
 	onboard  onboarding
 	settings settings
 	splash   splash
+
+	detect  termimg.Detector
+	support termimg.Support
 }
 
 // NewApp starts on onboarding when Fresh, on d.Host's session when set, else on the picker,
@@ -83,7 +88,7 @@ func NewApp(ctx context.Context, d Deps) App {
 	live := new(atomic.Pointer[config.Config])
 	c := d.Config
 	live.Store(&c)
-	a := App{ctx: ctx, deps: d, live: live, sv: &saver{path: d.ConfigPath}, keys: defaultKeys(), help: newHelp(), fresh: d.Fresh}
+	a := App{ctx: ctx, deps: d, live: live, sv: &saver{path: d.ConfigPath}, keys: defaultKeys(), help: newHelp(), fresh: d.Fresh, detect: d.Detect}
 	switch {
 	case d.Fresh:
 		a.openOnboarding(ctx, onboardStart{welcome: true})
@@ -107,6 +112,7 @@ func (a App) Init() tea.Cmd {
 	if a.host != "" {
 		cmds = append(cmds, stamp(a.gen, a.session.Init()))
 	}
+	cmds = append(cmds, a.detect.Start())
 	return tea.Batch(cmds...)
 }
 
@@ -158,6 +164,9 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.screen = a.onboardTo
 		return a, nil
+	case termimg.DetectedMsg:
+		a.support = msg.Support
+		return a, nil
 	}
 	// The rest are sizes, onboarding results, or session messages the runtime delivered unstamped
 	// (editorDoneMsg from the $EDITOR callback); each side ignores the other's.
@@ -165,7 +174,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.screen == screenOnboarding {
 		a.onboard, cmd = a.onboard.update(msg, a.keys)
 	}
-	return a, tea.Batch(cmd, a.toSession(msg))
+	// Terminal replies for detection arrive here too, unstamped, as the runtime forwards them.
+	var detectCmd tea.Cmd
+	a.detect, detectCmd = a.detect.Update(msg)
+	return a, tea.Batch(cmd, detectCmd, a.toSession(msg))
 }
 
 func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
