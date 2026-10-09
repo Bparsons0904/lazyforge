@@ -184,11 +184,11 @@ table.doc th{color:var(--muted);font-weight:600}
     <div class="card">
       <h2>Suggested v1</h2>
       <ul>
-        <li>Repo list plus boxes [1]–[3], the Repo box [6] with its README tab, and details with the Overview tab</li>
+        <li>Repo list plus boxes [1]–[3], the Repo box [6] with its README and Branches tabs, and details with the Overview tab</li>
         <li>★ Renovate view, including [2] Updates by dependency</li>
         <li>Merge, approve, close, comment (in <code>$EDITOR</code>), open in browser and refresh</li>
         <li>Bulk merge, with a warning when CI isn't green</li>
-        <li>Next after v1: the Files tab with diffs (optionally via <code>delta</code>), the Logs tab, boxes [4] and [5], and the Repo box's Files and Branches tabs</li>
+        <li>Next after v1: the Files tab with diffs (optionally via <code>delta</code>), the Logs tab, boxes [4] and [5], and the Repo box's Files tab</li>
       </ul>
     </div>
   </section>
@@ -333,8 +333,31 @@ function boxesFor(r) {
     {title:'Actions', items:r.runs},
     {title:'Renovate', items:r.deps},
     {title:'Releases', items:r.releases},
-    {title:'Repo', noCount:true, items:[{kind:'repo', repo:r.name, desc:r.desc, readme:r.name === 'dotfiles' ? '' : r.desc + '.\n\n- clone the repo\n- run make check'}]},
+    {title:'Repo', noCount:true, items:[{kind:'repo', repo:r.name, desc:r.desc, readme:r.name === 'dotfiles' ? '' : r.desc + '.\n\n- clone the repo\n- run make check', branches:demoBranches()}]},
   ];
+}
+
+// demo branches for the Repo box's Branches tab: the default first, then by recent commit; the cursor starts on main
+function demoBranches() {
+  return {
+    tips: [
+      {name:'main', def:true, subj:'fix: handle empty repo list', ago:'2h'},
+      {name:'feature/92-branches', subj:'feat(ui): Branches tab in the Repo box', ago:'3h'},
+      {name:'renovate/typescript-5.x', subj:'chore(deps): update typescript to 5.6.2', ago:'1d', pr:41},
+    ],
+    commits: [
+      {sha:'a41f9c2', subj:'fix: handle empty repo list', who:'you', ago:'2h'},
+      {sha:'7be03d1', subj:'chore: bump go to 1.24', who:'renovate', ago:'3d'},
+      {sha:'c09e5a8', subj:'docs: note the keymap change', who:'you', ago:'1w'},
+    ],
+  };
+}
+
+function branchesBody(it) {
+  const {tips, commits} = it.branches;
+  const row = t => `<div>${esc(t.name)}${t.def ? ' <span class="g">default</span>' : ''} <span class="dim">${esc(t.subj)} · ${t.ago}${t.pr ? ' · <span class="num">#' + t.pr + '</span>' : ''}</span></div>`;
+  return `<div class="sec">Branches</div>${tips.map(row).join('')}
+    <div class="sec">Commits on main</div>${commits.map(c => `<div><span class="num">${c.sha}</span> ${esc(c.subj)} <span class="dim">${esc(c.who)} · ${c.ago}</span></div>`).join('')}`;
 }
 
 /* ---------------- rows ---------------- */
@@ -422,7 +445,10 @@ function detail(it, tab) {
       <div class="foot">${it.ticked ? 'o open the dashboard in the browser' : 'space ticks the checkbox, so Renovate creates the PR on its next run'}</div>`;
   }
   if (it.kind === 'release') return `<div class="h1">${esc(it.tag)}</div><div class="dim">${esc(it.repo)} · released ${it.ago} ago</div>${textBlock(it.notes)}`;
-  if (it.kind === 'repo') return name !== 'README' ? '<div class="dim">Coming soon</div>' : it.readme ? textBlock(it.readme) : '<div class="dim">No README</div>';
+  if (it.kind === 'repo') {
+    if (name === 'Branches') return branchesBody(it);
+    return name !== 'README' ? '<div class="dim">Coming soon</div>' : it.readme ? textBlock(it.readme) : '<div class="dim">No README</div>';
+  }
   // group
   return `<div class="h1">${esc(it.pkg)} ${esc(it.from)} → <span class="b">${esc(it.to)}</span> ${bumpPill(it.bump)}</div>
     <div class="dim">${it.prs.length} repo${it.prs.length > 1 ? 's' : ''} · ${it.prs.filter(p => p.ci === 'pass').length} with green CI</div>

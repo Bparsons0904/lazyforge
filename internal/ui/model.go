@@ -125,6 +125,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loadFailed(msg.key, msg.err) {
 			m.boxes.readme = readmeState{ok: true, r: msg.readme}
 		}
+	case branchesLoadedMsg:
+		cmd = m.branchesLoaded(msg)
+	case commitsLoadedMsg:
+		m.commitsLoaded(msg)
 	case renovateScannedMsg:
 		m.scanned(msg)
 	case starRecheckedMsg:
@@ -211,7 +215,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case m.level == levelBoxes:
 		m.boxesKey(msg, gg)
 	case m.level == levelDetails:
-		m.detailsKey(msg, gg)
+		return m.detailsKey(msg, gg)
 	default:
 		return m.reposKey(msg, gg)
 	}
@@ -323,9 +327,14 @@ func (m *Model) scrollKey(msg tea.KeyPressMsg, gg bool) bool {
 	return true
 }
 
-func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) {
+func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) tea.Cmd {
+	if m.branchesActive() {
+		if cmd, ok := m.branchesKey(msg, gg); ok {
+			return cmd
+		}
+	}
 	if m.scrollKey(msg, gg) {
-		return
+		return nil
 	}
 	k, b := m.keys, &m.boxes
 	switch {
@@ -346,6 +355,74 @@ func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) {
 	case key.Matches(msg, k.Left):
 		m.level = levelBoxes
 	}
+	return nil
+}
+
+// branchesActive reports whether the Branches tab takes the cursor keys: the Repo's details at the details level, with a branch to move over.
+func (m Model) branchesActive() bool {
+	_, isRepo := m.boxes.selected().(domain.Repo)
+	return m.level == levelDetails && isRepo && m.details.tab == branchesTab && m.boxes.showBranches && len(m.boxes.branches.list) > 0
+}
+
+// branchesKey moves the branch cursor for the cursor keys and reports whether msg was one; a move loads the new branch's commits.
+func (m *Model) branchesKey(msg tea.KeyPressMsg, gg bool) (tea.Cmd, bool) {
+	k, d, n := m.keys, &m.details, len(m.boxes.branches.list)
+	bodyH, _, _ := m.layout()
+	page := max(branchRows(max(bodyH-2, 0))/2, 1)
+	was := d.branchCur
+	switch {
+	case key.Matches(msg, k.Down):
+		d.branchCur++
+	case key.Matches(msg, k.Up):
+		d.branchCur--
+	case key.Matches(msg, k.HalfDown):
+		d.branchCur += page
+	case key.Matches(msg, k.HalfUp):
+		d.branchCur -= page
+	case gg:
+		d.branchCur = 0
+	case key.Matches(msg, k.Bottom):
+		d.branchCur = n - 1
+	default:
+		return nil, false
+	}
+	d.branchCur = max(min(d.branchCur, n-1), 0)
+	if d.branchCur == was {
+		return nil, true
+	}
+	return m.landOn(), true
+}
+
+// branchesLoaded stores the branch list, keeps the cursor on the branch it was on, and loads the commits of the branch under it when that changed.
+func (m *Model) branchesLoaded(msg branchesLoadedMsg) tea.Cmd {
+	if m.loadFailed(msg.key, msg.err) {
+		return nil
+	}
+	b, d := &m.boxes, &m.details
+	prev := ""
+	if d.branchCur < len(b.branches.list) {
+		prev = b.branches.list[d.branchCur].Name
+	}
+	b.branches.ok, b.branches.list = true, msg.branches
+	d.branchCur = max(min(d.branchCur, len(msg.branches)-1), 0)
+	if i := slices.IndexFunc(msg.branches, func(x domain.Branch) bool { return x.Name == prev }); i >= 0 {
+		d.branchCur = i
+	}
+	if len(msg.branches) == 0 || msg.branches[d.branchCur].Name == prev {
+		return nil
+	}
+	return m.landOn()
+}
+
+// commitsLoaded stores a branch's commits, dropping a result for another repo or for a branch the list no longer has.
+func (m *Model) commitsLoaded(msg commitsLoadedMsg) {
+	if m.loadFailed(msg.key, msg.err) {
+		return
+	}
+	if !slices.ContainsFunc(m.boxes.branches.list, func(x domain.Branch) bool { return x.Name == msg.key.Ref }) {
+		return
+	}
+	m.boxes.branches.setCommits(msg.key.Ref, msg.commits)
 }
 
 func jumpIndex(msg tea.KeyPressMsg) int {
@@ -370,7 +447,7 @@ func (m *Model) syncDetails() {
 		}
 		return
 	}
-	m.details.sync(m.boxes.selected(), m.boxes.repo, m.boxes.readme, rightW, bodyH, m.now())
+	m.details.sync(m.boxes.selected(), m.boxes, m.level == levelDetails, rightW, bodyH, m.now())
 }
 
 // View renders nothing until the first WindowSizeMsg, since layout depends on it.

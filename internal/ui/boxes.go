@@ -34,19 +34,36 @@ type readmeState struct {
 	r  domain.Readme
 }
 
+// branchesState is the selected repo's branch list; ok is false until the first load lands.
+// commits holds each branch's recent commits; a branch missing from it is still loading.
+type branchesState struct {
+	ok      bool
+	list    []domain.Branch
+	commits map[string][]domain.Commit
+}
+
+func (b *branchesState) setCommits(branch string, cs []domain.Commit) {
+	if b.commits == nil {
+		b.commits = map[string][]domain.Commit{}
+	}
+	b.commits[branch] = cs
+}
+
 type boxes struct {
-	repo     domain.RepoRef
-	repoRow  domain.Repo
-	showRuns bool
-	showRepo bool
-	crs      []domain.ChangeRequest
-	issues   []domain.Issue
-	runs     []domain.Run
-	readme   readmeState
-	loaded   [boxRepo + 1]bool
-	cursor   [boxRepo + 1]int
-	focus    boxKind
-	marked   map[int]bool // CR numbers marked for a bulk merge
+	repo         domain.RepoRef
+	repoRow      domain.Repo
+	showRuns     bool
+	showRepo     bool
+	showBranches bool
+	crs          []domain.ChangeRequest
+	issues       []domain.Issue
+	runs         []domain.Run
+	readme       readmeState
+	branches     branchesState
+	loaded       [boxRepo + 1]bool
+	cursor       [boxRepo + 1]int
+	focus        boxKind
+	marked       map[int]bool // CR numbers marked for a bulk merge
 }
 
 // kinds lists the visible boxes in display order.

@@ -198,7 +198,7 @@ func TestStaleRepoNamesFade(t *testing.T) {
 func TestDetailsRendersMarkdownBody(t *testing.T) {
 	var d details
 	cr := domain.ChangeRequest{Number: 3, Title: "bump", Body: "**bold** and [a link](https://example.com)\n\n- [ ] <!-- hidden -->task"}
-	d.sync(cr, domain.RepoRef{Owner: "o", Name: "r"}, readmeState{}, 60, 20, time.Now())
+	d.sync(cr, boxes{repo: domain.RepoRef{Owner: "o", Name: "r"}}, false, 60, 20, time.Now())
 	got := d.vp.View()
 	if !strings.Contains(got, "\x1b]8;;https://example.com\x1b\\") {
 		t.Errorf("link isn't a hyperlink in %q", got)
@@ -231,7 +231,7 @@ func TestDetailsMarkdownFollowsBodyAndWidth(t *testing.T) {
 func TestDetailsRendersIssueMarkdownBody(t *testing.T) {
 	var d details
 	is := domain.Issue{Number: 4, Title: "t", Body: "# Heading\n\n**bold** [l](https://example.com)"}
-	d.sync(is, domain.RepoRef{Owner: "o", Name: "r"}, readmeState{}, 60, 20, time.Now())
+	d.sync(is, boxes{repo: domain.RepoRef{Owner: "o", Name: "r"}}, false, 60, 20, time.Now())
 	got := d.vp.View()
 	text := strip(got)
 	if strings.Contains(text, "**") || strings.Contains(text, "](") || strings.Contains(text, "# Heading") {

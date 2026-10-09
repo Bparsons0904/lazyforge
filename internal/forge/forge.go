@@ -122,3 +122,11 @@ type ReadmeReader interface {
 	// GetReadme returns the README on the default branch, or an error matching ErrNotFound when the repo has none.
 	GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, error)
 }
+
+// BranchReader is implemented by adapters that can list branches and a branch's commits.
+type BranchReader interface {
+	// ListBranches returns every branch (GitHub: at most 100) with its tip commit and Default set; order is unspecified.
+	ListBranches(ctx context.Context, r domain.RepoRef) ([]domain.Branch, error)
+	// ListCommits returns the newest-first commits of branch, at most 30; ErrNotFound when the branch is gone.
+	ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error)
+}

@@ -70,6 +70,8 @@ type Run struct { /* ID, Number, Workflow, Title, Branch, Commit, Event, Status,
 type Job struct { /* ID, RunID, Name, Stage (GitLab only), Status, Attempt */ }
 type Release struct { /* Tag, Name, Notes, Draft, Prerelease, PublishedAt, WebURL */ }
 type Readme struct { /* Name, Body; Name is "" when the repo has no README */ }
+type Commit struct { /* SHA, Message, Author, Date */ }
+type Branch struct { /* Name, Default, Commit (the tip), WebURL */ }
 ```
 
 ## Forge interface
@@ -105,6 +107,10 @@ type RunLister interface {
 }
 type LogReader interface { JobLog(ctx context.Context, r domain.RepoRef, jobID int64) (io.ReadCloser, error) }
 type ReadmeReader interface { GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, error) } // ErrNotFound when there is no README
+type BranchReader interface {
+    ListBranches(ctx context.Context, r domain.RepoRef) ([]domain.Branch, error) // GitHub: at most 100
+    ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error) // ErrNotFound when the branch is gone
+}
 type Labeler interface {
     ListLabels(ctx context.Context, r domain.RepoRef) ([]domain.Label, error)
     ItemLabels(ctx context.Context, item ItemRef) ([]domain.Label, error)
@@ -117,7 +123,7 @@ type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.Read
 
 ## API mapping (first pass)
 
-The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The README row is unverified on every forge: it was written from the API docs for #104 and has not yet run against a live server. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
+The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The README row is unverified on every forge: it was written from the API docs for #104 and has not yet run against a live server. The branch rows (Branches, Branch commits) are unverified on every forge too: they were written from the API docs for #105 and have not yet run against a live server. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
@@ -137,6 +143,8 @@ The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1
 | Re-run | none on Forgejo 16: no `Rerunner` | `POST …/actions/runs/{id}/rerun` | `POST /projects/:id/pipelines/:id/retry` |
 | Releases | `GET …/releases` | `GET …/releases` | `GET /projects/:id/releases` |
 | README | `GET …/contents` (root listing; the best name wins: `README.md`, then `README.markdown`, then a bare `README`, then other `README.*` files), then `GET …/contents/{name}` (base64 `content`) | `GET …/readme` (base64 `content`) | `GET /projects/:id/repository/tree` to find the name, then `GET /projects/:id/repository/files/:path?ref=` |
+| Branches | `GET …/branches` (paginated; the default is flagged from `GET /repos/{o}/{r}`) | `GET …/branches?per_page=100` (first page only; the default is fetched by `GET …/branches/{name}`, and each other branch's tip commit by `GET …/commits/{sha}`, 8 at a time) | `GET /projects/:id/repository/branches` |
+| Branch commits | `GET …/commits?sha={branch}&limit=30` | `GET …/commits?sha={branch}&per_page=30` | `GET /projects/:id/repository/commits?ref_name={branch}` |
 
 How the forges differ in practice:
 
@@ -144,6 +152,8 @@ How the forges differ in practice:
 - **Rate limits:** GitHub allows about 5,000 requests per hour, so the core cache is required there, not optional. The github adapter also revalidates GETs with ETags, so an unchanged refresh costs no budget, and maps a rate-limit 403 to `ErrRateLimited` ([ADR 0017](adr/0017-github-adapter.md)).
 - **CI shape:** GitHub and Forgejo use runs → jobs → steps. GitLab uses pipelines → stages → jobs, which maps to `Job.Stage`.
 - **README lookup:** Forgejo has no README endpoint, so its adapter reads the repo root only. GitHub's `/readme` also finds a README in `docs/` and `.github/`, so on Forgejo a README kept only there shows as "No README" (#104).
+- **Branch lists:** GitHub's branch list carries only SHAs, so its adapter makes one commit call per branch: at most 100 branches, the default always kept, and the GETs ETag-revalidated like the rest. Repos with more branches show the first 100. Gitea's list already carries each tip's message and time. The open-PR marker on the Branches tab is derived from the loaded change requests' `SourceBranch`, with no extra call, so a fork PR whose head branch has the same name as one of this repo's branches can false-match it.
+- **Branch dates:** Gitea's commit list dates come from `commit.author.date`, its branch tips from the branch's `commit.timestamp`, and GitHub's from the committer date. Which time the Gitea tip timestamp carries is unverified, so the Branches tab can mix the two kinds.
 - **Reviews:** the domain model stays deliberately small: approve, comment, merge, close.
 
 ## Configuration and stored state

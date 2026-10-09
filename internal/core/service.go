@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,13 +27,16 @@ const (
 	KindReleases
 	KindRuns
 	KindReadme
+	KindBranches
+	KindCommits
 )
 
-// Key identifies a cache entry; Repo is zero for KindRepos and Number is reserved for per-item kinds.
+// Key identifies a cache entry; Repo is zero for KindRepos, Number is for per-item kinds and Ref for branch kinds.
 type Key struct {
 	Kind   Kind
 	Repo   domain.RepoRef
 	Number int
+	Ref    string
 }
 
 // Options configures a Service.
@@ -195,6 +199,59 @@ func (s *Service) PeekReadme(r domain.RepoRef) (domain.Readme, time.Time, bool) 
 		return domain.Readme{}, time.Time{}, false
 	}
 	return vals[0], at, true
+}
+
+// Branches fetches r's branches: the default first, then newest tip commit first, ties by name.
+func (s *Service) Branches(ctx context.Context, r domain.RepoRef) ([]domain.Branch, error) {
+	br, ok := s.f.(forge.BranchReader)
+	if !ok {
+		return nil, fmt.Errorf("branches of %s: %w", r, forge.ErrUnsupported)
+	}
+	return fetch(ctx, s, Key{Kind: KindBranches, Repo: r}, "list branches for "+r.String(),
+		func(ctx context.Context) ([]domain.Branch, error) {
+			bs, err := br.ListBranches(ctx, r)
+			slices.SortFunc(bs, compareBranches)
+			return bs, err
+		})
+}
+
+// PeekBranches returns the cached branches for r without I/O.
+func (s *Service) PeekBranches(r domain.RepoRef) ([]domain.Branch, time.Time, bool) {
+	return peek[domain.Branch](s, Key{Kind: KindBranches, Repo: r})
+}
+
+func compareBranches(a, b domain.Branch) int {
+	if a.Default != b.Default {
+		if a.Default {
+			return -1
+		}
+		return 1
+	}
+	if c := b.Commit.Date.Compare(a.Commit.Date); c != 0 {
+		return c
+	}
+	return strings.Compare(a.Name, b.Name)
+}
+
+// Commits fetches the newest-first commits of branch; a branch the forge reports as gone or empty yields none, not an error.
+func (s *Service) Commits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error) {
+	br, ok := s.f.(forge.BranchReader)
+	if !ok {
+		return nil, fmt.Errorf("commits of %s on %s: %w", r, branch, forge.ErrUnsupported)
+	}
+	return fetch(ctx, s, Key{Kind: KindCommits, Repo: r, Ref: branch}, "commits of "+branch+" in "+r.String(),
+		func(ctx context.Context) ([]domain.Commit, error) {
+			cs, err := br.ListCommits(ctx, r, branch)
+			if errors.Is(err, forge.ErrNotFound) {
+				return nil, nil
+			}
+			return cs, err
+		})
+}
+
+// PeekCommits returns the cached commits of branch in r without I/O.
+func (s *Service) PeekCommits(r domain.RepoRef, branch string) ([]domain.Commit, time.Time, bool) {
+	return peek[domain.Commit](s, Key{Kind: KindCommits, Repo: r, Ref: branch})
 }
 
 // acquire takes a semaphore slot, giving up if ctx ends first.

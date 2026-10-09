@@ -22,7 +22,13 @@ var (
 	_ forge.LogReader    = (*Fake)(nil)
 	_ forge.AssetReader  = (*Fake)(nil)
 	_ forge.ReadmeReader = (*Fake)(nil)
+	_ forge.BranchReader = (*Fake)(nil)
 )
+
+type branchKey struct {
+	repo   domain.RepoRef
+	branch string
+}
 
 // Mutation records one state-changing call; Op is merge, approve, close, comment or edit-issue-body.
 type Mutation struct {
@@ -43,6 +49,8 @@ type Fake struct {
 	issues    map[domain.RepoRef][]domain.Issue
 	releases  map[domain.RepoRef][]domain.Release
 	readmes   map[domain.RepoRef]domain.Readme
+	branches  map[domain.RepoRef][]domain.Branch
+	commits   map[branchKey][]domain.Commit
 	runs      map[domain.RepoRef][]domain.Run
 	jobs      map[int64][]domain.Job
 	logs      map[int64]string
@@ -64,6 +72,8 @@ func NewFake(info forge.HostInfo) *Fake {
 		issues:   map[domain.RepoRef][]domain.Issue{},
 		releases: map[domain.RepoRef][]domain.Release{},
 		readmes:  map[domain.RepoRef]domain.Readme{},
+		branches: map[domain.RepoRef][]domain.Branch{},
+		commits:  map[branchKey][]domain.Commit{},
 		runs:     map[domain.RepoRef][]domain.Run{},
 		jobs:     map[int64][]domain.Job{},
 		logs:     map[int64]string{},
@@ -354,6 +364,49 @@ func (f *Fake) GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, 
 		return domain.Readme{}, fmt.Errorf("README of %s: %w", r, forge.ErrNotFound)
 	}
 	return rd, nil
+}
+
+// AddBranch seeds a branch; the repo becomes known even without AddRepo.
+func (f *Fake) AddBranch(r domain.RepoRef, b domain.Branch) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.known[r] = true
+	f.branches[r] = append(f.branches[r], b)
+}
+
+// SetCommits seeds the newest-first commits of a branch; a branch without any answers ErrNotFound.
+func (f *Fake) SetCommits(r domain.RepoRef, branch string, cs []domain.Commit) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commits[branchKey{r, branch}] = slices.Clone(cs)
+}
+
+// ListBranches implements forge.BranchReader.
+func (f *Fake) ListBranches(ctx context.Context, r domain.RepoRef) ([]domain.Branch, error) {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return nil, err
+	}
+	if err := f.repoErr(r); err != nil {
+		return nil, err
+	}
+	return slices.Clone(f.branches[r]), nil
+}
+
+// ListCommits implements forge.BranchReader.
+func (f *Fake) ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error) {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return nil, err
+	}
+	if err := f.repoErr(r); err != nil {
+		return nil, err
+	}
+	cs, ok := f.commits[branchKey{r, branch}]
+	if !ok {
+		return nil, fmt.Errorf("commits of %s on %s: %w", r, branch, forge.ErrNotFound)
+	}
+	return slices.Clone(cs), nil
 }
 
 // Approve implements forge.Approver.

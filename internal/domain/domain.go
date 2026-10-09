@@ -141,3 +141,17 @@ type Label struct {
 
 // Readme is a repo's README; Name is "" when the repo has none.
 type Readme struct{ Name, Body string }
+
+// Commit is one commit; Message is its subject line.
+type Commit struct {
+	SHA, Message, Author string
+	Date                 time.Time
+}
+
+// Branch is a repo branch with its tip commit; Default marks the repo's default branch.
+type Branch struct {
+	Name    string
+	Default bool
+	Commit  Commit
+	WebURL  string
+}

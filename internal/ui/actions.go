@@ -91,7 +91,7 @@ func (m *Model) syncKeys() {
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
 	k.Comment.SetEnabled((isCR || isIssue) && can(forge.ActComment))
 	k.Labels.SetEnabled((isCR || isIssue) && can(forge.ActLabels))
-	k.Open.SetEnabled(webURL(item) != "")
+	k.Open.SetEnabled(webURL(m.openTarget(item)) != "")
 	k.Rerun.SetEnabled(isRun && webURL(item) != "")
 }
 
@@ -103,8 +103,18 @@ func webURL(item any) string {
 		return it.WebURL
 	case domain.Run:
 		return it.WebURL
+	case domain.Branch:
+		return it.WebURL
 	}
 	return ""
+}
+
+// openTarget is what o opens: the cursor branch on the Branches tab, otherwise item.
+func (m Model) openTarget(item any) any {
+	if m.branchesActive() {
+		return m.boxes.branches.list[m.details.branchCur]
+	}
+	return item
 }
 
 func itemRef(r domain.RepoRef, item any) forge.ItemRef {
@@ -123,7 +133,7 @@ func (m *Model) actionKey(msg tea.KeyPressMsg) (cmd tea.Cmd, ok bool) {
 		return m.starActionKey(msg)
 	}
 	k, b := m.keys, &m.boxes
-	item := b.selected()
+	item := m.openTarget(b.selected())
 	switch {
 	case key.Matches(msg, k.Mark):
 		if cr, ok := item.(domain.ChangeRequest); ok {

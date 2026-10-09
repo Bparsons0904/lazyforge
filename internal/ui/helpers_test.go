@@ -158,6 +158,10 @@ func counts(msgs []tea.Msg) map[string]int {
 			out["runs"]++
 		case readmeLoadedMsg:
 			out["readme"]++
+		case branchesLoadedMsg:
+			out["branches"]++
+		case commitsLoadedMsg:
+			out["commits"]++
 		case tickScheduled:
 			out["tick"]++
 		default:

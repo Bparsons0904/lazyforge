@@ -47,6 +47,7 @@ var (
 	_ forge.Labeler      = (*Forge)(nil)
 	_ forge.AssetReader  = (*Forge)(nil)
 	_ forge.ReadmeReader = (*Forge)(nil)
+	_ forge.BranchReader = (*Forge)(nil)
 )
 
 // New takes webURL as the web root, not the API base, and reads the token's user up front,

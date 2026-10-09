@@ -43,6 +43,18 @@ type readmeLoadedMsg struct {
 	err    error
 }
 
+type branchesLoadedMsg struct {
+	key      core.Key
+	branches []domain.Branch
+	err      error
+}
+
+type commitsLoadedMsg struct {
+	key     core.Key
+	commits []domain.Commit
+	err     error
+}
+
 type refreshTickMsg struct{}
 
 func tickEvery() tea.Cmd {
@@ -84,6 +96,29 @@ func loadReadme(ctx context.Context, svc *core.Service, r domain.RepoRef) tea.Cm
 	}
 }
 
+func loadBranches(ctx context.Context, svc *core.Service, r domain.RepoRef) tea.Cmd {
+	return func() tea.Msg {
+		bs, err := svc.Branches(ctx, r)
+		return branchesLoadedMsg{key: core.Key{Kind: core.KindBranches, Repo: r}, branches: bs, err: err}
+	}
+}
+
+func loadCommits(ctx context.Context, svc *core.Service, r domain.RepoRef, branch string) tea.Cmd {
+	return func() tea.Msg {
+		cs, err := svc.Commits(ctx, r, branch)
+		return commitsLoadedMsg{key: core.Key{Kind: core.KindCommits, Repo: r, Ref: branch}, commits: cs, err: err}
+	}
+}
+
+// landOn shows the cursor branch's cached commits while the refetch runs; the cursor must be in range.
+func (m *Model) landOn() tea.Cmd {
+	r, name := m.boxes.repo, m.boxes.branches.list[m.details.branchCur].Name
+	if cs, _, ok := m.svc.PeekCommits(r, name); ok {
+		m.boxes.branches.setCommits(name, cs)
+	}
+	return loadCommits(m.selCtx, m.svc, r, name)
+}
+
 // selectRepo cancels the previous selection's fetches and loads the boxes of the repo under the cursor.
 // With cached=true it seeds from the cache and fetches only what missed; otherwise it refetches everything.
 func (m *Model) selectRepo(cached bool) tea.Cmd {
@@ -102,8 +137,10 @@ func (m *Model) selectRepo(cached bool) tea.Cmd {
 	m.stopScan()
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.selCtx, m.cancel = ctx, cancel
-	m.boxes = boxes{repo: r.RepoRef, repoRow: r, showRuns: m.svc.Can(forge.ActRuns, r).OK, showRepo: m.svc.Can(forge.ActReadme, r).OK}
+	m.boxes = boxes{repo: r.RepoRef, repoRow: r, showRuns: m.svc.Can(forge.ActRuns, r).OK, showRepo: m.svc.Can(forge.ActReadme, r).OK, showBranches: m.svc.Can(forge.ActBranches, r).OK}
 	m.boxes.loaded[boxRepo] = true
+	// The cursor must be reset before loadBoxes, which reads it to pick the branch whose commits it fetches.
+	m.details.branchCur = 0
 	return m.loadBoxes(cached)
 }
 
@@ -137,6 +174,18 @@ func (m *Model) loadBoxes(cached bool) tea.Cmd {
 		}
 		if !cached || !b.readme.ok {
 			cmds = append(cmds, loadReadme(ctx, svc, ref))
+		}
+	}
+	if b.showBranches {
+		if bs, _, ok := svc.PeekBranches(ref); ok {
+			b.branches.ok, b.branches.list = true, bs
+		}
+		if !cached || !b.branches.ok {
+			cmds = append(cmds, loadBranches(ctx, svc, ref))
+		}
+		if n := len(b.branches.list); n > 0 {
+			m.details.branchCur = max(min(m.details.branchCur, n-1), 0)
+			cmds = append(cmds, m.landOn())
 		}
 	}
 	return tea.Batch(cmds...)

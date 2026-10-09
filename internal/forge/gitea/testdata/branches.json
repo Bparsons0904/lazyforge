@@ -1,0 +1,29 @@
+[
+  {
+    "name": "main",
+    "commit": {
+      "id": "1111111111111111111111111111111111111111",
+      "message": "Fix the build\n\nThe lockfile was stale.\n",
+      "timestamp": "2026-09-01T10:00:00Z",
+      "author": {"name": "Ada"}
+    }
+  },
+  {
+    "name": "feature/x",
+    "commit": {
+      "id": "2222222222222222222222222222222222222222",
+      "message": "Add the x box",
+      "timestamp": "2026-09-20T09:30:00Z",
+      "author": {"name": "Grace"}
+    }
+  },
+  {
+    "name": "a&b#c/d",
+    "commit": {
+      "id": "3333333333333333333333333333333333333333",
+      "message": "Odd name",
+      "timestamp": "2026-09-10T08:00:00Z",
+      "author": {"name": "Linus"}
+    }
+  }
+]
