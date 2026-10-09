@@ -222,6 +222,8 @@ func itemID(item any) string {
 		return fmt.Sprintf("issue %d", it.Number)
 	case domain.Run:
 		return fmt.Sprintf("run %d", it.ID)
+	case domain.Release:
+		return "release " + it.Tag
 	case domain.Repo:
 		return "repo"
 	default:
@@ -238,6 +240,8 @@ func itemCrumb(item any) string {
 		return fmt.Sprintf("#%d", it.Number)
 	case domain.Run:
 		return fmt.Sprintf("%s #%d", it.Workflow, it.Number)
+	case domain.Release:
+		return sanitizeLine(it.Tag)
 	default:
 		return ""
 	}
@@ -274,6 +278,31 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(domain.RepoR
 			ciIcon(it.Status, lipgloss.NewStyle()) + " " + style.Heading.Render(fmt.Sprintf("%s #%d", it.Workflow, it.Number)),
 			style.Faint.Render(fmt.Sprintf("%s · %s · %s @ %s", repo, it.Event, it.Branch, commit)),
 			style.Faint.Render(fmt.Sprintf("%s ago · took %s", age(now, it.StartedAt), it.Duration.Round(time.Second))),
+		}
+	case domain.Release:
+		heading := it.Name
+		if heading == "" {
+			heading = it.Tag
+		}
+		meta := []string{repo.String(), sanitizeLine(it.Tag)}
+		if it.Draft {
+			meta = append(meta, "draft")
+		}
+		if it.Prerelease {
+			meta = append(meta, "pre-release")
+		}
+		if e := publishedAge(now, it.PublishedAt); e != "" {
+			meta = append(meta, e+" ago")
+		}
+		body := style.Faint.Render("No release notes")
+		if strings.TrimSpace(it.Notes) != "" {
+			body = md(repo, it.Notes)
+		}
+		lines = []string{
+			style.Heading.Render(sanitizeLine(heading)),
+			style.Faint.Render(strings.Join(meta, " · ")),
+			"",
+			body,
 		}
 	default:
 		lines = []string{style.Faint.Render("Nothing here.")}

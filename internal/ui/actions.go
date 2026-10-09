@@ -103,6 +103,8 @@ func webURL(item any) string {
 		return it.WebURL
 	case domain.Run:
 		return it.WebURL
+	case domain.Release:
+		return it.WebURL
 	case domain.Branch:
 		return it.WebURL
 	case domain.TreeEntry:

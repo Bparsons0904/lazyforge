@@ -133,6 +133,14 @@ func age(now, t time.Time) string {
 	}
 }
 
+// publishedAge is age for a release date, or "" when the forge gave none, so no age shows.
+func publishedAge(now, t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return age(now, t)
+}
+
 func ciIcon(s domain.CIState, base lipgloss.Style) string {
 	switch s {
 	case domain.CIPass:

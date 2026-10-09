@@ -253,7 +253,7 @@ const repos = [
       {kind:'run', id:317, wf:'validate', status:'failure', branch:'renovate/traefik-3.x', commit:'7be0d14', trigger:'pull_request', dur:'34s', ago:'25m',
         jobs:[{name:'lint', status:'success', log:lintLog}, {name:'validate', status:'failure', log:traefikFail}]},
     ],
-    releases:[{kind:'release', tag:'2026.09.1', ago:'5d', notes:'- traefik 3.1\n- immich added\n- nightly restic check'}]},
+    releases:[{kind:'release', tag:'2026.10.0-rc1', prerelease:true, ago:'1d', notes:'- restic 0.17 test build'}, {kind:'release', tag:'2026.09.1', ago:'5d', notes:'- traefik 3.1\n- immich added\n- nightly restic check'}]},
   {name:'infra', ago:'1h', desc:'OpenTofu for Proxmox VMs and DNS',
     prs:[
       rpr(18, 'opentofu', '1.8.5', '1.9.0', 'minor', '.forgejo/workflows/plan.yml',
@@ -389,7 +389,7 @@ function itemRow(it, showRepo) {
     case 'issue': return {html:`<span class="num">#${it.n}</span> ${repo}${it.dashboard ? '<span class="m">⚙</span> ' : ''}${esc(it.title)}`, meta:`${it.comments.length ? it.comments.length + '💬 ' : ''}${it.ago}`};
     case 'run': return {html:`${ICON[it.status]} ${repo}${esc(it.wf)} <span class="dim">${esc(it.branch)}</span>`, meta:it.ago};
     case 'dep': return {html:`${it.ticked ? '<span class="g">☑</span>' : '<span class="dim">☐</span>'} ${esc(it.title.replace('chore(deps): ', ''))}`, meta:esc(it.section.toLowerCase())};
-    case 'release': return {html:`<span class="t">${esc(it.tag)}</span>`, meta:it.ago};
+    case 'release': return {html:`<span class="t">${esc(it.tag)}</span>${it.name && it.name !== it.tag ? ' ' + esc(it.name) : ''}`, meta:[it.draft ? 'draft' : '', it.prerelease ? 'pre-release' : '', it.ago].filter(Boolean).join(' ')};
     case 'repo': return {html:`<span class="b">${esc(it.repo)}</span> <span class="dim">${esc(it.desc)}</span>`, meta:''};
     case 'group': return {html:`${esc(it.pkg)} <span class="dim">${esc(it.from)} →</span> <span class="b">${esc(it.to)}</span> ${bumpPill(it.bump)}`, meta:`${it.prs.length > 1 ? `<span class="p">×${it.prs.length}</span> ` : ''}${it.prs.map(p => ICON[p.ci]).join('')}`};
   }
@@ -460,7 +460,7 @@ function detail(it, tab) {
       <div class="txt">${it.ticked ? '<span class="g">☑ ticked</span>: Renovate has opened, or will open, this PR.' : '<span class="dim">☐ not ticked</span>: Renovate is holding this update (' + esc(it.section.toLowerCase()) + ').'}</div>
       <div class="foot">${it.ticked ? 'o open the dashboard in the browser' : 'space ticks the checkbox, so Renovate creates the PR on its next run'}</div>`;
   }
-  if (it.kind === 'release') return `<div class="h1">${esc(it.tag)}</div><div class="dim">${esc(it.repo)} · released ${it.ago} ago</div>${textBlock(it.notes)}`;
+  if (it.kind === 'release') return `<div class="h1">${esc(it.name || it.tag)}</div><div class="dim">${[esc(it.repo), esc(it.tag), it.draft ? 'draft' : '', it.prerelease ? 'pre-release' : '', it.ago + ' ago'].filter(Boolean).join(' · ')}</div>${it.notes ? textBlock(it.notes) : '<div class="dim">No release notes</div>'}`;
   if (it.kind === 'repo') {
     if (name === 'Branches') return branchesBody(it);
     if (name === 'Files') return filesBody(it);

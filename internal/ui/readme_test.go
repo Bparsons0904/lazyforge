@@ -56,8 +56,12 @@ func readmeTab(t *testing.T, f forge.Forge) Model {
 func TestRepoBoxIsSixthAndReachableByTab(t *testing.T) {
 	m := sized(t, 120, 40)
 	m = press(t, m, "j", "3", "tab")
+	if m.boxes.focus != boxReleases {
+		t.Fatalf("tab from [3]: focus %v, want the Releases box", m.boxes.focus)
+	}
+	m = press(t, m, "tab")
 	if m.boxes.focus != boxRepo {
-		t.Fatalf("tab from [3]: focus %v, want the Repo box", m.boxes.focus)
+		t.Fatalf("tab from [5]: focus %v, want the Repo box", m.boxes.focus)
 	}
 	m = press(t, m, "tab")
 	if m.boxes.focus != boxCRs {
@@ -83,17 +87,17 @@ func TestRepoBoxKeepsNumberWhenActionsHidden(t *testing.T) {
 	if m.boxes.focus != boxRepo {
 		t.Fatalf("6: focus %v, want the Repo box", m.boxes.focus)
 	}
-	for _, k := range []string{"3", "4", "5"} {
+	for _, k := range []string{"3", "4"} {
 		before := m.boxes.focus
 		m = press(t, m, k)
 		if m.status != "No box ["+k+"] here" || m.boxes.focus != before {
 			t.Errorf("%s: status %q focus %v, want no box and focus %v", k, m.status, m.boxes.focus, before)
 		}
 	}
-	for _, want := range []boxKind{boxCRs, boxIssues, boxRepo} {
+	for _, want := range []boxKind{boxCRs, boxIssues, boxReleases, boxRepo} {
 		m = press(t, m, "tab")
 		if m.boxes.focus != want {
-			t.Fatalf("tab: focus %v, want %v (order [1] [2] [6])", m.boxes.focus, want)
+			t.Fatalf("tab: focus %v, want %v (order [1] [2] [5] [6])", m.boxes.focus, want)
 		}
 	}
 }
@@ -365,24 +369,28 @@ func TestBoxKindsFollowVisibility(t *testing.T) {
 	if int(boxRepo) != 5 {
 		t.Errorf("boxRepo = %d, want 5 so the box is numbered [6]", int(boxRepo))
 	}
-	if got, want := (boxes{showRuns: true, showRepo: true}).kinds(), []boxKind{boxCRs, boxIssues, boxRuns, boxRepo}; !slices.Equal(got, want) {
+	if got, want := (boxes{showRuns: true, showRepo: true}).kinds(), []boxKind{boxCRs, boxIssues, boxRuns, boxReleases, boxRepo}; !slices.Equal(got, want) {
 		t.Errorf("all boxes: kinds %v, want %v", got, want)
 	}
-	if got, want := (boxes{showRepo: true}).kinds(), []boxKind{boxCRs, boxIssues, boxRepo}; !slices.Equal(got, want) {
+	if got, want := (boxes{showRepo: true}).kinds(), []boxKind{boxCRs, boxIssues, boxReleases, boxRepo}; !slices.Equal(got, want) {
 		t.Errorf("no Actions: kinds %v, want %v", got, want)
 	}
-	if got, want := (boxes{showRuns: true}).kinds(), []boxKind{boxCRs, boxIssues, boxRuns}; !slices.Equal(got, want) {
+	if got, want := (boxes{showRuns: true}).kinds(), []boxKind{boxCRs, boxIssues, boxRuns, boxReleases}; !slices.Equal(got, want) {
 		t.Errorf("no Repo box: kinds %v, want %v", got, want)
 	}
-	if n := (boxes{showRuns: true}).count(); n != 3 {
-		t.Errorf("count without Repo box = %d, want 3", n)
+	if n := (boxes{showRuns: true}).count(); n != 4 {
+		t.Errorf("count without Repo box = %d, want 4", n)
 	}
 }
 
 func TestBoxStepSkipsHiddenBoxes(t *testing.T) {
 	b := boxes{showRepo: true, focus: boxIssues}
+	if got := b.step(1); got != boxReleases {
+		t.Errorf("step(1) from [2] = %v, want [5]", got)
+	}
+	b.focus = boxReleases
 	if got := b.step(1); got != boxRepo {
-		t.Errorf("step(1) from [2] = %v, want [6]", got)
+		t.Errorf("step(1) from [5] = %v, want [6]", got)
 	}
 	b.focus = boxRepo
 	if got := b.step(1); got != boxCRs {
@@ -393,7 +401,7 @@ func TestBoxStepSkipsHiddenBoxes(t *testing.T) {
 		t.Errorf("step(-1) from [1] = %v, want wrap to [6]", got)
 	}
 	b = boxes{showRuns: true, showRepo: true, focus: boxRuns}
-	if got := b.step(1); got != boxRepo {
-		t.Errorf("step(1) from [3] = %v, want [6]", got)
+	if got := b.step(1); got != boxReleases {
+		t.Errorf("step(1) from [3] = %v, want [5]", got)
 	}
 }

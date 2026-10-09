@@ -85,6 +85,8 @@ The Branches tab lists the repo's branches, the default branch first and then by
 
 The Files tab browses the repo's tree at the default branch, in two columns. The left column is the current directory, directories first and then by name. The right column previews the cursor entry: a directory's names, or a text file's contents. `j`/`k` move the cursor, `l` opens a directory or, on a file, moves into its preview, and `h` goes back out, to the list and then up a directory. `o` opens the cursor entry in the browser. Files over 256 KiB and binary files show a note instead of a preview, and submodules and symlinks show as entries with no preview. The tab is read-only.
 
+The Releases box lists the repo's releases, newest first by publish date; a release with no date sorts last and shows no age. A draft is marked `draft` and a prerelease `pre-release`. Selecting a release shows its name and notes in the details pane, with the notes rendered as markdown. `o` opens the release in the browser. The box is read-only.
+
 ### ★ Renovate (virtual, spans the repos you own or belong to)
 
 Its job is to show at a glance which repos have Renovate updates waiting, how many and how much they matter, and then to let you act on them, including in bulk.
@@ -164,11 +166,11 @@ Answered by the PM on 2026-10-02 (#13):
 
 ## v1 scope
 
-- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]` and the Repo box `[6]` with its README, Files and Branches tabs, details with the Overview tab
+- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]`, the Releases box `[5]` (Overview tab) and the Repo box `[6]` with its README, Files and Branches tabs, details with the Overview tab
 - ★ Renovate view, all five boxes
 - Merge, approve, close, comment (`$EDITOR`), open in browser, refresh, `R` (opens the run page)
 - Bulk merge (marked PRs and update groups), with the CI warning and the "only merge when green" setting
 - Forgejo/Gitea and GitHub adapters (the GitHub adapter ships with the public release, the PM's call in #83)
 - Install script, release binaries, and the startup update check
 
-After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, boxes `[4]` and `[5]`, the Repo box's Files tab, then the GitLab adapter.
+After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, box `[4]`, the Repo box's Files tab, then the GitLab adapter.

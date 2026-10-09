@@ -516,7 +516,7 @@ func TestStarNeverLoadsZeroRepo(t *testing.T) {
 		m = next.(Model)
 		for _, msg := range exec(t, cmd) {
 			switch msg := msg.(type) {
-			case changeRequestsLoadedMsg, issuesLoadedMsg, runsLoadedMsg:
+			case changeRequestsLoadedMsg, issuesLoadedMsg, runsLoadedMsg, releasesLoadedMsg:
 				t.Fatalf("key %q in ★ loaded repo boxes: %#v", k, msg)
 			}
 		}

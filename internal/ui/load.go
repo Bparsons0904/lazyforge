@@ -37,6 +37,12 @@ type runsLoadedMsg struct {
 	err   error
 }
 
+type releasesLoadedMsg struct {
+	key   core.Key
+	items []domain.Release
+	err   error
+}
+
 type readmeLoadedMsg struct {
 	key    core.Key
 	readme domain.Readme
@@ -98,6 +104,13 @@ func loadRuns(ctx context.Context, svc *core.Service, r domain.RepoRef) tea.Cmd 
 	return func() tea.Msg {
 		items, err := svc.Runs(ctx, r)
 		return runsLoadedMsg{key: core.Key{Kind: core.KindRuns, Repo: r}, items: items, err: err}
+	}
+}
+
+func loadReleases(ctx context.Context, svc *core.Service, r domain.RepoRef) tea.Cmd {
+	return func() tea.Msg {
+		items, err := svc.Releases(ctx, r)
+		return releasesLoadedMsg{key: core.Key{Kind: core.KindReleases, Repo: r}, items: items, err: err}
 	}
 }
 
@@ -194,6 +207,12 @@ func (m *Model) loadBoxes(cached bool) tea.Cmd {
 		if !cached || !b.loaded[boxRuns] {
 			cmds = append(cmds, loadRuns(ctx, svc, ref))
 		}
+	}
+	if items, _, ok := svc.PeekReleases(ref); ok {
+		b.releases, b.loaded[boxReleases] = items, true
+	}
+	if !cached || !b.loaded[boxReleases] {
+		cmds = append(cmds, loadReleases(ctx, svc, ref))
 	}
 	if b.showRepo {
 		if rd, _, ok := svc.PeekReadme(ref); ok {

@@ -121,6 +121,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loadFailed(msg.key, msg.err) {
 			m.boxes.runs, m.boxes.loaded[boxRuns] = msg.items, true
 		}
+	case releasesLoadedMsg:
+		if !m.loadFailed(msg.key, msg.err) {
+			m.boxes.releases, m.boxes.loaded[boxReleases] = msg.items, true
+		}
 	case readmeLoadedMsg:
 		if !m.loadFailed(msg.key, msg.err) {
 			m.boxes.readme = readmeState{ok: true, r: msg.readme}

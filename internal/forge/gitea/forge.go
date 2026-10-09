@@ -98,6 +98,7 @@ type release struct {
 	Draft       bool      `json:"draft"`
 	Prerelease  bool      `json:"prerelease"`
 	PublishedAt time.Time `json:"published_at"`
+	CreatedAt   time.Time `json:"created_at"`
 	HTMLURL     string    `json:"html_url"`
 }
 
@@ -348,13 +349,18 @@ func (f *Forge) ListReleases(ctx context.Context, r domain.RepoRef) ([]domain.Re
 	}
 	out := make([]domain.Release, len(rs))
 	for i, rl := range rs {
+		published := rl.PublishedAt
+		if published.IsZero() {
+			// An unpublished release may carry no published_at; created_at keeps it sortable.
+			published = rl.CreatedAt
+		}
 		out[i] = domain.Release{
 			Tag:         rl.TagName,
 			Name:        rl.Name,
 			Notes:       rl.Body,
 			Draft:       rl.Draft,
 			Prerelease:  rl.Prerelease,
-			PublishedAt: rl.PublishedAt,
+			PublishedAt: published,
 			WebURL:      rl.HTMLURL,
 		}
 	}

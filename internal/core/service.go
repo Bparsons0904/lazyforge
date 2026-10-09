@@ -144,12 +144,30 @@ func (s *Service) PeekIssues(r domain.RepoRef) ([]domain.Issue, time.Time, bool)
 	return peek[domain.Issue](s, Key{Kind: KindIssues, Repo: r})
 }
 
-// Releases fetches releases for r.
+// Releases fetches releases for r, newest first; a repo with the releases unit disabled yields none.
 func (s *Service) Releases(ctx context.Context, r domain.RepoRef) ([]domain.Release, error) {
 	return fetch(ctx, s, Key{Kind: KindReleases, Repo: r}, "list releases for "+r.String(),
 		func(ctx context.Context) ([]domain.Release, error) {
-			return s.f.ListReleases(ctx, r)
+			rs, err := s.f.ListReleases(ctx, r)
+			if errors.Is(err, forge.ErrNotFound) {
+				return []domain.Release{}, nil
+			}
+			slices.SortStableFunc(rs, newestRelease)
+			return rs, err
 		})
+}
+
+// newestRelease orders by PublishedAt descending, with undated releases last.
+func newestRelease(a, b domain.Release) int {
+	switch {
+	case a.PublishedAt.IsZero() && b.PublishedAt.IsZero():
+		return 0
+	case a.PublishedAt.IsZero():
+		return 1
+	case b.PublishedAt.IsZero():
+		return -1
+	}
+	return b.PublishedAt.Compare(a.PublishedAt)
 }
 
 // PeekReleases returns the cached releases for r without I/O.

@@ -474,6 +474,7 @@ func (reposLoadedMsg) fromSession()          {}
 func (changeRequestsLoadedMsg) fromSession() {}
 func (issuesLoadedMsg) fromSession()         {}
 func (runsLoadedMsg) fromSession()           {}
+func (releasesLoadedMsg) fromSession()       {}
 func (refreshTickMsg) fromSession()          {}
 func (recheckedMsg) fromSession()            {}
 func (mergeDoneMsg) fromSession()            {}

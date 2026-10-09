@@ -18,9 +18,10 @@ const (
 	boxCRs boxKind = iota
 	boxIssues
 	boxRuns
+	boxReleases boxKind = 4 // kind 3 (box [4]) is reserved for Renovate
 )
 
-const boxRepo boxKind = 5 // number = kind+1; 3 and 4 reserved for Renovate and Releases
+const boxRepo boxKind = 5 // number = kind+1
 
 const (
 	focusWeight     = 12 // with unfocusedWeight, the mockup's 2.4:1
@@ -59,6 +60,7 @@ type boxes struct {
 	crs          []domain.ChangeRequest
 	issues       []domain.Issue
 	runs         []domain.Run
+	releases     []domain.Release
 	readme       readmeState
 	branches     branchesState
 	files        filesState
@@ -74,6 +76,7 @@ func (b boxes) kinds() []boxKind {
 	if b.showRuns {
 		ks = append(ks, boxRuns)
 	}
+	ks = append(ks, boxReleases)
 	if b.showRepo {
 		ks = append(ks, boxRepo)
 	}
@@ -107,6 +110,8 @@ func (b boxes) len(k boxKind) int {
 		return len(b.crs)
 	case boxIssues:
 		return len(b.issues)
+	case boxReleases:
+		return len(b.releases)
 	case boxRepo:
 		if b.showRepo {
 			return 1
@@ -128,7 +133,7 @@ func (b *boxes) clampCursors() {
 	}
 }
 
-// selected returns the item under the focused box's cursor: a ChangeRequest, Issue, Run or the repo, or nil.
+// selected returns the item under the focused box's cursor: a ChangeRequest, Issue, Run, Release or the repo, or nil.
 func (b boxes) selected() any {
 	i := b.cursor[b.focus]
 	if i >= b.len(b.focus) {
@@ -139,6 +144,8 @@ func (b boxes) selected() any {
 		return b.crs[i]
 	case boxIssues:
 		return b.issues[i]
+	case boxReleases:
+		return b.releases[i]
 	case boxRepo:
 		return b.repoRow
 	default:
@@ -154,6 +161,8 @@ func boxTitle(k boxKind, term string) string {
 		return "Issues"
 	case boxRepo:
 		return "Repo"
+	case boxReleases:
+		return "Releases"
 	default:
 		return "Actions"
 	}
@@ -213,6 +222,8 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 		case boxIssues:
 			tag = fmt.Sprintf("#%d", b.issues[i].Number)
 			elapsed = age(now, b.issues[i].UpdatedAt)
+		case boxReleases:
+			tag = sanitizeLine(b.releases[i].Tag)
 		default:
 			tag = b.runs[i].Workflow
 			elapsed = age(now, b.runs[i].StartedAt)
@@ -252,6 +263,25 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 				m = fmt.Sprintf("%d💬 %s", is.Comments, m)
 			}
 			meta = on(style.Faint, m)
+		case boxReleases:
+			rl := b.releases[i]
+			tag = fitLine(truncate(sanitizeLine(rl.Tag), tagWidth), tagWidth) + " "
+			label = ""
+			if rl.Name != rl.Tag {
+				label = sanitizeLine(rl.Name)
+			}
+			var marks []string
+			if rl.Draft {
+				marks = append(marks, "draft")
+			}
+			if rl.Prerelease {
+				marks = append(marks, "pre-release")
+			}
+			if e := publishedAge(now, rl.PublishedAt); e != "" {
+				marks = append(marks, e)
+			}
+			out = append(out, tagRow(tag, ts, label, style.Text, on(style.Faint, strings.Join(marks, " ")), w, base))
+			continue
 		default:
 			r := b.runs[i]
 			tag = fitLine(truncate(r.Workflow, tagWidth), tagWidth) + " "
