@@ -36,7 +36,7 @@ func newForge(t *testing.T) (*github.Forge, *server) {
 func TestContract(t *testing.T) {
 	forgetest.RunContract(t, func(t *testing.T) (forge.Forge, forgetest.Fixture) {
 		f, _ := newForge(t)
-		return f, forgetest.Fixture{Repo: cli, OpenCR: openPR, OpenCRHead: openHead, OpenIssue: openIssue, Missing: 1}
+		return f, forgetest.Fixture{Repo: cli, OpenCR: openPR, OpenCRHead: openHead, OpenIssue: openIssue, Missing: 1, Asset: "/user-attachments/assets/" + assetID}
 	})
 }
 

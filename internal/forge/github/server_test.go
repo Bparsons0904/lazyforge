@@ -16,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest"
 )
 
 const (
@@ -77,6 +79,9 @@ type server struct {
 	logs     *logHost
 	// job ID → where its log endpoint redirects
 	logRedirects map[string]string
+	assets       *assetHost
+	// attachment ID → where /user-attachments/assets/{id} redirects
+	assetRedirects map[string]string
 }
 
 // redirectLog makes the log endpoint for job id redirect to loc.
@@ -138,6 +143,8 @@ func newServer(t testing.TB) *server {
 		logs:     newLogHost(t),
 	}
 	s.logRedirects = map[string]string{strconv.FormatInt(logJob, 10): s.logs.signedURL()}
+	s.assets = newAssetHost(t)
+	s.assetRedirects = map[string]string{assetID: s.assets.URL + "/" + assetID + ".png?X-Amz-Signature=signed"}
 
 	mux := http.NewServeMux()
 	const p = apiPrefix
@@ -228,13 +235,24 @@ func newServer(t testing.TB) *server {
 		s.pageList(w, r, s.itemLbls[idx])
 	})
 	mux.HandleFunc("PUT "+p+"/repos/{owner}/{repo}/issues/{index}/labels", s.setLabels)
+	mux.HandleFunc("GET /user-attachments/assets/{id}", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		loc, ok := s.assetRedirects[r.PathValue("id")]
+		s.mu.Unlock()
+		if !ok {
+			s.notFound(w)
+			return
+		}
+		w.Header().Set("Location", loc)
+		w.WriteHeader(http.StatusFound)
+	})
 
 	s.Server = httptest.NewServer(s.wrap(mux))
 	t.Cleanup(s.Close)
 	return s
 }
 
-// wrap enforces the headers the adapter must send, logs every request, and turns a GET whose ETag matches into a 304.
+// wrap enforces the headers the adapter must send (the media type on API paths only), logs every request, and turns a GET whose ETag matches into a 304.
 func (s *server) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -243,7 +261,8 @@ func (s *server) wrap(next http.Handler) http.Handler {
 		switch {
 		case r.Header.Get("Authorization") != "Bearer "+testToken:
 			writeJSON(rec, 401, obj{"message": "Bad credentials"})
-		case r.Header.Get("Accept") != "application/vnd.github+json" || r.Header.Get("X-GitHub-Api-Version") != "2022-11-28":
+		case strings.HasPrefix(r.URL.Path, apiPrefix+"/") &&
+			(r.Header.Get("Accept") != "application/vnd.github+json" || r.Header.Get("X-GitHub-Api-Version") != "2022-11-28"):
 			writeJSON(rec, 415, obj{"message": "missing GitHub media type or API version"})
 		default:
 			next.ServeHTTP(rec, r)
@@ -618,4 +637,40 @@ func writeRaw(w http.ResponseWriter, status int, b []byte) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	b, _ := json.Marshal(v)
 	writeRaw(w, status, b)
+}
+
+// assetID is the attachment the fake web root serves at /user-attachments/assets/{id}.
+const assetID = "0b1c2d3e-4f50-6172-8394-a5b6c7d8e9f0"
+
+// assetHost stands in for the signed object store GitHub's attachment URLs redirect to. It shares the API's
+// hostname on another port, a different origin that Go's own redirect rule would still send the token to.
+type assetHost struct {
+	*httptest.Server
+
+	mu   sync.Mutex
+	seen []http.Header
+}
+
+func newAssetHost(t testing.TB) *assetHost {
+	t.Helper()
+	h := &assetHost{}
+	h.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.mu.Lock()
+		h.seen = append(h.seen, r.Header.Clone())
+		h.mu.Unlock()
+		if r.URL.Query().Get("X-Amz-Signature") != "signed" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(forgetest.DemoPNG)
+	}))
+	t.Cleanup(h.Close)
+	return h
+}
+
+func (h *assetHost) headers() []http.Header {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.seen)
 }

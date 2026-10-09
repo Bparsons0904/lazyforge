@@ -40,11 +40,12 @@ type Forge struct {
 }
 
 var (
-	_ forge.Forge     = (*Forge)(nil)
-	_ forge.Approver  = (*Forge)(nil)
-	_ forge.RunLister = (*Forge)(nil)
-	_ forge.LogReader = (*Forge)(nil)
-	_ forge.Labeler   = (*Forge)(nil)
+	_ forge.Forge       = (*Forge)(nil)
+	_ forge.Approver    = (*Forge)(nil)
+	_ forge.RunLister   = (*Forge)(nil)
+	_ forge.LogReader   = (*Forge)(nil)
+	_ forge.Labeler     = (*Forge)(nil)
+	_ forge.AssetReader = (*Forge)(nil)
 )
 
 // New takes webURL as the web root, not the API base, and reads the token's user up front,
@@ -192,6 +193,18 @@ func (f *Forge) stream(ctx context.Context, rawURL string) (io.ReadCloser, error
 	if err != nil {
 		return nil, fmt.Errorf("%s: parse API base: %w", op, err)
 	}
+	resp, err := f.tokenOnlyOn(base).Do(req)
+	if err != nil {
+		return nil, doError(op, err)
+	}
+	if err := checkStatus(op, resp); err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+// tokenOnlyOn returns a copy of the session client that drops Authorization on any redirect hop off base's origin.
+func (f *Forge) tokenOnlyOn(base *url.URL) *http.Client {
 	hc := *f.hc
 	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		if len(via) >= maxRedirects {
@@ -202,14 +215,7 @@ func (f *Forge) stream(ctx context.Context, rawURL string) (io.ReadCloser, error
 		}
 		return nil
 	}
-	resp, err := hc.Do(req)
-	if err != nil {
-		return nil, doError(op, err)
-	}
-	if err := checkStatus(op, resp); err != nil {
-		return nil, err
-	}
-	return resp.Body, nil
+	return &hc
 }
 
 // doError drops the transport's URL: after a redirect it is a signed blob URL with credentials in its query.
