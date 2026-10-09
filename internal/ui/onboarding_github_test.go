@@ -26,7 +26,7 @@ func TestOnboardGitHubAddress(t *testing.T) {
 	e := newObEnv()
 	e.probeKind = forge.KindGitHub
 	o := e.toGitHub(t)
-	if o.addr.Value() != "https://github.com" || !strings.Contains(obView(o), "Address of your GitHub server") {
+	if o.addr.Value() != "https://github.com" || !strings.Contains(obView(o), "Press enter for github.com.") {
 		t.Fatalf("prefill %q:\n%s", o.addr.Value(), obView(o))
 	}
 	o, _ = obKeys(o, "enter")
