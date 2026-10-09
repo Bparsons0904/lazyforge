@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/url"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
 )
@@ -108,4 +109,10 @@ type Labeler interface {
 	ListLabels(context.Context, domain.RepoRef) ([]domain.Label, error)
 	ItemLabels(context.Context, ItemRef) ([]domain.Label, error)
 	SetLabels(context.Context, ItemRef, []int64) ([]domain.Label, error)
+}
+
+// AssetReader is implemented by adapters that can open a file the host serves for a body, such as an attachment.
+type AssetReader interface {
+	// OpenAsset returns the body of u, which must be on the session's host; the caller closes it.
+	OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error)
 }

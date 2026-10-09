@@ -15,7 +15,7 @@ The details pane showed PR and issue bodies as raw markdown. Renovate bodies are
 - Rendering is synchronous in `syncDetails`, memoized by the details model with one entry (body and width), since only one item is on screen.
 
 ## Consequences
-Renovate bodies read cleanly at 80x24 and links open from the pane. We own a few hundred lines of rendering. Table cells keep inline styling, so links inside a table stay clickable. Images are not drawn; they show as a link (ticket #60 covers more).
+Renovate bodies read cleanly at 80x24 and links open from the pane. We own a few hundred lines of rendering. Table cells keep inline styling, so links inside a table stay clickable. Images draw inline in capable terminals; elsewhere, and while loading or on failure, they stay the `🖼 alt` link ([ADR 0016](0016-inline-images.md)).
 
 ## Alternatives
 - `charm.land/glamour/v2`: about 15 extra modules (chroma, bluemonday and others) for features we don't use; it prints every link's URL after its text with no switch to turn that off, emits its own padding, and cannot drop HTML comments without a pre-pass.

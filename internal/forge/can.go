@@ -19,6 +19,7 @@ const (
 	ActRuns
 	ActLogs
 	ActLabels
+	ActAssets
 )
 
 // Availability says whether an action is allowed and, if not, why.
@@ -61,6 +62,8 @@ func hasCapability(f Forge, a Action) bool {
 		_, ok = f.(RunLister)
 	case ActLogs:
 		_, ok = f.(LogReader)
+	case ActAssets:
+		_, ok = f.(AssetReader)
 	default:
 		ok = true
 	}

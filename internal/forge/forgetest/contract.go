@@ -3,7 +3,12 @@ package forgetest
 import (
 	"context"
 	"errors"
+	"image"
+	_ "image/png" // registers the decoder the asset case checks the body with
+	"net"
+	"net/url"
 	"slices"
+	"strconv"
 	"testing"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
@@ -17,6 +22,7 @@ type Fixture struct {
 	OpenCRHead string         // OpenCR's head SHA
 	OpenIssue  int            // an open issue in Repo
 	Missing    int            // a number that is neither an issue nor a change request in Repo
+	Asset      string         // an on-host path from the host root that serves a PNG
 }
 
 // RunContract runs the behavior every adapter must share; newForge must return a fresh forge per call.
@@ -130,6 +136,66 @@ func RunContract(t *testing.T, newForge func(t *testing.T) (forge.Forge, Fixture
 				}
 			}
 		}},
+		{"OpenAsset decodes the fixture asset", func(t *testing.T, f forge.Forge, fx Fixture) {
+			ar, base := assetReader(t, f)
+			rc, err := ar.OpenAsset(ctx, onHost(base, fx.Asset))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = rc.Close() }()
+			cfg, format, err := image.DecodeConfig(rc)
+			if err != nil {
+				t.Fatalf("asset does not decode as an image: %v", err)
+			}
+			if format != "png" || cfg.Width == 0 || cfg.Height == 0 {
+				t.Errorf("decoded %q %dx%d, want a non-empty png", format, cfg.Width, cfg.Height)
+			}
+		}},
+		{"OpenAsset off the host's origin is ErrUnsupported", func(t *testing.T, f forge.Forge, fx Fixture) {
+			ar, base := assetReader(t, f)
+			port := base.Port()
+			if port == "" {
+				port = map[string]string{"http": "80", "https": "443"}[base.Scheme]
+			}
+			n, err := strconv.Atoi(port)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scheme := "http"
+			if base.Scheme == "http" {
+				scheme = "https"
+			}
+			otherHost := "contract-other.test"
+			if base.Hostname() == otherHost {
+				otherHost = "contract-another.test"
+			}
+			variants := map[string]func(u *url.URL){
+				"hostname": func(u *url.URL) { u.Host = net.JoinHostPort(otherHost, port) },
+				"port":     func(u *url.URL) { u.Host = net.JoinHostPort(base.Hostname(), strconv.Itoa(n+1)) },
+				"scheme":   func(u *url.URL) { u.Scheme = scheme },
+			}
+			for name, mutate := range variants {
+				u := *onHost(base, fx.Asset)
+				mutate(&u)
+				rc, err := ar.OpenAsset(ctx, &u)
+				if err == nil {
+					_ = rc.Close()
+				}
+				if !errors.Is(err, forge.ErrUnsupported) {
+					t.Errorf("%s variant %s: got %v, want ErrUnsupported", name, &u, err)
+				}
+			}
+		}},
+		{"OpenAsset of an unseeded on-host path is ErrNotFound", func(t *testing.T, f forge.Forge, fx Fixture) {
+			ar, base := assetReader(t, f)
+			rc, err := ar.OpenAsset(ctx, onHost(base, fx.Asset+"-missing"))
+			if err == nil {
+				_ = rc.Close()
+			}
+			if !errors.Is(err, forge.ErrNotFound) {
+				t.Errorf("got %v, want ErrNotFound", err)
+			}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -137,4 +203,25 @@ func RunContract(t *testing.T, newForge func(t *testing.T) (forge.Forge, Fixture
 			tt.run(t, f, fx)
 		})
 	}
+}
+
+// onHost returns base with its path replaced by p; url.URL.JoinPath drops the leading slash when base has no path.
+func onHost(base *url.URL, p string) *url.URL {
+	u := *base
+	u.Path = p
+	return &u
+}
+
+// assetReader returns f's AssetReader and its host URL, or skips the case for a forge without the capability.
+func assetReader(t *testing.T, f forge.Forge) (forge.AssetReader, *url.URL) {
+	t.Helper()
+	ar, ok := f.(forge.AssetReader)
+	if !ok {
+		t.Skip("forge is not a forge.AssetReader")
+	}
+	base, err := url.Parse(f.Info().URL)
+	if err != nil || base.Host == "" {
+		t.Fatalf("host URL %q is not absolute: %v", f.Info().URL, err)
+	}
+	return ar, base
 }

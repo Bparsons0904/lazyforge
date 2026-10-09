@@ -108,6 +108,7 @@ type Labeler interface {
     ItemLabels(ctx context.Context, item ItemRef) ([]domain.Label, error)
     SetLabels(ctx context.Context, item ItemRef, ids []int64) ([]domain.Label, error)
 }
+type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error) }
 ```
 
 `forge.Can(f, action, repo)` answers whether the UI should enable an action. It checks the capability interface, then `f.Gate`, then `repo.Access`, and the first failure supplies the user-facing `Reason`. `forgetest.Fake` and `forgetest.RunContract` give core and every adapter a shared fake and behavior suite.
@@ -182,7 +183,8 @@ renovate_user = "renovate[bot]"
 
 See [ADR 0007](adr/0007-core-cache-and-concurrency.md).
 
-- `core.Service` wraps the session's one `Forge` and holds an in-memory cache keyed by `core.Key{Kind, Repo, Number}`. Entries never expire on their own.
+- `core.Service` wraps the session's one `Forge` and holds an in-memory cache keyed by `core.Key{Kind, Repo, Number}`. Entries never expire on their own, except for the image cache below.
+- Images have a separate 16-entry LRU of decoded images and failures, cleared by `r` and not by the five-minute timer. This is the one exception to "entries never expire" ([ADR 0016](adr/0016-inline-images.md)).
 - Each read has a `Peek…` form (cached value and fetch time, no I/O) and a fetching form that calls the forge and stores the result. A failed fetch keeps the old entry.
 - A semaphore (4 by default) bounds forge calls across all methods. Waiting for a slot honors `ctx`.
 - The UI renders from `Peek…` immediately, then issues the fetching call in a `tea.Cmd`. `r` and a five-minute background timer in the UI trigger refetches ([design.md](design.md#decided)); the UI also owns cancellation and drops stale results.

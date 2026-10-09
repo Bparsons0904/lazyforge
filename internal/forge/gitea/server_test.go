@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest"
 )
 
 const (
@@ -129,6 +131,11 @@ func newServer(t testing.TB) *server {
 	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/actions/jobs/{id}/logs", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		_, _ = w.Write(readFixture(t, "actions/job_log.txt"))
+	})
+
+	mux.HandleFunc("GET /attachments/contract", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(forgetest.DemoPNG)
 	})
 
 	s.Server = httptest.NewServer(s.wrap(mux))

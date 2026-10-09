@@ -1,4 +1,4 @@
-// Package core holds forge-agnostic logic: the cache, refresh plumbing, mutations and coverage tracking; it imports only forge, domain and core/renovate.
+// Package core holds forge-agnostic logic: the cache, refresh plumbing, mutations, coverage tracking and the image cache; it imports only forge, domain and core/renovate.
 package core
 
 import (
@@ -54,8 +54,9 @@ type Service struct {
 	greenOnly func(domain.RepoRef) bool
 	renovUser string
 
-	mu    sync.Mutex
-	cache map[Key]entry
+	mu     sync.Mutex
+	cache  map[Key]entry
+	images *imageCache
 }
 
 // New returns a Service over f.
@@ -73,6 +74,7 @@ func New(f forge.Forge, opts Options) *Service {
 		greenOnly: opts.RequireGreenCI,
 		renovUser: opts.RenovateUser,
 		cache:     map[Key]entry{},
+		images:    newImageCache(),
 	}
 }
 

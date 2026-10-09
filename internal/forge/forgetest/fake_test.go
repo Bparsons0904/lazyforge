@@ -33,10 +33,13 @@ const (
 	closedIs = 11
 	runID    = 100
 	jobID    = 200
+
+	contractAsset = "/attachments/contract"
 )
 
 func seeded() *forgetest.Fake {
-	f := forgetest.NewFake(forge.HostInfo{Kind: forge.KindForgejo, User: "bob", ChangeRequestTerm: "PR"})
+	f := forgetest.NewFake(forge.HostInfo{Kind: forge.KindForgejo, URL: "https://fake.test", User: "bob", ChangeRequestTerm: "PR"})
+	f.AddAsset(contractAsset, forgetest.DemoPNG)
 	f.AddRepo(domain.Repo{RepoRef: repoRef, LastActivity: t0})
 	f.AddRepo(domain.Repo{RepoRef: otherRef, LastActivity: t0.Add(time.Hour)})
 	f.AddRepo(domain.Repo{RepoRef: domain.RepoRef{Owner: "owner", Name: "old"}, LastActivity: t0.Add(-time.Hour)})
@@ -53,7 +56,7 @@ func seeded() *forgetest.Fake {
 func TestContract(t *testing.T) {
 	forgetest.RunContract(t, func(*testing.T) (forge.Forge, forgetest.Fixture) {
 		return seeded(), forgetest.Fixture{
-			Repo: repoRef, OpenCR: openCR, OpenCRHead: "abc", OpenIssue: openIss, Missing: 999,
+			Repo: repoRef, OpenCR: openCR, OpenCRHead: "abc", OpenIssue: openIss, Missing: 999, Asset: contractAsset,
 		}
 	})
 }

@@ -183,6 +183,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.showHelp = true
 		return nil
 	case key.Matches(msg, k.Refresh):
+		m.svc.ClearImages()
 		return m.refresh()
 	}
 	if m.level != levelRepos {

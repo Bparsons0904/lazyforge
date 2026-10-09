@@ -49,7 +49,7 @@ func newForge(ctx context.Context, t *testing.T) (*gitea.Forge, *server) {
 func TestContract(t *testing.T) {
 	forgetest.RunContract(t, func(t *testing.T) (forge.Forge, forgetest.Fixture) {
 		f, _ := newForge(t.Context(), t)
-		return f, forgetest.Fixture{Repo: lazyforge, OpenCR: 18, OpenCRHead: openHead, OpenIssue: 17, Missing: 9999}
+		return f, forgetest.Fixture{Repo: lazyforge, OpenCR: 18, OpenCRHead: openHead, OpenIssue: 17, Missing: 9999, Asset: "/attachments/contract"}
 	})
 }
 

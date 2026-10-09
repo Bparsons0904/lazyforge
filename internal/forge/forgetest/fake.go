@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	_ forge.Forge     = (*Fake)(nil)
-	_ forge.Approver  = (*Fake)(nil)
-	_ forge.RunLister = (*Fake)(nil)
-	_ forge.LogReader = (*Fake)(nil)
+	_ forge.Forge       = (*Fake)(nil)
+	_ forge.Approver    = (*Fake)(nil)
+	_ forge.RunLister   = (*Fake)(nil)
+	_ forge.LogReader   = (*Fake)(nil)
+	_ forge.AssetReader = (*Fake)(nil)
 )
 
 // Mutation records one state-changing call; Op is merge, approve, close, comment or edit-issue-body.
@@ -44,6 +45,7 @@ type Fake struct {
 	jobs      map[int64][]domain.Job
 	logs      map[int64]string
 	comments  map[forge.ItemRef][]domain.Comment
+	assets    map[string][]byte
 	gates     map[forge.Action]error
 	failNext  error
 	mutations []Mutation
@@ -63,6 +65,7 @@ func NewFake(info forge.HostInfo) *Fake {
 		jobs:     map[int64][]domain.Job{},
 		logs:     map[int64]string{},
 		comments: map[forge.ItemRef][]domain.Comment{},
+		assets:   map[string][]byte{},
 		gates:    map[forge.Action]error{},
 	}
 }
