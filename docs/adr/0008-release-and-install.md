@@ -1,6 +1,6 @@
 # 0008. Plain-Go release builds and a curl install script
 
-- Status: accepted
+- Status: accepted; release job order amended by [0015](0015-ci-caching-and-release-pipeline.md)
 - Date: 2026-10-02
 - Decided by: Opus (second opinion: none)
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # End-to-end test of install.sh against a local fake release server.
-# TEST_INSTALL_REUSE_DIST=1 skips `make release` and reuses an existing dist/.
+# TEST_INSTALL_REUSE_DIST=1 skips `make release` and reuses an existing dist/, which must
+# have been built with VERSION=$TEST_INSTALL_VERSION (default v0.0.0-test).
 # shellcheck disable=SC2329 # case_* functions are invoked by name from run_case
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-VERSION=v0.0.0-test
+VERSION=${TEST_INSTALL_VERSION:-v0.0.0-test}
 BAD_VERSION=v0.0.0-bad
 NOLINE_VERSION=v0.0.0-noline
 REPO=deadstyle/lazyforge

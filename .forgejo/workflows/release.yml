@@ -3,49 +3,43 @@ name: release
 on:
   push:
     tags: ["v*"]
+  # Dry run: builds and verifies the archives under the given version, never publishes.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to stamp into the dry-run archives
+        default: v0.0.0-dryrun
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-
       - name: Require a tag on main
+        if: github.event_name == 'push'
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
 
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
-
-      # Pinned: the runner's apt shellcheck is older and flags SC2317 on
-      # indirectly invoked functions. Bump together with the local tool.
-      - name: Install shellcheck
-        env:
-          SHELLCHECK_VERSION: v0.11.0
-        run: |
-          SUDO=""
-          [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null && SUDO=sudo
-          command -v xz >/dev/null || { $SUDO apt-get update && $SUDO apt-get install -y xz-utils; }
-          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
-            | $SUDO tar -xJ -C /usr/local/bin --strip-components=1 "shellcheck-${SHELLCHECK_VERSION}/shellcheck"
-          shellcheck --version
-
-      - name: make check
-        run: |
-          export PATH="$(go env GOPATH)/bin:$PATH"
-          make check
+      - uses: ./.forgejo/actions/setup
 
       - name: make release
-        run: make release VERSION="$GITHUB_REF_NAME"
+        run: make release VERSION="$RELEASE_VERSION"
+
+      # Reusing these archives means the ones published are the ones the installer tests verified.
+      - name: make check
+        env:
+          TEST_INSTALL_REUSE_DIST: "1"
+          TEST_INSTALL_VERSION: ${{ env.RELEASE_VERSION }}
+        run: make check
 
       - name: Publish
+        if: github.event_name == 'push'
         env:
           FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           FORGEJO_URL: ${{ github.server_url }}
           FORGEJO_REPO: ${{ github.repository }}
-        run: scripts/publish-release.sh "$GITHUB_REF_NAME"
+        run: scripts/publish-release.sh "$RELEASE_VERSION"

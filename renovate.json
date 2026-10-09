@@ -28,8 +28,8 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "golangci-lint is installed with go install in the CI and release workflows, not declared in go.mod. Patterns are wrapped in slashes because a bare string is a glob.",
-      "managerFilePatterns": ["/^\\.forgejo/workflows/[^/]+\\.ya?ml$/"],
+      "description": "golangci-lint is go-installed by the CI setup action rather than declared in go.mod; patterns are slash-wrapped because a bare string is a glob.",
+      "managerFilePatterns": ["/^\\.forgejo/(workflows|actions)/.+\\.ya?ml$/"],
       "matchStrings": [
         "golangci-lint/v2/cmd/golangci-lint@v(?<currentValue>[0-9.]+)"
       ],
@@ -47,8 +47,8 @@
     },
     {
       "customType": "regex",
-      "description": "shellcheck is downloaded from its GitHub release in the CI and release workflows",
-      "managerFilePatterns": ["/^\\.forgejo/workflows/[^/]+\\.ya?ml$/"],
+      "description": "shellcheck is downloaded from its GitHub release by the CI setup action; a bump also needs SHELLCHECK_SHA256 updated",
+      "managerFilePatterns": ["/^\\.forgejo/(workflows|actions)/.+\\.ya?ml$/"],
       "matchStrings": ["SHELLCHECK_VERSION: (?<currentValue>v[0-9.]+)"],
       "depNameTemplate": "koalaman/shellcheck",
       "datasourceTemplate": "github-releases"

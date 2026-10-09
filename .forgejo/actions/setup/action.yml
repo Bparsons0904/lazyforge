@@ -1,0 +1,87 @@
+name: setup
+description: Go, the pinned linters and the Go module/build cache. Restores caches only; ci.yml saves them from trusted pushes.
+
+outputs:
+  tools-key:
+    value: ${{ steps.keys.outputs.tools }}
+  tools-hit:
+    value: ${{ steps.tools.outputs.cache-hit }}
+  go-key:
+    value: ${{ steps.keys.outputs.go }}
+  go-hit:
+    value: ${{ steps.go.outputs.cache-hit }}
+
+runs:
+  using: composite
+  steps:
+    # Keys are lowercase: the cache server matches keys case-insensitively, and setup-go's
+    # case-sensitive check then re-saved the whole ~470 MB cache on every run.
+    - id: keys
+      shell: bash
+      env:
+        GOLANGCI_LINT_VERSION: golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+        SHELLCHECK_VERSION: v0.11.0
+      run: |
+        go=$(sed -n 's/^go //p' go.mod)
+        lint=${GOLANGCI_LINT_VERSION##*@}
+        {
+          # The action's own hash: changing the install recipe must not reuse tools built by the old one.
+          echo "tools=tools-linux-x64-go$go-golangci-lint-$lint-shellcheck-$SHELLCHECK_VERSION-${{ hashFiles('.forgejo/actions/setup/action.yml') }}"
+          # The week rotates the build cache so it doesn't drift far from the current tree.
+          echo "go=go-linux-x64-go$go-${{ hashFiles('go.sum') }}-$(date -u +%G-w%V)"
+          echo "go-prefix=go-linux-x64-go$go-"
+        } >>"$GITHUB_OUTPUT"
+        echo "$HOME/.local/lazyforge-tools" >>"$GITHUB_PATH"
+        echo "GOLANGCI_LINT_VERSION=$GOLANGCI_LINT_VERSION" >>"$GITHUB_ENV"
+        echo "SHELLCHECK_VERSION=$SHELLCHECK_VERSION" >>"$GITHUB_ENV"
+
+    # The Go toolchain is cached with the linters so setup-go finds it instead of downloading it.
+    - id: tools
+      uses: actions/cache/restore@v6
+      with:
+        path: |
+          /opt/hostedtoolcache/go
+          ~/.local/lazyforge-tools
+        key: ${{ steps.keys.outputs.tools }}
+
+    - uses: actions/setup-go@v7
+      with:
+        go-version-file: go.mod
+        cache: false
+
+    - id: go
+      uses: actions/cache/restore@v6
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+          ~/.cache/golangci-lint
+        key: ${{ steps.keys.outputs.go }}
+        restore-keys: ${{ steps.keys.outputs.go-prefix }}
+
+    # Pinned: the runner's apt shellcheck is older and flags SC2317 on
+    # indirectly invoked functions. Bump together with the local tool.
+    - name: Install tools
+      if: steps.tools.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+      run: |
+        set -euo pipefail
+        dir="$HOME/.local/lazyforge-tools"
+        mkdir -p "$dir"
+        GOBIN="$dir" go install "github.com/$GOLANGCI_LINT_VERSION"
+        SUDO=""
+        [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null && SUDO=sudo
+        command -v xz >/dev/null || { $SUDO apt-get update && $SUDO apt-get install -y xz-utils; }
+        archive=$(mktemp)
+        curl -fsSL -o "$archive" "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.xz"
+        echo "$SHELLCHECK_SHA256  $archive" | sha256sum -c - ||
+          { echo "shellcheck $SHELLCHECK_VERSION: update SHELLCHECK_SHA256 alongside the version" >&2; exit 1; }
+        tar -xJf "$archive" -C "$dir" --strip-components=1 "shellcheck-${SHELLCHECK_VERSION}/shellcheck"
+        rm -f "$archive"
+
+    - shell: bash
+      run: |
+        golangci-lint version
+        shellcheck --version | sed -n 2p
