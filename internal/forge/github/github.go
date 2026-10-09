@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	pageSize    = "100"        // GitHub's max per_page
-	apiVersion  = "2022-11-28" // pinned so a new REST version can't change shapes under us
-	etagCap     = 1000
-	etagBytes   = 32 << 20
-	etagMaxBody = 1 << 20
+	pageSize     = "100"        // GitHub's max per_page
+	apiVersion   = "2022-11-28" // pinned so a new REST version can't change shapes under us
+	etagCap      = 1000
+	etagBytes    = 32 << 20
+	etagMaxBody  = 1 << 20
+	maxRedirects = 10 // net/http's limit for a client with no CheckRedirect
 )
 
 // Forge is safe for concurrent use; only its ETag cache changes after New.
@@ -39,8 +40,11 @@ type Forge struct {
 }
 
 var (
-	_ forge.Forge    = (*Forge)(nil)
-	_ forge.Approver = (*Forge)(nil)
+	_ forge.Forge     = (*Forge)(nil)
+	_ forge.Approver  = (*Forge)(nil)
+	_ forge.RunLister = (*Forge)(nil)
+	_ forge.LogReader = (*Forge)(nil)
+	_ forge.Labeler   = (*Forge)(nil)
 )
 
 // New takes webURL as the web root, not the API base, and reads the token's user up front,
@@ -137,26 +141,9 @@ func (f *Forge) url(path string, q url.Values) string {
 // send returns the response only on a 2xx status; the caller closes its body.
 // A GET carries If-None-Match when the cache holds the URL, and a 304 is answered from the cache as a 200.
 func (f *Forge) send(ctx context.Context, method, rawURL string, body any) (*http.Response, error) {
-	label := method + " " + strings.TrimPrefix(strings.SplitN(rawURL, "?", 2)[0], f.api)
-	var rd io.Reader
-	if body != nil {
-		b, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", label, err)
-		}
-		rd = bytes.NewReader(b)
-	}
-	req, err := http.NewRequestWithContext(ctx, method, rawURL, rd)
+	req, op, err := f.request(ctx, method, rawURL, body)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", label, err)
-	}
-	if f.token != "" {
-		req.Header.Set("Authorization", "Bearer "+f.token)
-	}
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", apiVersion)
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+		return nil, err
 	}
 	cached, haveCached := cachedEntry{}, false
 	if method == http.MethodGet {
@@ -166,7 +153,7 @@ func (f *Forge) send(ctx context.Context, method, rawURL string, body any) (*htt
 	}
 	resp, err := f.hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", label, err)
+		return nil, doError(op, err)
 	}
 	switch {
 	case resp.StatusCode == http.StatusNotModified && haveCached:
@@ -182,13 +169,87 @@ func (f *Forge) send(ctx context.Context, method, rawURL string, body any) (*htt
 		b, err := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("%s: read: %w", label, err)
+			return nil, fmt.Errorf("%s: read: %w", op, err)
 		}
 		f.etags.put(rawURL, cachedEntry{etag: resp.Header.Get("ETag"), link: resp.Header.Get("Link"), body: b})
 		resp.Body = io.NopCloser(bytes.NewReader(b))
 		return resp, nil
-	case resp.StatusCode < 300:
-		return resp, nil
+	}
+	if err := checkStatus(op, resp); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// stream skips the ETag cache so a large body is never buffered, and drops the token on any redirect
+// off the API origin, since Go's own rule forwards it to subdomains and other ports.
+func (f *Forge) stream(ctx context.Context, rawURL string) (io.ReadCloser, error) {
+	req, op, err := f.request(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	base, err := url.Parse(f.api)
+	if err != nil {
+		return nil, fmt.Errorf("%s: parse API base: %w", op, err)
+	}
+	hc := *f.hc
+	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxRedirects {
+			return fmt.Errorf("stopped after %d redirects", maxRedirects)
+		}
+		if !forge.SameOrigin(req.URL, base) {
+			req.Header.Del("Authorization")
+		}
+		return nil
+	}
+	resp, err := hc.Do(req)
+	if err != nil {
+		return nil, doError(op, err)
+	}
+	if err := checkStatus(op, resp); err != nil {
+		return nil, err
+	}
+	return resp.Body, nil
+}
+
+// doError drops the transport's URL: after a redirect it is a signed blob URL with credentials in its query.
+func doError(op string, err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		err = ue.Err
+	}
+	return fmt.Errorf("%s: %w", op, err)
+}
+
+func (f *Forge) request(ctx context.Context, method, rawURL string, body any) (*http.Request, string, error) {
+	op := method + " " + strings.TrimPrefix(strings.SplitN(rawURL, "?", 2)[0], f.api)
+	var rd io.Reader
+	if body != nil {
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, op, fmt.Errorf("%s: %w", op, err)
+		}
+		rd = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, rawURL, rd)
+	if err != nil {
+		return nil, op, fmt.Errorf("%s: %w", op, err)
+	}
+	if f.token != "" {
+		req.Header.Set("Authorization", "Bearer "+f.token)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", apiVersion)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, op, nil
+}
+
+// checkStatus closes the body of a non-2xx response and returns its mapped error.
+func checkStatus(op string, resp *http.Response) error {
+	if resp.StatusCode < 300 {
+		return nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 	var apiErr struct {
@@ -196,7 +257,7 @@ func (f *Forge) send(ctx context.Context, method, rawURL string, body any) (*htt
 		Errors  []json.RawMessage `json:"errors"`
 	}
 	_ = json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&apiErr)
-	return nil, statusError(label, resp.StatusCode, resp.Header, errorMessage(apiErr.Message, apiErr.Errors))
+	return statusError(op, resp.StatusCode, resp.Header, errorMessage(apiErr.Message, apiErr.Errors))
 }
 
 // errorMessage keeps GitHub's per-field errors because they carry the real reason on a 422 ("Validation Failed").
@@ -217,7 +278,7 @@ func errorMessage(msg string, details []json.RawMessage) string {
 	return strings.Join(parts, ": ")
 }
 
-func statusError(label string, code int, h http.Header, msg string) error {
+func statusError(op string, code int, h http.Header, msg string) error {
 	var sentinel error
 	switch {
 	case code == http.StatusUnauthorized:
@@ -232,14 +293,14 @@ func statusError(label string, code int, h http.Header, msg string) error {
 	case code == http.StatusTooManyRequests:
 		sentinel = forge.ErrRateLimited
 	// The merge endpoint's 409 means the sha we sent is no longer the head; elsewhere 409 is a plain refusal.
-	case code == http.StatusConflict && strings.HasSuffix(label, "/merge"):
+	case code == http.StatusConflict && strings.HasSuffix(op, "/merge"):
 		sentinel = forge.ErrHeadChanged
 	case code == http.StatusMethodNotAllowed || code == http.StatusUnprocessableEntity || code == http.StatusConflict:
-		return fmt.Errorf("%s: %w: %s", label, forge.ErrRefused, msg)
+		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
 	default:
-		return fmt.Errorf("%s: %d: %s", label, code, msg)
+		return fmt.Errorf("%s: %d: %s", op, code, msg)
 	}
-	return fmt.Errorf("%s: %w", label, sentinel)
+	return fmt.Errorf("%s: %w", op, sentinel)
 }
 
 // call discards the body when out is nil.

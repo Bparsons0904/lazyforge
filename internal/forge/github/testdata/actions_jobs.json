@@ -1,0 +1,86 @@
+{
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 113860997440,
+      "run_id": 37942729045,
+      "workflow_name": "Unit and Integration Tests",
+      "head_branch": "trunk",
+      "run_url": "https://api.github.com/repos/cli/cli/actions/runs/37942729045",
+      "run_attempt": 1,
+      "node_id": "CR_kwDODKw3uc8AAAAagqTxQA",
+      "head_sha": "afbc62c9cdf7bb15c8aab1c6198cd6531108d44b",
+      "url": "https://api.github.com/repos/cli/cli/actions/jobs/113860997440",
+      "html_url": "https://github.com/cli/cli/actions/runs/37942729045/job/113860997440",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:14:45Z",
+      "started_at": "2026-10-09T14:14:49Z",
+      "completed_at": "2026-10-09T14:20:05Z",
+      "name": "build (ubuntu-latest)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/cli/cli/check-runs/113860997440",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1020316272,
+      "runner_name": "GitHub Actions 1020316272",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 113860997547,
+      "run_id": 37942729045,
+      "workflow_name": "Unit and Integration Tests",
+      "head_branch": "trunk",
+      "run_url": "https://api.github.com/repos/cli/cli/actions/runs/37942729045",
+      "run_attempt": 1,
+      "node_id": "CR_kwDODKw3uc8AAAAagqTxqw",
+      "head_sha": "afbc62c9cdf7bb15c8aab1c6198cd6531108d44b",
+      "url": "https://api.github.com/repos/cli/cli/actions/jobs/113860997547",
+      "html_url": "https://github.com/cli/cli/actions/runs/37942729045/job/113860997547",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:14:46Z",
+      "started_at": "2026-10-09T14:14:48Z",
+      "completed_at": "2026-10-09T14:24:27Z",
+      "name": "build (windows-latest)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/cli/cli/check-runs/113860997547",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1020316271,
+      "runner_name": "GitHub Actions 1020316271",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 113860997171,
+      "run_id": 37942729045,
+      "workflow_name": "Unit and Integration Tests",
+      "head_branch": "trunk",
+      "run_url": "https://api.github.com/repos/cli/cli/actions/runs/37942729045",
+      "run_attempt": 1,
+      "node_id": "CR_kwDODKw3uc8AAAAagqTwMw",
+      "head_sha": "afbc62c9cdf7bb15c8aab1c6198cd6531108d44b",
+      "url": "https://api.github.com/repos/cli/cli/actions/jobs/113860997171",
+      "html_url": "https://github.com/cli/cli/actions/runs/37942729045/job/113860997171",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-09T14:14:45Z",
+      "started_at": "2026-10-09T14:14:48Z",
+      "completed_at": "2026-10-09T14:17:35Z",
+      "name": "integration-tests (windows-latest)",
+      "steps": [],
+      "check_run_url": "https://api.github.com/repos/cli/cli/check-runs/113860997171",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1020316270,
+      "runner_name": "GitHub Actions 1020316270",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}

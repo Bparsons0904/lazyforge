@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -71,6 +72,49 @@ type server struct {
 	comments map[int][]obj
 	nextID   int
 	ciStatus map[string]int // head SHA → status both CI endpoints answer with instead of their fixture
+	labels   []obj
+	itemLbls map[int][]obj
+	logs     *logHost
+	// job ID → where its log endpoint redirects
+	logRedirects map[string]string
+}
+
+// redirectLog makes the log endpoint for job id redirect to loc.
+func (s *server) redirectLog(id int64, loc string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.logRedirects[strconv.FormatInt(id, 10)] = loc
+}
+
+// fixture reads a fixture from a handler goroutine, where t.Fatal is not allowed: it records the
+// failure and answers 500 instead.
+func (s *server) fixture(w http.ResponseWriter, name string) ([]byte, bool) {
+	b, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		s.t.Errorf("%s: %v", name, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil, false
+	}
+	return b, true
+}
+
+func (s *server) writeFixture(w http.ResponseWriter, status int, name string) {
+	if b, ok := s.fixture(w, name); ok {
+		writeRaw(w, status, b)
+	}
+}
+
+func (s *server) decodeFixture(w http.ResponseWriter, name string, v any) bool {
+	b, ok := s.fixture(w, name)
+	if !ok {
+		return false
+	}
+	if err := json.Unmarshal(b, v); err != nil {
+		s.t.Errorf("%s: %v", name, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return false
+	}
+	return true
 }
 
 const (
@@ -89,15 +133,19 @@ func newServer(t testing.TB) *server {
 		issues:   loadList(t, "issues_open.json"),
 		comments: map[int][]obj{openIssue: loadList(t, "issue_comments.json")},
 		nextID:   1000,
+		labels:   loadList(t, "labels.json"),
+		itemLbls: map[int][]obj{openIssue: loadList(t, "issue_labels.json")},
+		logs:     newLogHost(t),
 	}
+	s.logRedirects = map[string]string{strconv.FormatInt(logJob, 10): s.logs.signedURL()}
 
 	mux := http.NewServeMux()
 	const p = apiPrefix
 	mux.HandleFunc("GET "+p+"/meta", func(w http.ResponseWriter, _ *http.Request) {
-		writeRaw(w, 200, readFixture(t, "meta_ghes.json"))
+		s.writeFixture(w, 200, "meta_ghes.json")
 	})
 	mux.HandleFunc("GET "+p+"/user", func(w http.ResponseWriter, _ *http.Request) {
-		writeRaw(w, 200, readFixture(t, "user.json"))
+		s.writeFixture(w, 200, "user.json")
 	})
 	mux.HandleFunc("GET "+p+"/user/repos", func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
@@ -123,10 +171,8 @@ func newServer(t testing.TB) *server {
 		var body struct {
 			CheckRuns []obj `json:"check_runs"`
 		}
-		if r.PathValue("ref") == openHead {
-			if err := json.Unmarshal(readFixture(t, "check_runs.json"), &body); err != nil {
-				t.Fatal(err)
-			}
+		if r.PathValue("ref") == openHead && !s.decodeFixture(w, "check_runs.json", &body) {
+			return
 		}
 		lo, hi := s.pageBounds(w, r, len(body.CheckRuns))
 		writeJSON(w, 200, obj{"total_count": len(body.CheckRuns), "check_runs": append([]obj{}, body.CheckRuns[lo:hi]...)})
@@ -139,11 +185,49 @@ func newServer(t testing.TB) *server {
 		if r.PathValue("ref") == failingHead {
 			name = "status_failure.json"
 		}
-		writeRaw(w, 200, readFixture(t, name))
+		s.writeFixture(w, 200, name)
 	})
 	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/releases", func(w http.ResponseWriter, r *http.Request) {
-		s.pageList(w, r, loadList(t, "releases.json"))
+		var releases []obj
+		if s.decodeFixture(w, "releases.json", &releases) {
+			s.pageList(w, r, releases)
+		}
 	})
+
+	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/actions/runs", s.listRuns)
+	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/actions/runs/{id}/jobs", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Jobs []obj `json:"jobs"`
+		}
+		if r.PathValue("id") == strconv.FormatInt(jobsRun, 10) && !s.decodeFixture(w, "actions_jobs.json", &body) {
+			return
+		}
+		lo, hi := s.pageBounds(w, r, len(body.Jobs))
+		writeJSON(w, 200, obj{"total_count": len(body.Jobs), "jobs": append([]obj{}, body.Jobs[lo:hi]...)})
+	})
+	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/actions/jobs/{id}/logs", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		loc, ok := s.logRedirects[r.PathValue("id")]
+		s.mu.Unlock()
+		if !ok {
+			s.notFound(w)
+			return
+		}
+		w.Header().Set("Location", loc)
+		w.WriteHeader(http.StatusFound)
+	})
+	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/labels", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.pageList(w, r, s.labels)
+	})
+	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/issues/{index}/labels", func(w http.ResponseWriter, r *http.Request) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		idx, _ := strconv.Atoi(r.PathValue("index"))
+		s.pageList(w, r, s.itemLbls[idx])
+	})
+	mux.HandleFunc("PUT "+p+"/repos/{owner}/{repo}/issues/{index}/labels", s.setLabels)
 
 	s.Server = httptest.NewServer(s.wrap(mux))
 	t.Cleanup(s.Close)
@@ -276,7 +360,7 @@ func (s *server) ciFails(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (s *server) notFound(w http.ResponseWriter) {
-	writeRaw(w, 404, readFixture(s.t, "error_404.json"))
+	s.writeFixture(w, 404, "error_404.json")
 }
 
 func (s *server) isCLI(r *http.Request) bool {
@@ -328,13 +412,13 @@ func (s *server) mergePull(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if pr["state"] != "open" {
-		writeRaw(w, 405, readFixture(s.t, "merge_405.json"))
+		s.writeFixture(w, 405, "merge_405.json")
 		return
 	}
 	var body obj
 	_ = json.NewDecoder(r.Body).Decode(&body)
 	if sha, ok := body["sha"]; ok && sha != pr["head"].(obj)["sha"] {
-		writeRaw(w, 409, readFixture(s.t, "merge_409.json"))
+		s.writeFixture(w, 409, "merge_409.json")
 		return
 	}
 	pr["state"], pr["merged_at"] = "closed", time.Now().UTC().Format(time.RFC3339)
@@ -418,6 +502,111 @@ func (s *server) postComment(w http.ResponseWriter, r *http.Request) {
 	c := obj{"id": s.nextID, "body": body["body"], "user": obj{"login": "Bparsons0904"}, "created_at": "2026-10-09T12:00:00Z"}
 	s.comments[idx] = append(s.comments[idx], c)
 	writeJSON(w, 201, c)
+}
+
+const (
+	jobsRun = 37942729045  // the run actions_jobs.json was recorded from
+	logJob  = 113875256467 // the job job_log.txt was recorded from
+)
+
+// listRuns filters on branch and head_sha as GitHub does. It ignores pageCap and offers a next page from
+// the first, standing in for a busy repo's long history, so a test catches the adapter following it.
+func (s *server) listRuns(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		WorkflowRuns []obj `json:"workflow_runs"`
+	}
+	if !s.decodeFixture(w, "actions_runs.json", &body) {
+		return
+	}
+	q := r.URL.Query()
+	var runs []obj
+	for _, rn := range body.WorkflowRuns {
+		if !s.isCLI(r) || (q.Has("branch") && rn["head_branch"] != q.Get("branch")) || (q.Has("head_sha") && rn["head_sha"] != q.Get("head_sha")) {
+			continue
+		}
+		runs = append(runs, rn)
+	}
+	if !q.Has("page") {
+		q.Set("page", "2")
+		w.Header().Set("Link", `<`+s.URL+r.URL.Path+"?"+q.Encode()+`>; rel="next"`)
+	}
+	writeJSON(w, 200, obj{"total_count": 40000, "workflow_runs": runs})
+}
+
+// setLabels takes names, as GitHub does, and answers 422 for a name the repo doesn't have.
+func (s *server) setLabels(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	idx, _ := strconv.Atoi(r.PathValue("index"))
+	var body struct {
+		Labels []string `json:"labels"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Labels == nil {
+		writeJSON(w, 422, obj{"message": "Invalid request.", "errors": []string{"labels is missing"}})
+		return
+	}
+	set := []obj{}
+	for _, name := range body.Labels {
+		i := slices.IndexFunc(s.labels, func(l obj) bool { return l["name"] == name })
+		if i < 0 {
+			writeJSON(w, 422, obj{"message": "Validation Failed", "errors": []string{"unknown label " + name}})
+			return
+		}
+		set = append(set, s.labels[i])
+	}
+	s.itemLbls[idx] = set
+	writeJSON(w, 200, set)
+}
+
+// logHost stands in for the blob store GitHub's log endpoint redirects to. It listens on "localhost" while
+// the API is on 127.0.0.1, so the redirect crosses hosts, and it sends an ETag as the real store does.
+// It holds the last line back until release, so a test can read the head before the body is complete.
+type logHost struct {
+	*httptest.Server
+	release chan struct{}
+
+	mu   sync.Mutex
+	seen []http.Header
+}
+
+func newLogHost(t testing.TB) *logHost {
+	t.Helper()
+	h := &logHost{release: make(chan struct{})}
+	log := readFixture(t, "job_log.txt")
+	h.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.mu.Lock()
+		h.seen = append(h.seen, r.Header.Clone())
+		h.mu.Unlock()
+		if r.URL.Query().Get("sig") != "signed" {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("ETag", `"0x8DF2614623C6A82"`)
+		_, _ = w.Write(log)
+		w.(http.Flusher).Flush()
+		select {
+		case <-h.release:
+			_, _ = io.WriteString(w, logTail)
+		case <-time.After(2 * time.Second):
+			_, _ = io.WriteString(w, "TIMED OUT: the client buffered the log\n")
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(h.Close)
+	return h
+}
+
+const logTail = "2026-10-09T14:48:28.0000000Z held back until released\n"
+
+func (h *logHost) signedURL() string {
+	return strings.Replace(h.URL, "127.0.0.1", "localhost", 1) + "/actions-results/job-logs.txt?sig=signed"
+}
+
+func (h *logHost) headers() []http.Header {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return slices.Clone(h.seen)
 }
 
 func writeRaw(w http.ResponseWriter, status int, b []byte) {

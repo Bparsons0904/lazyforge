@@ -115,7 +115,7 @@ type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.Read
 
 ## API mapping (first pass)
 
-The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)); its runs, jobs, logs and re-run rows remain unverified until #85, and its changed-files row is unused. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
+The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
@@ -128,9 +128,10 @@ The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1
 | Issues | `GET …/issues?type=issues` | `GET …/issues` (drop items with a `pull_request` key) | `GET /projects/:id/issues` |
 | Edit issue body | `PATCH …/issues/{n}` | `PATCH …/issues/{n}` | `PUT /projects/:id/issues/:iid` |
 | Comment | `POST …/issues/{n}/comments` | `POST …/issues/{n}/comments` | `POST …/notes` |
-| List runs | `GET …/actions/runs` (send `page`, else `limit` is ignored; `ref` needs the full `refs/heads/<branch>` form; total in the body's `total_count`) | `GET …/actions/runs` | `GET /projects/:id/pipelines` |
-| Run jobs | `GET …/actions/runs/{id}/jobs` (bare array) | `GET …/actions/runs/{id}/jobs` | `GET /projects/:id/pipelines/:id/jobs` |
-| Job log | `GET …/actions/jobs/{id}/logs` (job `id`, not `task_id`) | `GET …/actions/jobs/{id}/logs` | `GET /projects/:id/jobs/:id/trace` |
+| Labels | `GET …/labels`; `GET` and `PUT …/issues/{n}/labels` with label IDs | `GET …/labels`; `GET` and `PUT …/issues/{n}/labels` with `{labels: [names]}`, IDs mapped to names through `GET …/labels` | `GET /projects/:id/labels`; `PUT /projects/:id/issues/:iid` with `labels` |
+| List runs | `GET …/actions/runs` (send `page`, else `limit` is ignored; `ref` needs the full `refs/heads/<branch>` form; total in the body's `total_count`) | `GET …/actions/runs` (`branch` takes the bare name; `{total_count, workflow_runs}` body; newest 100 only, `Link` not followed (ADR 0017); status + conclusion folded as check runs) | `GET /projects/:id/pipelines` |
+| Run jobs | `GET …/actions/runs/{id}/jobs` (bare array) | `GET …/actions/runs/{id}/jobs` (`{total_count, jobs}` body, `Link` paging) | `GET /projects/:id/pipelines/:id/jobs` |
+| Job log | `GET …/actions/jobs/{id}/logs` (job `id`, not `task_id`) | `GET …/actions/jobs/{id}/logs` (302 to a signed blob URL on another host; streamed, outside the ETag cache) | `GET /projects/:id/jobs/:id/trace` |
 | Re-run | none on Forgejo 16: no `Rerunner` | `POST …/actions/runs/{id}/rerun` | `POST /projects/:id/pipelines/:id/retry` |
 | Releases | `GET …/releases` | `GET …/releases` | `GET /projects/:id/releases` |
 

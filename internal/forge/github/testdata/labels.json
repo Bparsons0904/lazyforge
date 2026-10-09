@@ -1,0 +1,57 @@
+[
+  {
+    "id": 2341282801,
+    "node_id": "MDU6TGFiZWwyMzQxMjgyODAx",
+    "url": "https://api.github.com/repos/cli/cli/labels/accessibility",
+    "name": "accessibility",
+    "color": "9ce9f4",
+    "default": true,
+    "description": "",
+    "archived_at": null,
+    "archived_by": null
+  },
+  {
+    "id": 2353619469,
+    "node_id": "MDU6TGFiZWwyMzUzNjE5NDY5",
+    "url": "https://api.github.com/repos/cli/cli/labels/actions",
+    "name": "actions",
+    "color": "f9e98b",
+    "default": false,
+    "description": "",
+    "archived_at": null,
+    "archived_by": null
+  },
+  {
+    "id": 11473294086,
+    "node_id": "LA_kwDODKw3uc8AAAACq9yTBg",
+    "url": "https://api.github.com/repos/cli/cli/labels/agentic-workflows",
+    "name": "agentic-workflows",
+    "color": "ededed",
+    "default": false,
+    "description": null,
+    "archived_at": null,
+    "archived_by": null
+  },
+  {
+    "id": 12040824575,
+    "node_id": "LA_kwDODKw3uc8AAAACzbBm_w",
+    "url": "https://api.github.com/repos/cli/cli/labels/attachments",
+    "name": "attachments",
+    "color": "b2fa88",
+    "default": false,
+    "description": "Issues regarding `--attach`",
+    "archived_at": null,
+    "archived_by": null
+  },
+  {
+    "id": 2211231815,
+    "node_id": "MDU6TGFiZWwyMjExMjMxODE1",
+    "url": "https://api.github.com/repos/cli/cli/labels/auth",
+    "name": "auth",
+    "color": "00517a",
+    "default": false,
+    "description": "related to tokens, authentication state, or oauth",
+    "archived_at": null,
+    "archived_by": null
+  }
+]
