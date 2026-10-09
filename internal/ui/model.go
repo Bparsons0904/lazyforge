@@ -387,6 +387,8 @@ func (m *Model) branchesKey(msg tea.KeyPressMsg, gg bool) (tea.Cmd, bool) {
 	page := max(branchRows(max(bodyH-2, 0))/2, 1)
 	was := d.branchCur
 	switch {
+	case key.Matches(msg, k.Right) && n > 0:
+		return m.browseBranch(), true
 	case key.Matches(msg, k.Down):
 		d.branchCur++
 	case key.Matches(msg, k.Up):

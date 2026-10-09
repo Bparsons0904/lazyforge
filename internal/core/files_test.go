@@ -45,7 +45,7 @@ func TestTreeSortsDirectoriesFirstThenByName(t *testing.T) {
 	})
 	s := core.New(f, core.Options{Now: stepClock()})
 
-	got, err := s.Tree(context.Background(), repoA, "")
+	got, err := s.Tree(context.Background(), repoA, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,18 +62,18 @@ func TestTreeCachedPerDirectory(t *testing.T) {
 	f.SetTree(repoA, "src", []domain.TreeEntry{treeFile("main.go", 10)})
 	s := core.New(f, core.Options{Now: stepClock()})
 
-	if _, _, ok := s.PeekTree(repoA, "src"); ok {
+	if _, _, ok := s.PeekTree(repoA, "", "src"); ok {
 		t.Fatal("PeekTree before any fetch reported ok")
 	}
-	if got, err := s.Tree(ctx, repoA, "src"); err != nil || len(got) != 1 {
+	if got, err := s.Tree(ctx, repoA, "", "src"); err != nil || len(got) != 1 {
 		t.Fatalf("Tree(src) = %+v, %v; want one entry and nil", got, err)
 	}
-	if _, _, ok := s.PeekTree(repoA, ""); ok {
+	if _, _, ok := s.PeekTree(repoA, "", ""); ok {
 		t.Error("fetching src left a cache entry for the root")
 	}
 
 	f.FailNext(forge.ErrRateLimited)
-	peek, when, ok := s.PeekTree(repoA, "src")
+	peek, when, ok := s.PeekTree(repoA, "", "src")
 	if !ok || !slices.Equal(treeNames(peek), []string{"main.go"}) {
 		t.Errorf("PeekTree(src) = %+v, ok=%v; want the fetched listing", peek, ok)
 	}
@@ -81,7 +81,7 @@ func TestTreeCachedPerDirectory(t *testing.T) {
 		t.Error("PeekTree returned a zero fetch time")
 	}
 	// PeekTree does no I/O, so the armed failure is still waiting for the next fetch.
-	if _, err := s.Tree(ctx, repoA, "src"); !errors.Is(err, forge.ErrRateLimited) {
+	if _, err := s.Tree(ctx, repoA, "", "src"); !errors.Is(err, forge.ErrRateLimited) {
 		t.Errorf("Tree(src) after PeekTree err = %v, want the armed ErrRateLimited", err)
 	}
 }
@@ -92,34 +92,34 @@ func TestTreeNotFoundIsEmptyAndCached(t *testing.T) {
 	s := core.New(f, core.Options{Now: stepClock()})
 
 	// A directory nothing was seeded for is what the adapter reports as not found: an empty repo, or a directory deleted since it was listed.
-	got, err := s.Tree(ctx, repoA, "gone")
+	got, err := s.Tree(ctx, repoA, "", "gone")
 	if err != nil || len(got) != 0 {
 		t.Fatalf("Tree() for a missing directory = %+v, %v; want empty and nil", got, err)
 	}
-	if _, err := s.Tree(ctx, domain.RepoRef{Owner: "no", Name: "pe"}, ""); err != nil {
+	if _, err := s.Tree(ctx, domain.RepoRef{Owner: "no", Name: "pe"}, "", ""); err != nil {
 		t.Errorf("Tree() for an unknown repo err = %v, want nil", err)
 	}
-	peek, _, ok := s.PeekTree(repoA, "gone")
+	peek, _, ok := s.PeekTree(repoA, "", "gone")
 	if !ok || len(peek) != 0 {
 		t.Errorf("PeekTree() after not-found = %+v, ok=%v; want the empty listing cached", peek, ok)
 	}
 
 	f.FailNext(forge.ErrRateLimited)
 	// Fetches always reach the forge; a failed refetch must not evict the cached empty listing.
-	if _, err := s.Tree(ctx, repoA, "gone"); !errors.Is(err, forge.ErrRateLimited) {
+	if _, err := s.Tree(ctx, repoA, "", "gone"); !errors.Is(err, forge.ErrRateLimited) {
 		t.Errorf("second Tree() err = %v, want the forge to be asked again and fail with ErrRateLimited", err)
 	}
-	if peek, _, ok := s.PeekTree(repoA, "gone"); !ok || len(peek) != 0 {
+	if peek, _, ok := s.PeekTree(repoA, "", "gone"); !ok || len(peek) != 0 {
 		t.Errorf("PeekTree() after a failed refetch = %+v, ok=%v; want the empty listing kept", peek, ok)
 	}
 }
 
 func TestTreeUnsupportedWithoutTreeReader(t *testing.T) {
 	s := core.New(noTrees{seeded()}, core.Options{})
-	if _, err := s.Tree(context.Background(), repoA, ""); !errors.Is(err, forge.ErrUnsupported) {
+	if _, err := s.Tree(context.Background(), repoA, "", ""); !errors.Is(err, forge.ErrUnsupported) {
 		t.Errorf("Tree() err = %v, want ErrUnsupported", err)
 	}
-	if _, _, ok := s.PeekTree(repoA, ""); ok {
+	if _, _, ok := s.PeekTree(repoA, "", ""); ok {
 		t.Error("unsupported Tree left a cache entry")
 	}
 }
@@ -129,7 +129,7 @@ func TestPreviewTooLargeBySizeWithoutReadingTheFile(t *testing.T) {
 	s := core.New(seeded(), core.Options{Now: stepClock()})
 	e := treeFile("big.iso", core.MaxPreviewSize+1)
 
-	got, err := s.Preview(context.Background(), repoA, e)
+	got, err := s.Preview(context.Background(), repoA, "", e)
 	if err != nil || got != (domain.FilePreview{TooLarge: true}) {
 		t.Errorf("Preview() = %+v, %v; want {TooLarge: true} and nil", got, err)
 	}
@@ -141,7 +141,7 @@ func TestPreviewAcceptsExactlyTheCap(t *testing.T) {
 	f.SetFile(repoA, "edge.txt", []byte(strings.Repeat("a", core.MaxPreviewSize)))
 	s := core.New(f, core.Options{Now: stepClock()})
 
-	got, err := s.Preview(ctx, repoA, treeFile("edge.txt", core.MaxPreviewSize))
+	got, err := s.Preview(ctx, repoA, "", treeFile("edge.txt", core.MaxPreviewSize))
 	if err != nil || got.TooLarge || got.Binary || len(got.Text) != core.MaxPreviewSize {
 		t.Errorf("Preview() at the cap: TooLarge=%v Binary=%v len(Text)=%d err=%v; want the whole file as text",
 			got.TooLarge, got.Binary, len(got.Text), err)
@@ -154,7 +154,7 @@ func TestPreviewTooLargeByBodyLength(t *testing.T) {
 	s := core.New(f, core.Options{Now: stepClock()})
 
 	// The listing said one byte, but the body is over the cap, so the body length decides.
-	got, err := s.Preview(context.Background(), repoA, treeFile("grown.txt", 1))
+	got, err := s.Preview(context.Background(), repoA, "", treeFile("grown.txt", 1))
 	if err != nil || !got.TooLarge || got.Binary {
 		t.Errorf("Preview() = %+v, %v; want TooLarge and nil", got, err)
 	}
@@ -174,7 +174,7 @@ func TestPreviewBinaryForNULOrInvalidUTF8(t *testing.T) {
 			f.SetFile(repoA, "blob", tt.body)
 			s := core.New(f, core.Options{Now: stepClock()})
 
-			got, err := s.Preview(context.Background(), repoA, treeFile("blob", int64(len(tt.body))))
+			got, err := s.Preview(context.Background(), repoA, "", treeFile("blob", int64(len(tt.body))))
 			if err != nil || !got.Binary || got.TooLarge {
 				t.Errorf("Preview() = %+v, %v; want Binary and nil", got, err)
 			}
@@ -189,14 +189,14 @@ func TestPreviewTextAndPeekPreview(t *testing.T) {
 	f.SetFile(repoA, "notes.md", []byte(body))
 	s := core.New(f, core.Options{Now: stepClock()})
 
-	if _, _, ok := s.PeekPreview(repoA, "notes.md"); ok {
+	if _, _, ok := s.PeekPreview(repoA, "", "notes.md"); ok {
 		t.Fatal("PeekPreview before any fetch reported ok")
 	}
-	got, err := s.Preview(ctx, repoA, treeFile("notes.md", int64(len(body))))
+	got, err := s.Preview(ctx, repoA, "", treeFile("notes.md", int64(len(body))))
 	if err != nil || got != (domain.FilePreview{Text: body}) {
 		t.Fatalf("Preview() = %+v, %v; want the file as text and nil", got, err)
 	}
-	peek, when, ok := s.PeekPreview(repoA, "notes.md")
+	peek, when, ok := s.PeekPreview(repoA, "", "notes.md")
 	if !ok || peek != got {
 		t.Errorf("PeekPreview() = %+v, ok=%v; want the fetched preview", peek, ok)
 	}
@@ -210,7 +210,7 @@ func TestPreviewZeroByteFileIsEmpty(t *testing.T) {
 	f.SetFile(repoA, "empty.txt", []byte{})
 	s := core.New(f, core.Options{Now: stepClock()})
 
-	got, err := s.Preview(context.Background(), repoA, treeFile("empty.txt", 0))
+	got, err := s.Preview(context.Background(), repoA, "", treeFile("empty.txt", 0))
 	if err != nil || got != (domain.FilePreview{}) {
 		t.Errorf("Preview() of a zero-byte file = %+v, %v; want the zero FilePreview and nil", got, err)
 	}
@@ -219,7 +219,7 @@ func TestPreviewZeroByteFileIsEmpty(t *testing.T) {
 func TestPreviewMissingFileIsNotFound(t *testing.T) {
 	s := core.New(seeded(), core.Options{Now: stepClock()})
 
-	_, err := s.Preview(context.Background(), repoA, treeFile("gone.txt", 5))
+	_, err := s.Preview(context.Background(), repoA, "", treeFile("gone.txt", 5))
 	if !errors.Is(err, forge.ErrNotFound) {
 		t.Errorf("Preview() err = %v, want ErrNotFound", err)
 	}

@@ -26,7 +26,8 @@ type details struct {
 	want   []imageRef
 	// branchCur is the Branches tab's cursor; it is clamped to the list wherever the list changes.
 	branchCur  int
-	branchHL   bool // highlight the cursor; only at the details level
+	branchHL   bool   // highlight the cursor; only at the details level
+	filesRef   string // the branch Files browses; "" is the default branch
 	filesDir   string
 	filesCur   int
 	filesOff   int

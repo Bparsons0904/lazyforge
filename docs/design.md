@@ -81,9 +81,9 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 | `[5]` Releases | Releases and tags | Overview |
 | `[6]` Repo | The repo itself | README · Files · Branches |
 
-The Branches tab lists the repo's branches, the default branch first and then by most recent commit. Each row shows the name, the tip's subject and age, a `default` marker, and `#N` when an open PR comes from that branch. The selected branch's recent commits show below the list. `j`/`k` move the cursor, and `o` opens the branch in the browser. The tab is read-only, with no ahead/behind counts.
+The Branches tab lists the repo's branches, the default branch first and then by most recent commit. Each row shows the name, the tip's subject and age, a `default` marker, and `#N` when an open PR comes from that branch. The selected branch's recent commits show below the list. `j`/`k` move the cursor, `l` or `enter` shows the branch on the Files tab, and `o` opens the branch in the browser. The tab is read-only, with no ahead/behind counts.
 
-The Files tab browses the repo's tree at the default branch, in two columns. The left column is the current directory, directories first and then by name. The right column previews the cursor entry: a directory's names, or a text file's contents. `j`/`k` move the cursor, `l` opens a directory or, on a file, moves into its preview, and `h` goes back out, to the list and then up a directory. `o` opens the cursor entry in the browser. Files over 256 KiB and binary files show a note instead of a preview, and submodules and symlinks show as entries with no preview. The tab is read-only.
+The Files tab browses the repo's tree at the default branch, or at the branch picked on the Branches tab until the repo changes or another branch is picked. A pick starts at the repo root. The breadcrumb ends in `<branch>:<path>`, for example `develop:src/ui`, on every branch, the default branch included. The tree is in two columns. The left column is the current directory, directories first and then by name. The right column previews the cursor entry: a directory's names, or a text file's contents. `j`/`k` move the cursor, `l` opens a directory or, on a file, moves into its preview, and `h` goes back out, to the list and then up a directory. `o` opens the cursor entry on the shown branch in the browser. Files over 256 KiB and binary files show a note instead of a preview, and submodules and symlinks show as entries with no preview. The tab is read-only.
 
 The Releases box lists the repo's releases, newest first by publish date; a release with no date sorts last and shows no age. A draft is marked `draft` and a prerelease `pre-release`. Selecting a release shows its name and notes in the details pane, with the notes rendered as markdown. `o` opens the release in the browser. The box is read-only.
 
@@ -107,7 +107,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 | Key | Action |
 |---|---|
 | `j` / `k` | Move. In the details pane: scroll, or move the cursor on the Branches or Files tab. |
-| `h` / `l` | Back / in. On the Files tab: `l` enters a directory or a file's preview, and `h` leaves the preview, then goes up a directory. |
+| `h` / `l` | Back / in. On the Files tab: `l` enters a directory or a file's preview, and `h` leaves the preview, then goes up a directory. On the Branches tab, `l` shows the cursor branch on the Files tab. |
 | `1`–`6` | Jump to a box (also works from the repo list) |
 | `tab` / `shift-tab` | Next / previous box |
 | `[` / `]` | Previous / next details tab |

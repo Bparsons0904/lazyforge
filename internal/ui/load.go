@@ -62,13 +62,13 @@ type commitsLoadedMsg struct {
 }
 
 type treeLoadedMsg struct {
-	key     core.Key // Kind KindTree, Ref = dir
+	key     core.Key // Kind KindTree, Ref = branch ("" is the default), Path = dir
 	entries []domain.TreeEntry
 	err     error
 }
 
 type previewLoadedMsg struct {
-	key     core.Key // Kind KindPreview, Ref = path
+	key     core.Key // Kind KindPreview, Ref = branch ("" is the default), Path = file path
 	preview domain.FilePreview
 	err     error
 }
@@ -135,17 +135,17 @@ func loadCommits(ctx context.Context, svc *core.Service, r domain.RepoRef, branc
 	}
 }
 
-func loadTree(ctx context.Context, svc *core.Service, r domain.RepoRef, dir string) tea.Cmd {
+func loadTree(ctx context.Context, svc *core.Service, r domain.RepoRef, ref, dir string) tea.Cmd {
 	return func() tea.Msg {
-		es, err := svc.Tree(ctx, r, dir)
-		return treeLoadedMsg{key: core.Key{Kind: core.KindTree, Repo: r, Ref: dir}, entries: es, err: err}
+		es, err := svc.Tree(ctx, r, ref, dir)
+		return treeLoadedMsg{key: core.Key{Kind: core.KindTree, Repo: r, Ref: ref, Path: dir}, entries: es, err: err}
 	}
 }
 
-func loadPreview(ctx context.Context, svc *core.Service, r domain.RepoRef, e domain.TreeEntry) tea.Cmd {
+func loadPreview(ctx context.Context, svc *core.Service, r domain.RepoRef, ref string, e domain.TreeEntry) tea.Cmd {
 	return func() tea.Msg {
-		p, err := svc.Preview(ctx, r, e)
-		return previewLoadedMsg{key: core.Key{Kind: core.KindPreview, Repo: r, Ref: e.Path}, preview: p, err: err}
+		p, err := svc.Preview(ctx, r, ref, e)
+		return previewLoadedMsg{key: core.Key{Kind: core.KindPreview, Repo: r, Ref: ref, Path: e.Path}, preview: p, err: err}
 	}
 }
 
@@ -180,6 +180,7 @@ func (m *Model) selectRepo(cached bool) tea.Cmd {
 	m.boxes.loaded[boxRepo] = true
 	// The cursors must be reset before loadBoxes, which reads them to pick the branch and the entry it fetches for.
 	m.details.branchCur = 0
+	m.details.filesRef = ""
 	m.details.filesDir, m.details.filesCur, m.details.filesOff, m.details.filesFocus = "", 0, 0, false
 	return m.loadBoxes(cached)
 }
@@ -235,13 +236,13 @@ func (m *Model) loadBoxes(cached bool) tea.Cmd {
 		}
 	}
 	if b.showFiles {
-		dir := m.details.filesDir
-		es, _, peeked := svc.PeekTree(ref, dir)
+		branch, dir := m.details.filesRef, m.details.filesDir
+		es, _, peeked := svc.PeekTree(ref, branch, dir)
 		if peeked {
 			b.files.setDir(dir, es)
 		}
 		if !cached || !peeked {
-			cmds = append(cmds, loadTree(ctx, svc, ref, dir))
+			cmds = append(cmds, loadTree(ctx, svc, ref, branch, dir))
 		}
 		if _, known := b.files.dirs[dir]; known {
 			cmds = append(cmds, m.landOnEntry())

@@ -21,7 +21,7 @@ func TestListTreeReturnsSeededEntries(t *testing.T) {
 	}
 	f.SetTree(repoRef, "", want)
 
-	got, err := f.ListTree(ctx, repoRef, "")
+	got, err := f.ListTree(ctx, repoRef, "", "")
 	if err != nil {
 		t.Fatalf("ListTree: %v", err)
 	}
@@ -36,7 +36,7 @@ func TestListTreeKeysByDirectory(t *testing.T) {
 	f.SetTree(repoRef, "", []domain.TreeEntry{{Name: "src", Path: "src", Type: domain.EntryDir}})
 	f.SetTree(repoRef, "src", []domain.TreeEntry{{Name: "main.go", Path: "src/main.go", Type: domain.EntryFile}})
 
-	got, err := f.ListTree(ctx, repoRef, "src")
+	got, err := f.ListTree(ctx, repoRef, "", "src")
 	if err != nil {
 		t.Fatalf("ListTree(src): %v", err)
 	}
@@ -56,7 +56,7 @@ func TestListTreeErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := seeded().ListTree(context.Background(), tt.repo, tt.dir)
+			_, err := seeded().ListTree(context.Background(), tt.repo, "", tt.dir)
 			if !errors.Is(err, forge.ErrNotFound) {
 				t.Errorf("err = %v, want ErrNotFound", err)
 			}
@@ -71,10 +71,10 @@ func TestListTreeFailNextAndCancel(t *testing.T) {
 		f.SetTree(repoRef, "", []domain.TreeEntry{{Name: "a", Path: "a", Type: domain.EntryFile}})
 		f.FailNext(forge.ErrRateLimited)
 
-		if _, err := f.ListTree(ctx, repoRef, ""); !errors.Is(err, forge.ErrRateLimited) {
+		if _, err := f.ListTree(ctx, repoRef, "", ""); !errors.Is(err, forge.ErrRateLimited) {
 			t.Fatalf("first call: err = %v, want ErrRateLimited", err)
 		}
-		if _, err := f.ListTree(ctx, repoRef, ""); err != nil {
+		if _, err := f.ListTree(ctx, repoRef, "", ""); err != nil {
 			t.Errorf("second call after FailNext: err = %v, want nil", err)
 		}
 	})
@@ -85,7 +85,7 @@ func TestListTreeFailNextAndCancel(t *testing.T) {
 		f := seeded()
 		f.SetTree(repoRef, "", []domain.TreeEntry{{Name: "a", Path: "a", Type: domain.EntryFile}})
 
-		if _, err := f.ListTree(ctx, repoRef, ""); !errors.Is(err, context.Canceled) {
+		if _, err := f.ListTree(ctx, repoRef, "", ""); !errors.Is(err, context.Canceled) {
 			t.Errorf("err = %v, want context.Canceled", err)
 		}
 	})
@@ -96,10 +96,10 @@ func TestListTreeResultIsACopy(t *testing.T) {
 	f := seeded()
 	f.SetTree(repoRef, "", []domain.TreeEntry{{Name: "a", Path: "a", Type: domain.EntryFile}})
 
-	got, _ := f.ListTree(ctx, repoRef, "")
+	got, _ := f.ListTree(ctx, repoRef, "", "")
 	got[0].Name = "mutated"
 
-	again, _ := f.ListTree(ctx, repoRef, "")
+	again, _ := f.ListTree(ctx, repoRef, "", "")
 	if again[0].Name != "a" {
 		t.Errorf("mutating a returned listing changed the Fake: name = %q, want %q", again[0].Name, "a")
 	}
@@ -110,7 +110,7 @@ func TestReadFileReturnsSeededBody(t *testing.T) {
 	f := seeded()
 	f.SetFile(repoRef, "docs/notes.txt", []byte("hello\n"))
 
-	got, err := f.ReadFile(ctx, repoRef, "docs/notes.txt")
+	got, err := f.ReadFile(ctx, repoRef, "", "docs/notes.txt")
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestReadFileErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := seeded().ReadFile(context.Background(), tt.repo, tt.path)
+			_, err := seeded().ReadFile(context.Background(), tt.repo, "", tt.path)
 			if !errors.Is(err, forge.ErrNotFound) {
 				t.Errorf("err = %v, want ErrNotFound", err)
 			}
@@ -145,10 +145,10 @@ func TestReadFileFailNextAndCancel(t *testing.T) {
 		f.SetFile(repoRef, "a.txt", []byte("a"))
 		f.FailNext(forge.ErrUnauthorized)
 
-		if _, err := f.ReadFile(ctx, repoRef, "a.txt"); !errors.Is(err, forge.ErrUnauthorized) {
+		if _, err := f.ReadFile(ctx, repoRef, "", "a.txt"); !errors.Is(err, forge.ErrUnauthorized) {
 			t.Fatalf("first call: err = %v, want ErrUnauthorized", err)
 		}
-		if _, err := f.ReadFile(ctx, repoRef, "a.txt"); err != nil {
+		if _, err := f.ReadFile(ctx, repoRef, "", "a.txt"); err != nil {
 			t.Errorf("second call after FailNext: err = %v, want nil", err)
 		}
 	})
@@ -159,7 +159,7 @@ func TestReadFileFailNextAndCancel(t *testing.T) {
 		f := seeded()
 		f.SetFile(repoRef, "a.txt", []byte("a"))
 
-		if _, err := f.ReadFile(ctx, repoRef, "a.txt"); !errors.Is(err, context.Canceled) {
+		if _, err := f.ReadFile(ctx, repoRef, "", "a.txt"); !errors.Is(err, context.Canceled) {
 			t.Errorf("err = %v, want context.Canceled", err)
 		}
 	})
@@ -170,10 +170,10 @@ func TestReadFileResultIsACopy(t *testing.T) {
 	f := seeded()
 	f.SetFile(repoRef, "a.txt", []byte("abc"))
 
-	got, _ := f.ReadFile(ctx, repoRef, "a.txt")
+	got, _ := f.ReadFile(ctx, repoRef, "", "a.txt")
 	got[0] = 'X'
 
-	again, _ := f.ReadFile(ctx, repoRef, "a.txt")
+	again, _ := f.ReadFile(ctx, repoRef, "", "a.txt")
 	if string(again) != "abc" {
 		t.Errorf("mutating a returned body changed the Fake: got %q, want %q", again, "abc")
 	}
@@ -186,7 +186,7 @@ func TestSetFileDoesNotAliasCallerBuffer(t *testing.T) {
 	f.SetFile(repoRef, "a.txt", body)
 	body[0] = 'X'
 
-	got, _ := f.ReadFile(ctx, repoRef, "a.txt")
+	got, _ := f.ReadFile(ctx, repoRef, "", "a.txt")
 	if string(got) != "abc" {
 		t.Errorf("mutating the buffer passed to SetFile changed the Fake: got %q, want %q", got, "abc")
 	}

@@ -131,10 +131,10 @@ type BranchReader interface {
 	ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error)
 }
 
-// TreeReader is implemented by adapters that can list a repo directory and read a file on the default branch.
+// TreeReader is implemented by adapters that can list a repo directory and read a file on a branch.
 type TreeReader interface {
-	// ListTree returns the entries of dir ("" is the root), in any order; ErrNotFound when dir is missing or the repo is empty.
-	ListTree(ctx context.Context, r domain.RepoRef, dir string) ([]domain.TreeEntry, error)
-	// ReadFile returns the bytes of the file at path; ErrNotFound when it is missing.
-	ReadFile(ctx context.Context, r domain.RepoRef, path string) ([]byte, error)
+	// ListTree returns the entries of dir ("" is the root) at ref ("" is the default branch), in any order; ErrNotFound when dir or ref is missing or the repo is empty.
+	ListTree(ctx context.Context, r domain.RepoRef, ref, dir string) ([]domain.TreeEntry, error)
+	// ReadFile returns the bytes of the file at path on ref ("" is the default branch); ErrNotFound when the ref or path is missing.
+	ReadFile(ctx context.Context, r domain.RepoRef, ref, path string) ([]byte, error)
 }

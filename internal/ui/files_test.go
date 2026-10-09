@@ -359,7 +359,7 @@ func TestFilesStaleMessagesChangeNothing(t *testing.T) {
 		entries: []domain.TreeEntry{fxEntry("stale.txt", domain.EntryFile, 1)},
 	})
 	m = run(t, m, previewLoadedMsg{
-		key:     core.Key{Kind: core.KindPreview, Repo: fxInfra, Ref: "notes.txt"},
+		key:     core.Key{Kind: core.KindPreview, Repo: fxInfra, Path: "notes.txt"},
 		preview: domain.FilePreview{Text: "STALE\n"},
 	})
 	if v := screen(m); strings.Contains(v, "STALE") || strings.Contains(v, "stale.txt") || !strings.Contains(v, "# Notes") {
@@ -368,7 +368,7 @@ func TestFilesStaleMessagesChangeNothing(t *testing.T) {
 }
 
 func TestFilesCancelledAndFailedLoads(t *testing.T) {
-	key := core.Key{Kind: core.KindTree, Repo: homelab, Ref: "docs"}
+	key := core.Key{Kind: core.KindTree, Repo: homelab, Path: "docs"}
 	m := fxOn(t, fxFixture(t))
 	m, _ = step(t, m, "j")
 

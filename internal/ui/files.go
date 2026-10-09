@@ -161,7 +161,7 @@ func (m *Model) filesEnter() tea.Cmd {
 		d.filesDir, d.filesCur, d.filesOff = e.Path, 0, 0
 		if _, known := fs.dirs[e.Path]; !known {
 			delete(fs.failed, e.Path)
-			return loadTree(m.selCtx, m.svc, m.boxes.repo, e.Path)
+			return loadTree(m.selCtx, m.svc, m.boxes.repo, d.filesRef, e.Path)
 		}
 		return m.landOnEntry()
 	case e.Type == domain.EntryFile && fs.previews[e.Path].Text != "":
@@ -176,21 +176,48 @@ func (m *Model) landOnEntry() tea.Cmd {
 	if !ok {
 		return nil
 	}
-	fs, r := &m.boxes.files, m.boxes.repo
+	fs, r, branch := &m.boxes.files, m.boxes.repo, m.details.filesRef
 	delete(fs.failed, e.Path)
 	switch e.Type {
 	case domain.EntryDir:
-		if es, _, ok := m.svc.PeekTree(r, e.Path); ok {
+		if es, _, ok := m.svc.PeekTree(r, branch, e.Path); ok {
 			fs.setDir(e.Path, es)
 		}
-		return loadTree(m.selCtx, m.svc, r, e.Path)
+		return loadTree(m.selCtx, m.svc, r, branch, e.Path)
 	case domain.EntryFile:
-		if p, _, ok := m.svc.PeekPreview(r, e.Path); ok {
+		if p, _, ok := m.svc.PeekPreview(r, branch, e.Path); ok {
 			fs.setPreview(e.Path, p)
 		}
-		return loadPreview(m.selCtx, m.svc, r, e)
+		return loadPreview(m.selCtx, m.svc, r, branch, e)
 	}
 	return nil
+}
+
+// browseBranch shows the cursor branch on the Files tab at its root, even when it is the branch already shown.
+func (m *Model) browseBranch() tea.Cmd {
+	d, b := &m.details, m.boxes.branches.list[m.details.branchCur]
+	ref := b.Name
+	if b.Default {
+		ref = ""
+	}
+	if ref != d.filesRef {
+		m.boxes.files = filesState{}
+	}
+	d.filesRef = ref
+	d.filesDir, d.filesCur, d.filesOff, d.filesFocus = "", 0, 0, false
+	d.tab = filesTab
+	if !m.boxes.showFiles {
+		return nil
+	}
+	// The root is always refetched so a re-pick after a push doesn't stay stale; the cache only seeds the view meanwhile.
+	cmds := []tea.Cmd{loadTree(m.selCtx, m.svc, m.boxes.repo, ref, "")}
+	if es, _, peeked := m.svc.PeekTree(m.boxes.repo, ref, ""); peeked {
+		m.boxes.files.setDir("", es)
+	}
+	if _, known := m.boxes.files.dirs[""]; known {
+		cmds = append(cmds, m.landOnEntry())
+	}
+	return tea.Batch(cmds...)
 }
 
 // treeLoaded stores a listing. For the current directory it keeps the cursor on the same path, and lands on the entry under it when that changed or nothing was listed before.
@@ -198,7 +225,7 @@ func (m *Model) treeLoaded(msg treeLoadedMsg) tea.Cmd {
 	if m.filesLoadFailed(msg.key, msg.err) {
 		return nil
 	}
-	fs, d, dir := &m.boxes.files, &m.details, msg.key.Ref
+	fs, d, dir := &m.boxes.files, &m.details, msg.key.Path
 	if dir != d.filesDir {
 		fs.setDir(dir, msg.entries)
 		return nil
@@ -223,27 +250,40 @@ func (m *Model) treeLoaded(msg treeLoadedMsg) tea.Cmd {
 // previewLoaded stores a file's preview.
 func (m *Model) previewLoaded(msg previewLoadedMsg) {
 	if !m.filesLoadFailed(msg.key, msg.err) {
-		m.boxes.files.setPreview(msg.key.Ref, msg.preview)
+		m.boxes.files.setPreview(msg.key.Path, msg.preview)
 	}
 }
 
 // filesLoadFailed is loadFailed for the Files tab, which also marks the dir or path failed unless the load was canceled.
+// A result for another branch is stale, so it is dropped before it can set the status or mark anything failed.
 func (m *Model) filesLoadFailed(k core.Key, err error) bool {
+	if k.Ref != m.details.filesRef {
+		return true
+	}
 	if !m.loadFailed(k, err) {
 		return false
 	}
 	if err != nil && k.Repo == m.boxes.repo && !errors.Is(err, context.Canceled) {
-		m.boxes.files.fail(k.Ref)
+		m.boxes.files.fail(k.Path)
 	}
 	return true
 }
 
-// filesCrumb is the breadcrumb's directory segment on the Files tab, or "" at the root or off the tab.
+// filesCrumb is the breadcrumb's "<branch>:<dir>" segment on the Files tab, or "" off the tab.
+// The default branch's name is unknown until the branch list loads, so the segment is the bare dir until then.
 func (m Model) filesCrumb() string {
 	if m.boxes.focus != boxRepo || m.details.tab != filesTab || !m.boxes.showFiles {
 		return ""
 	}
-	return sanitizeLine(m.details.filesDir)
+	ref := m.details.filesRef
+	if ref == "" {
+		i := slices.IndexFunc(m.boxes.branches.list, func(b domain.Branch) bool { return b.Default })
+		if i < 0 {
+			return sanitizeLine(m.details.filesDir)
+		}
+		ref = m.boxes.branches.list[i].Name
+	}
+	return sanitizeLine(ref) + ":" + sanitizeLine(m.details.filesDir)
 }
 
 // curIndex is the cursor's index in the current listing, clamped to it; 0 when the listing is empty.

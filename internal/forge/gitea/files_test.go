@@ -49,7 +49,7 @@ func TestListTreeRootRequestsContents(t *testing.T) {
 	f := stubForge(t, map[string]http.HandlerFunc{
 		rootListing: contentsAnswer(log, 200, readFixture(t, "contents_dir.json")),
 	})
-	if _, err := f.ListTree(context.Background(), lazyforge, ""); err != nil {
+	if _, err := f.ListTree(context.Background(), lazyforge, "", ""); err != nil {
 		t.Fatalf("ListTree: %v", err)
 	}
 	want := "/api/v1/repos/deadstyle/lazyforge/contents"
@@ -62,7 +62,7 @@ func TestListTreeMapsEveryEntry(t *testing.T) {
 	f := stubForge(t, map[string]http.HandlerFunc{
 		rootListing: contentsAnswer(&contentsLog{}, 200, readFixture(t, "contents_dir.json")),
 	})
-	got, err := f.ListTree(context.Background(), lazyforge, "")
+	got, err := f.ListTree(context.Background(), lazyforge, "", "")
 	if err != nil {
 		t.Fatalf("ListTree: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestListTreeEscapesDirectory(t *testing.T) {
 			f := stubForge(t, map[string]http.HandlerFunc{
 				fileAtPath: contentsAnswer(log, 200, readFixture(t, "contents_dir.json")),
 			})
-			if _, err := f.ListTree(context.Background(), lazyforge, tt.dir); err != nil {
+			if _, err := f.ListTree(context.Background(), lazyforge, "", tt.dir); err != nil {
 				t.Fatalf("ListTree(%q): %v", tt.dir, err)
 			}
 			if got := log.all(); len(got) != 1 || got[0] != tt.uri {
@@ -119,7 +119,7 @@ func TestListTreeEmptyListingIsNotAnError(t *testing.T) {
 	f := stubForge(t, map[string]http.HandlerFunc{
 		rootListing: contentsAnswer(&contentsLog{}, 200, []byte("[]")),
 	})
-	got, err := f.ListTree(context.Background(), lazyforge, "")
+	got, err := f.ListTree(context.Background(), lazyforge, "", "")
 	if err != nil {
 		t.Fatalf("ListTree: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestListTreeMissingIsNotFound(t *testing.T) {
 			f := stubForge(t, map[string]http.HandlerFunc{
 				rootListing: contentsAnswer(&contentsLog{}, tt.status, readFixture(t, "error_404.json")),
 			})
-			_, err := f.ListTree(context.Background(), lazyforge, "")
+			_, err := f.ListTree(context.Background(), lazyforge, "", "")
 			if !errors.Is(err, forge.ErrNotFound) {
 				t.Errorf("err = %v, want ErrNotFound", err)
 			}
@@ -153,7 +153,7 @@ func TestReadFileDecodesWrappedBase64(t *testing.T) {
 	f := stubForge(t, map[string]http.HandlerFunc{
 		fileAtPath: contentsAnswer(&contentsLog{}, 200, readFixture(t, "contents_file.json")),
 	})
-	got, err := f.ReadFile(context.Background(), lazyforge, "README.md")
+	got, err := f.ReadFile(context.Background(), lazyforge, "", "README.md")
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -167,7 +167,7 @@ func TestReadFileEscapesPath(t *testing.T) {
 	f := stubForge(t, map[string]http.HandlerFunc{
 		fileAtPath: contentsAnswer(log, 200, readFixture(t, "contents_file.json")),
 	})
-	if _, err := f.ReadFile(context.Background(), lazyforge, "src/my dir/notes.txt"); err != nil {
+	if _, err := f.ReadFile(context.Background(), lazyforge, "", "src/my dir/notes.txt"); err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
 	want := "/api/v1/repos/deadstyle/lazyforge/contents/src/my%20dir/notes.txt"
@@ -180,7 +180,7 @@ func TestReadFileEmptyContentIsEmptyNotError(t *testing.T) {
 	f := stubForge(t, map[string]http.HandlerFunc{
 		fileAtPath: contentsAnswer(&contentsLog{}, 200, readFixture(t, "contents_file_empty.json")),
 	})
-	got, err := f.ReadFile(context.Background(), lazyforge, "empty.txt")
+	got, err := f.ReadFile(context.Background(), lazyforge, "", "empty.txt")
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestReadFileRejectsOtherEncodings(t *testing.T) {
 			f := stubForge(t, map[string]http.HandlerFunc{
 				fileAtPath: func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body) },
 			})
-			if _, err := f.ReadFile(context.Background(), lazyforge, "a.txt"); err == nil {
+			if _, err := f.ReadFile(context.Background(), lazyforge, "", "a.txt"); err == nil {
 				t.Errorf("ReadFile with encoding %q: err = nil, want an error", enc)
 			}
 		})
@@ -207,7 +207,7 @@ func TestReadFileMissingIsNotFound(t *testing.T) {
 	f := stubForge(t, map[string]http.HandlerFunc{
 		fileAtPath: contentsAnswer(&contentsLog{}, 404, readFixture(t, "error_404.json")),
 	})
-	_, err := f.ReadFile(context.Background(), lazyforge, "gone.txt")
+	_, err := f.ReadFile(context.Background(), lazyforge, "", "gone.txt")
 	if !errors.Is(err, forge.ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}

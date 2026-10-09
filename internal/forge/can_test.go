@@ -86,11 +86,13 @@ func (withBranches) ListCommits(context.Context, domain.RepoRef, string) ([]doma
 
 type withTree struct{ base }
 
-func (withTree) ListTree(context.Context, domain.RepoRef, string) ([]domain.TreeEntry, error) {
+func (withTree) ListTree(context.Context, domain.RepoRef, string, string) ([]domain.TreeEntry, error) {
 	return nil, nil
 }
 
-func (withTree) ReadFile(context.Context, domain.RepoRef, string) ([]byte, error) { return nil, nil }
+func (withTree) ReadFile(context.Context, domain.RepoRef, string, string) ([]byte, error) {
+	return nil, nil
+}
 
 type full struct {
 	withApprover

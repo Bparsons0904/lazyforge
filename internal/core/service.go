@@ -33,12 +33,14 @@ const (
 	KindPreview
 )
 
-// Key identifies a cache entry; Repo is zero for KindRepos, Number is for per-item kinds, and Ref is a branch for branch kinds and a path for tree kinds.
+// Key identifies a cache entry; Repo is zero for KindRepos, Number is for per-item kinds, and Ref is a branch
+// for branch and tree kinds ("" is the default branch for tree kinds). Path is the directory or file for tree kinds.
 type Key struct {
 	Kind   Kind
 	Repo   domain.RepoRef
 	Number int
 	Ref    string
+	Path   string
 }
 
 // Options configures a Service.

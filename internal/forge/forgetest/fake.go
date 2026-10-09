@@ -33,6 +33,7 @@ type branchKey struct {
 
 type pathKey struct {
 	repo domain.RepoRef
+	ref  string
 	path string
 }
 
@@ -419,24 +420,34 @@ func (f *Fake) ListCommits(ctx context.Context, r domain.RepoRef, branch string)
 	return slices.Clone(cs), nil
 }
 
-// SetTree seeds the entries of dir ("" is the root) and makes r known; an unseeded dir on a known repo answers ErrNotFound.
+// SetTree seeds the entries of dir ("" is the root) on the default branch and makes r known; an unseeded dir on a known repo answers ErrNotFound.
 func (f *Fake) SetTree(r domain.RepoRef, dir string, entries []domain.TreeEntry) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.known[r] = true
-	f.tree[pathKey{r, dir}] = slices.Clone(entries)
+	f.SetTreeAt(r, "", dir, entries)
 }
 
-// SetFile seeds the bytes of the file at path and makes r known.
-func (f *Fake) SetFile(r domain.RepoRef, path string, body []byte) {
+// SetTreeAt seeds the entries of dir ("" is the root) at ref ("" is the default branch) and makes r known.
+func (f *Fake) SetTreeAt(r domain.RepoRef, ref, dir string, entries []domain.TreeEntry) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.known[r] = true
-	f.files[pathKey{r, path}] = slices.Clone(body)
+	f.tree[pathKey{r, ref, dir}] = slices.Clone(entries)
+}
+
+// SetFile seeds the bytes of the file at path on the default branch and makes r known.
+func (f *Fake) SetFile(r domain.RepoRef, path string, body []byte) {
+	f.SetFileAt(r, "", path, body)
+}
+
+// SetFileAt seeds the bytes of the file at path on ref ("" is the default branch) and makes r known.
+func (f *Fake) SetFileAt(r domain.RepoRef, ref, path string, body []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.known[r] = true
+	f.files[pathKey{r, ref, path}] = slices.Clone(body)
 }
 
 // ListTree implements forge.TreeReader.
-func (f *Fake) ListTree(ctx context.Context, r domain.RepoRef, dir string) ([]domain.TreeEntry, error) {
+func (f *Fake) ListTree(ctx context.Context, r domain.RepoRef, ref, dir string) ([]domain.TreeEntry, error) {
 	defer f.mu.Unlock()
 	if err := f.begin(ctx); err != nil {
 		return nil, err
@@ -444,15 +455,15 @@ func (f *Fake) ListTree(ctx context.Context, r domain.RepoRef, dir string) ([]do
 	if err := f.repoErr(r); err != nil {
 		return nil, err
 	}
-	es, ok := f.tree[pathKey{r, dir}]
+	es, ok := f.tree[pathKey{r, ref, dir}]
 	if !ok {
-		return nil, fmt.Errorf("tree %s at %q: %w", r, dir, forge.ErrNotFound)
+		return nil, fmt.Errorf("tree %s at %q on %q: %w", r, dir, ref, forge.ErrNotFound)
 	}
 	return slices.Clone(es), nil
 }
 
 // ReadFile implements forge.TreeReader.
-func (f *Fake) ReadFile(ctx context.Context, r domain.RepoRef, path string) ([]byte, error) {
+func (f *Fake) ReadFile(ctx context.Context, r domain.RepoRef, ref, path string) ([]byte, error) {
 	defer f.mu.Unlock()
 	if err := f.begin(ctx); err != nil {
 		return nil, err
@@ -460,9 +471,9 @@ func (f *Fake) ReadFile(ctx context.Context, r domain.RepoRef, path string) ([]b
 	if err := f.repoErr(r); err != nil {
 		return nil, err
 	}
-	b, ok := f.files[pathKey{r, path}]
+	b, ok := f.files[pathKey{r, ref, path}]
 	if !ok {
-		return nil, fmt.Errorf("file %s at %q: %w", r, path, forge.ErrNotFound)
+		return nil, fmt.Errorf("file %s at %q on %q: %w", r, path, ref, forge.ErrNotFound)
 	}
 	return slices.Clone(b), nil
 }

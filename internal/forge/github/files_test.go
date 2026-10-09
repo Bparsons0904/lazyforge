@@ -55,7 +55,7 @@ func TestListTreeRootRequestsContents(t *testing.T) {
 	f := stubRoutes(t, map[string]http.HandlerFunc{
 		contentsRoot: contentsAnswer(log, 200, readFixture(t, "contents_dir.json")),
 	})
-	if _, err := f.ListTree(context.Background(), cli, ""); err != nil {
+	if _, err := f.ListTree(context.Background(), cli, "", ""); err != nil {
 		t.Fatalf("ListTree: %v", err)
 	}
 	want := "/api/v3/repos/cli/cli/contents"
@@ -68,7 +68,7 @@ func TestListTreeMapsEveryEntry(t *testing.T) {
 	f := stubRoutes(t, map[string]http.HandlerFunc{
 		contentsRoot: contentsAnswer(&contentsLog{}, 200, readFixture(t, "contents_dir.json")),
 	})
-	got, err := f.ListTree(context.Background(), cli, "")
+	got, err := f.ListTree(context.Background(), cli, "", "")
 	if err != nil {
 		t.Fatalf("ListTree: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestListTreeClassifiesFileItems(t *testing.T) {
 			f := stubRoutes(t, map[string]http.HandlerFunc{
 				contentsRoot: func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, []obj{tt.row}) },
 			})
-			got, err := f.ListTree(context.Background(), cli, "")
+			got, err := f.ListTree(context.Background(), cli, "", "")
 			if err != nil {
 				t.Fatalf("ListTree: %v", err)
 			}
@@ -140,7 +140,7 @@ func TestListTreeEscapesDirectory(t *testing.T) {
 			f := stubRoutes(t, map[string]http.HandlerFunc{
 				contentsPath: contentsAnswer(log, 200, readFixture(t, "contents_dir.json")),
 			})
-			if _, err := f.ListTree(context.Background(), cli, tt.dir); err != nil {
+			if _, err := f.ListTree(context.Background(), cli, "", tt.dir); err != nil {
 				t.Fatalf("ListTree(%q): %v", tt.dir, err)
 			}
 			if got := log.all(); len(got) != 1 || got[0] != tt.uri {
@@ -154,7 +154,7 @@ func TestListTreeMissingIsNotFound(t *testing.T) {
 	f := stubRoutes(t, map[string]http.HandlerFunc{
 		contentsRoot: contentsAnswer(&contentsLog{}, 404, readFixture(t, "error_404.json")),
 	})
-	_, err := f.ListTree(context.Background(), cli, "")
+	_, err := f.ListTree(context.Background(), cli, "", "")
 	if !errors.Is(err, forge.ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}
@@ -164,7 +164,7 @@ func TestReadFileDecodesWrappedBase64(t *testing.T) {
 	f := stubRoutes(t, map[string]http.HandlerFunc{
 		contentsPath: contentsAnswer(&contentsLog{}, 200, readFixture(t, "contents_file.json")),
 	})
-	got, err := f.ReadFile(context.Background(), cli, "README.md")
+	got, err := f.ReadFile(context.Background(), cli, "", "README.md")
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestReadFileEscapesPath(t *testing.T) {
 	f := stubRoutes(t, map[string]http.HandlerFunc{
 		contentsPath: contentsAnswer(log, 200, readFixture(t, "contents_file.json")),
 	})
-	if _, err := f.ReadFile(context.Background(), cli, "src/my dir/notes.txt"); err != nil {
+	if _, err := f.ReadFile(context.Background(), cli, "", "src/my dir/notes.txt"); err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
 	want := "/api/v3/repos/cli/cli/contents/src/my%20dir/notes.txt"
@@ -191,7 +191,7 @@ func TestReadFileEmptyContentIsEmptyNotError(t *testing.T) {
 	f := stubRoutes(t, map[string]http.HandlerFunc{
 		contentsPath: contentsAnswer(&contentsLog{}, 200, readFixture(t, "contents_file_empty.json")),
 	})
-	got, err := f.ReadFile(context.Background(), cli, "empty.txt")
+	got, err := f.ReadFile(context.Background(), cli, "", "empty.txt")
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestReadFileRejectsOtherEncodings(t *testing.T) {
 			f := stubRoutes(t, map[string]http.HandlerFunc{
 				contentsPath: func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, body) },
 			})
-			if _, err := f.ReadFile(context.Background(), cli, "a.txt"); err == nil {
+			if _, err := f.ReadFile(context.Background(), cli, "", "a.txt"); err == nil {
 				t.Errorf("ReadFile with encoding %q: err = nil, want an error", enc)
 			}
 		})
@@ -218,7 +218,7 @@ func TestReadFileMissingIsNotFound(t *testing.T) {
 	f := stubRoutes(t, map[string]http.HandlerFunc{
 		contentsPath: contentsAnswer(&contentsLog{}, 404, readFixture(t, "error_404.json")),
 	})
-	_, err := f.ReadFile(context.Background(), cli, "gone.txt")
+	_, err := f.ReadFile(context.Background(), cli, "", "gone.txt")
 	if !errors.Is(err, forge.ErrNotFound) {
 		t.Errorf("err = %v, want ErrNotFound", err)
 	}

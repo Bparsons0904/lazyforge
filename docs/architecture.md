@@ -114,8 +114,8 @@ type BranchReader interface {
     ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error) // ErrNotFound when the branch is gone
 }
 type TreeReader interface {
-    ListTree(ctx context.Context, r domain.RepoRef, dir string) ([]domain.TreeEntry, error) // dir "" is the root; ErrNotFound when dir is missing or the repo is empty
-    ReadFile(ctx context.Context, r domain.RepoRef, path string) ([]byte, error) // ErrNotFound when the file is missing
+    ListTree(ctx context.Context, r domain.RepoRef, ref, dir string) ([]domain.TreeEntry, error) // ref "" is the default branch, dir "" is the root; ErrNotFound when ref or dir is missing or the repo is empty
+    ReadFile(ctx context.Context, r domain.RepoRef, ref, path string) ([]byte, error) // ref "" is the default branch; ErrNotFound when ref or the file is missing
 }
 type Labeler interface {
     ListLabels(ctx context.Context, r domain.RepoRef) ([]domain.Label, error)
