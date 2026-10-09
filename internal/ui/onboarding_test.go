@@ -117,13 +117,22 @@ func TestOnboardForgeType(t *testing.T) {
 			t.Errorf("view lacks %q", want)
 		}
 	}
-	o, _ = obKeys(o, "j", "down", "j")
-	if o.cursor != 1 {
-		t.Fatalf("cursor %d landed past Gitea", o.cursor)
+	for _, line := range strings.Split(v, "\n") {
+		if soon := strings.Contains(line, "coming soon"); strings.Contains(line, "GitHub") && soon || strings.Contains(line, "GitLab") && !soon {
+			t.Errorf("only GitLab should be coming soon: %q", line)
+		}
+	}
+	o, _ = obKeys(o, "j", "down", "j", "j")
+	if o.cursor != 2 {
+		t.Fatalf("cursor %d, want GitHub (2) and never GitLab", o.cursor)
 	}
 	o, _ = obKeys(o, "enter")
-	if o.step != stepURL || o.kind != forge.KindGitea {
+	if o.step != stepURL || o.kind != forge.KindGitHub {
 		t.Fatalf("step %d kind %q", o.step, o.kind)
+	}
+	o, _ = obKeys(e.start(onboardStart{}), "j", "enter")
+	if o.kind != forge.KindGitea {
+		t.Fatalf("kind %q", o.kind)
 	}
 	o, _ = obKeys(e.start(onboardStart{}), "enter")
 	if o.kind != forge.KindForgejo {
@@ -141,7 +150,7 @@ func TestOnboardAddress(t *testing.T) {
 		{"match", forge.KindForgejo, nil, ""},
 		{"unknown kind", "", nil, ""},
 		{"mismatch", forge.KindGitea, nil, "That server runs Gitea, not Forgejo"},
-		{"not found", "", fmt.Errorf("probe: %w", forge.ErrNotFound), "No Forgejo or Gitea API at that address"},
+		{"not found", "", fmt.Errorf("probe: %w", forge.ErrNotFound), "No Forgejo API at that address"},
 		{"network", "", errors.New("dial tcp: refused"), "Can't reach the server: dial tcp: refused"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

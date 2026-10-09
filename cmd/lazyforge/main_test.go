@@ -2,14 +2,18 @@ package main
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/config"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 )
 
 func writeConfig(t *testing.T, body string) string {
@@ -41,12 +45,13 @@ token = "x"
 			wantSubs: []string{"nope"},
 		},
 		{
-			name: "github has no adapter",
-			config: `[hosts.gh]
-type = "github"
+			name: "gitlab has no adapter",
+			config: `[hosts.gl]
+type = "gitlab"
+url = "https://gl.invalid"
 token = "x"
 `,
-			wantSubs: []string{`host "gh"`, `type "github" has no adapter yet`},
+			wantSubs: []string{`host "gl"`, `type "gitlab" has no adapter yet`},
 		},
 		{
 			name: "token_cmd failure hides output",
@@ -135,10 +140,111 @@ token = "x"
 	}
 }
 
-func TestConnectGithubSkipsTokenCmd(t *testing.T) {
+// serve answers each "METHOD /path" with its body; anything else is a 404.
+func serve(t *testing.T, routes map[string]string) string {
+	t.Helper()
+	mux := http.NewServeMux()
+	for pattern, body := range routes {
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(body)) })
+	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+var (
+	githubRoutes = map[string]string{
+		"GET /api/v3/user": `{"login":"octo"}`,
+		"GET /api/v3/meta": `{"verifiable_password_authentication":false,"installed_version":"3.17.4"}`,
+	}
+	forgejoRoutes = map[string]string{"GET /api/v1/version": `{"version":"16.0.5+gitea-1.22.0"}`}
+)
+
+func TestConnectRoutesGithub(t *testing.T) {
+	url := serve(t, githubRoutes)
+	f, err := connect(context.Background(), config.Host{Type: "github", URL: url, Token: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info := f.Info(); info.Kind != forge.KindGitHub || info.User != "octo" || info.Version != "3.17.4" {
+		t.Errorf("info = %+v; want GitHub as octo", info)
+	}
+}
+
+func TestProbe(t *testing.T) {
+	signIn := http.NewServeMux()
+	signIn.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) })
+	locked := httptest.NewServer(signIn)
+	t.Cleanup(locked.Close)
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+
+	// errUnreachable stands for "any error except ErrNotFound": the exact dial error varies by OS.
+	errUnreachable := errors.New("unreachable")
+	tests := []struct {
+		name    string
+		url     string
+		want    forge.Kind
+		wantErr error // nil: no error; errUnreachable: any non-ErrNotFound error; else matched with errors.Is
+	}{
+		{"github", serve(t, githubRoutes), forge.KindGitHub, nil},
+		{"forgejo", serve(t, forgejoRoutes), forge.KindForgejo, nil},
+		{"gitea", serve(t, map[string]string{"GET /api/v1/version": `{"version":"1.22.0"}`}), forge.KindGitea, nil},
+		{"sign-in only", locked.URL, "", nil},
+		{"no forge API", serve(t, map[string]string{"GET /": "<html>hi</html>"}), "", forge.ErrNotFound},
+		{"unreachable", closed.URL, "", errUnreachable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := probe(context.Background(), tt.url)
+			switch {
+			case got != tt.want:
+				t.Errorf("kind = %q; want %q", got, tt.want)
+			case tt.wantErr == nil && err != nil:
+				t.Errorf("err = %v; want nil", err)
+			case errors.Is(tt.wantErr, errUnreachable) && (err == nil || errors.Is(err, forge.ErrNotFound)):
+				t.Errorf("err = %v; want a reachability error", err)
+			case tt.wantErr != nil && !errors.Is(tt.wantErr, errUnreachable) && !errors.Is(err, tt.wantErr):
+				t.Errorf("err = %v; want %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestProbeConcurrent holds each adapter's probe endpoint open until the other has also been
+// hit, so a serial probe never sees the second request and fails after two seconds.
+func TestProbeConcurrent(t *testing.T) {
+	var arrived sync.WaitGroup
+	arrived.Add(2)
+	both := make(chan struct{})
+	go func() { arrived.Wait(); close(both) }()
+	mux := http.NewServeMux()
+	for _, pattern := range []string{"GET /api/v1/version", "GET /api/v3/meta"} {
+		var once sync.Once
+		mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+			once.Do(arrived.Done)
+			select {
+			case <-both:
+				_, _ = w.Write([]byte(`{"version":"1.22.0"}`))
+			case <-time.After(2 * time.Second):
+				http.Error(w, "the other probe never arrived", http.StatusServiceUnavailable)
+			case <-r.Context().Done():
+			}
+		})
+	}
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	got, err := probe(context.Background(), srv.URL)
+	if err != nil || got != forge.KindGitea {
+		t.Fatalf("probe = %q, %v; want gitea with both probes in flight together", got, err)
+	}
+}
+
+func TestConnectGitlabSkipsTokenCmd(t *testing.T) {
 	marker := filepath.Join(t.TempDir(), "ran")
-	_, err := connect(context.Background(), config.Host{Type: "github", TokenCmd: "touch " + marker})
-	if err == nil || !strings.Contains(err.Error(), `type "github" has no adapter yet`) {
+	_, err := connect(context.Background(), config.Host{Type: "gitlab", TokenCmd: "touch " + marker})
+	if err == nil || !strings.Contains(err.Error(), `type "gitlab" has no adapter yet`) {
 		t.Fatalf("err = %v", err)
 	}
 	if _, statErr := os.Stat(marker); statErr == nil {

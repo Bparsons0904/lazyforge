@@ -49,6 +49,10 @@ The first launch, with no config yet, starts onboarding instead of the host pick
    - `read:user`: the sign-in check
    - `write:repository`: listing repos, PRs, CI status and runs; merging, approving and closing PRs
    - `write:issue`: issues, comments, closing issues, editing labels and ticking Renovate dashboard entries
+
+   On GitHub the page is `<url>/settings/tokens`, and the token is either:
+   - a classic token with `repo`: repos, PRs, CI status, merging, approving and closing PRs, issues, comments, labels and Renovate dashboard ticks
+   - a fine-grained token with Contents, Pull requests and Issues read/write, plus Actions, Checks and Commit statuses read
 5. **Connection test:** shows "Signed in as *name* · *N* repositories". On failure it says why (bad token, missing permission, server unreachable) and stays on the step until it's fixed.
 6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip.
 7. **Name and save:** a short name for the host (suggested from the URL). Saving goes straight into the repo list.
@@ -159,7 +163,7 @@ Answered by the PM on 2026-10-02 (#13):
 - ★ Renovate view, all five boxes
 - Merge, approve, close, comment (`$EDITOR`), open in browser, refresh, `R` (opens the run page)
 - Bulk merge (marked PRs and update groups), with the CI warning and the "only merge when green" setting
-- Forgejo/Gitea adapter only
+- Forgejo/Gitea and GitHub adapters (the GitHub adapter ships with the public release, the PM's call in #83)
 - Install script, release binaries, and the startup update check
 
-After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, boxes `[4]` and `[5]`, then the GitHub adapter, then GitLab.
+After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, boxes `[4]` and `[5]`, then the GitLab adapter.

@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,6 +19,7 @@ import (
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/gitea"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/github"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/termimg"
 )
@@ -87,10 +89,8 @@ func appDeps(ctx context.Context, configPath, hostName string, noUpdateCheck boo
 		StatePath:  statePath,
 		LastHost:   state.LastHost,
 		Connect:    connect,
-		Probe: func(ctx context.Context, url string) (forge.Kind, error) {
-			return gitea.Probe(ctx, url, &http.Client{Timeout: 10 * time.Second})
-		},
-		Detect: termimg.NewDetector(termimg.SystemProbes(), time.Second),
+		Probe:      probe,
+		Detect:     termimg.NewDetector(termimg.SystemProbes(), time.Second),
 	}
 	cfg, err := config.Load(configPath)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -121,12 +121,59 @@ func appDeps(ctx context.Context, configPath, hostName string, noUpdateCheck boo
 
 // connect errors carry no host name; callers add it.
 func connect(ctx context.Context, h config.Host) (forge.Forge, error) {
-	if h.Type != "forgejo" && h.Type != "gitea" {
+	switch h.Type {
+	case "forgejo", "gitea", "github":
+	default:
 		return nil, fmt.Errorf("type %q has no adapter yet", h.Type)
 	}
 	token, err := config.ResolveToken(ctx, h)
 	if err != nil {
 		return nil, err
 	}
-	return gitea.New(ctx, h.URL, token, &http.Client{Timeout: 30 * time.Second})
+	hc := &http.Client{Timeout: 30 * time.Second}
+	if h.Type == "github" {
+		url := h.URL
+		if url == "" {
+			url = "https://github.com" // config allows a github host without a url
+		}
+		return github.New(ctx, url, token, hc)
+	}
+	return gitea.New(ctx, h.URL, token, hc)
+}
+
+// probe asks the adapters concurrently so an unreachable host costs one timeout, not one per adapter.
+// ("", nil) means an API answered but needs sign-in to say which; ErrNotFound only when no adapter found an API.
+func probe(ctx context.Context, url string) (forge.Kind, error) {
+	hc := &http.Client{Timeout: 10 * time.Second}
+	type result struct {
+		kind forge.Kind
+		err  error
+	}
+	probes := []func(context.Context, string, *http.Client) (forge.Kind, error){gitea.Probe, github.Probe}
+	results := make([]result, len(probes))
+	var wg sync.WaitGroup
+	for i, p := range probes {
+		wg.Go(func() {
+			kind, err := p(ctx, url, hc)
+			results[i] = result{kind, err}
+		})
+	}
+	wg.Wait()
+
+	signInOnly := false
+	var firstErr error
+	for _, r := range results {
+		switch {
+		case r.err == nil && r.kind != "":
+			return r.kind, nil
+		case r.err == nil:
+			signInOnly = true
+		case firstErr == nil || (errors.Is(firstErr, forge.ErrNotFound) && !errors.Is(r.err, forge.ErrNotFound)):
+			firstErr = r.err // a reachability failure says more than one adapter's missing API
+		}
+	}
+	if signInOnly {
+		return "", nil
+	}
+	return "", firstErr
 }

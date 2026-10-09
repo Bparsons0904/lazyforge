@@ -52,7 +52,56 @@ var forgeRows = []struct {
 	name string
 }{{forge.KindForgejo, "Forgejo"}, {forge.KindGitea, "Gitea"}, {forge.KindGitHub, "GitHub"}, {forge.KindGitLab, "GitLab"}}
 
-const selectableForges = 2 // the leading forgeRows that have an adapter; the rest are "coming soon"
+const selectableForges = 3 // the leading forgeRows that have an adapter; the rest are "coming soon"
+
+type scope struct{ name, use string } // name "" continues the previous row's use
+
+type forgeHelp struct {
+	addr      string // prefilled server address; "" leaves the field blank
+	tokenPath string // appended to the server address
+	scopes    []scope
+	alt       string // optional second token kind, introducing altScopes
+	altScopes []scope
+	rejected  string
+	cantList  string
+}
+
+var giteaHelp = forgeHelp{
+	tokenPath: "/user/settings/applications",
+	scopes: []scope{
+		{"read:user", "sign in"},
+		{"write:repository", "repos, PRs, CI status and runs, merge, approve, close PRs"},
+		{"write:issue", "issues, comments, Renovate dashboard ticks"},
+	},
+	rejected: "The token was rejected. Check it's valid and has read:user.",
+	cantList: "Signed in, but the token can't list repositories: it needs write:repository.",
+}
+
+var githubHelp = forgeHelp{
+	addr:      "https://github.com",
+	tokenPath: "/settings/tokens",
+	scopes: []scope{
+		{"repo", "repos, PRs, CI status, merge, approve, close PRs"},
+		{"", "issues, comments, labels, Renovate dashboard ticks"},
+	},
+	alt: "or a fine-grained token with:",
+	altScopes: []scope{
+		{"Contents", "read/write: repos, merge"},
+		{"Pull requests", "read/write: PRs, approve, close PRs"},
+		{"Issues", "read/write: issues, comments, labels"},
+		{"Actions, Checks", "read: CI runs and checks"},
+		{"Commit statuses", "read: CI status"},
+	},
+	rejected: "The token was rejected. Check it's valid and not expired.",
+	cantList: "Signed in, but the token can't list repositories: a classic token needs repo; a fine-grained one needs Contents, Pull requests and Issues.",
+}
+
+func helpFor(k forge.Kind) forgeHelp {
+	if k == forge.KindGitHub {
+		return githubHelp
+	}
+	return giteaHelp
+}
 
 var hostNameRE = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
 
@@ -194,6 +243,10 @@ func (o onboarding) key(msg tea.KeyPressMsg, k keyMap) (onboarding, tea.Cmd) {
 		case key.Matches(msg, k.Up):
 			o.cursor = max(o.cursor-1, 0)
 		case key.Matches(msg, k.Right):
+			// Swap only an untouched prefill, so going back to fix the type keeps a typed address.
+			if v := o.addr.Value(); v == "" || v == helpFor(o.kind).addr {
+				o.addr.SetValue(helpFor(forgeRows[o.cursor].kind).addr)
+			}
 			o.kind = forgeRows[o.cursor].kind
 			return o.enter(stepURL)
 		}
@@ -315,7 +368,7 @@ func (o onboarding) probed(msg probedMsg) (onboarding, tea.Cmd) {
 	o.busy = false
 	switch {
 	case errors.Is(msg.err, forge.ErrNotFound):
-		o.err = "No Forgejo or Gitea API at that address"
+		o.err = fmt.Sprintf("No %s API at that address", kindName(o.kind))
 	case msg.err != nil:
 		o.err = "Can't reach the server: " + msg.err.Error()
 	case msg.kind != "" && msg.kind != o.kind:
@@ -333,7 +386,7 @@ func (o *onboarding) signedInResult(msg signedInMsg) {
 	}
 	o.busy = false
 	if msg.err != nil {
-		o.err = signInError(msg.err, msg.listing)
+		o.err = signInError(msg.err, msg.listing, helpFor(o.kind))
 		return
 	}
 	o.f, o.svc = msg.f, msg.svc
@@ -356,14 +409,14 @@ func (o *onboarding) suggested(msg renovateSuggestedMsg) {
 }
 
 // signInError says why the connection test failed; listing means sign-in worked but listing repos didn't.
-func signInError(err error, listing bool) string {
+func signInError(err error, listing bool, help forgeHelp) string {
 	var oe *net.OpError
 	var ue *url.Error
 	switch {
 	case errors.Is(err, forge.ErrUnauthorized) && listing:
-		return "Signed in, but the token can't list repositories: it needs write:repository."
+		return help.cantList
 	case errors.Is(err, forge.ErrUnauthorized):
-		return "The token was rejected. Check it's valid and has read:user."
+		return help.rejected
 	case errors.As(err, &oe), errors.As(err, &ue) && ue.Timeout():
 		return "Can't reach the server: " + err.Error()
 	}
@@ -525,12 +578,15 @@ func (o onboarding) view(w, h int) string {
 		if o.cmdMode {
 			token, command = "○ Paste a token", "● Command that prints one"
 		}
+		help := helpFor(o.kind)
 		lines = []string{
 			"Sign in to " + o.url, "", token + "   " + command, "", o.secret().View(), "",
-			"Create a token at " + o.url + "/user/settings/applications with:",
-			style.HintKey.Render("  read:user") + style.Faint.Render("          sign in"),
-			style.HintKey.Render("  write:repository") + style.Faint.Render("   repos, PRs, CI status and runs, merge, approve, close PRs"),
-			style.HintKey.Render("  write:issue") + style.Faint.Render("        issues, comments, Renovate dashboard ticks"),
+			"Create a token at " + o.url + help.tokenPath + " with:",
+		}
+		lines = append(lines, scopeLines(help.scopes)...)
+		if help.alt != "" {
+			lines = append(lines, help.alt)
+			lines = append(lines, scopeLines(help.altScopes)...)
 		}
 	case stepTest:
 		title = "Connection test"
@@ -555,6 +611,14 @@ func (o onboarding) view(w, h int) string {
 		lines = append(lines, style.Faint.Render(o.note))
 	}
 	return frame(style.ActiveTitle.Render(title), lines, w, h, true)
+}
+
+func scopeLines(scopes []scope) []string {
+	out := make([]string, len(scopes))
+	for i, s := range scopes {
+		out[i] = "  " + style.HintKey.Render(s.name) + strings.Repeat(" ", max(19-len(s.name), 1)) + style.Faint.Render(s.use)
+	}
+	return out
 }
 
 func (o onboarding) busyText() string {

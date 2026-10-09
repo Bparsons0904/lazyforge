@@ -4,7 +4,7 @@ A keyboard-driven terminal UI for your git forge: pull requests, issues, Actions
 
 [lazygit](https://github.com/jesseduffield/lazygit) handles the git side of your work. lazyforge handles the forge side: everything that lives on the server.
 
-**Status:** v1 is implemented for **Forgejo and Gitea**. GitHub and GitLab adapters are planned. Build from source today; no releases have been published yet.
+**Status:** v1 supports **Forgejo, Gitea and GitHub** (github.com or GitHub Enterprise Server). A GitLab adapter is planned. Build from source today; no releases have been published yet.
 
 ![lazyforge demo showing pull requests, issues, Actions and a PR overview](docs/screenshots/demo-pull-requests.png)
 
@@ -52,11 +52,13 @@ Both screenshots show the running demo at 140×34 terminal cells. Start on **★
 
 Run `lazyforge` without `-demo`. With no config file, first-run onboarding walks you through:
 
-1. Choosing Forgejo or Gitea and entering your server address.
+1. Choosing Forgejo, Gitea or GitHub and entering your server address (pre-filled with `https://github.com` for GitHub).
 2. Pasting an access token or supplying a command that prints one, then testing the connection.
 3. Setting the Renovate bot username (leave blank to skip) and a short host name.
 
-Create a token at your server's `/user/settings/applications` page with `read:user`, `write:repository` and `write:issue`, as shown in onboarding. These cover sign-in, repositories, PRs, CI, issues and the actions above.
+On Forgejo or Gitea, create a token at your server's `/user/settings/applications` page with `read:user`, `write:repository` and `write:issue`, as shown in onboarding. These cover sign-in, repositories, PRs, CI, issues and the actions above.
+
+On GitHub, create a token at `/settings/tokens`: a classic token with the `repo` scope, or a fine-grained token with Contents, Pull requests and Issues read/write plus Actions, Checks and Commit statuses read. `gh auth token` works as the token command.
 
 Onboarding saves `config.toml` with mode `0600`. On Linux the default path is `~/.config/lazyforge/config.toml`; on macOS it is `~/Library/Application Support/lazyforge/config.toml`. `XDG_CONFIG_HOME` overrides the base directory on either platform. A pasted token is stored in that file; a token command is stored instead when you choose that option.
 
