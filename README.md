@@ -4,7 +4,7 @@ A keyboard-driven terminal UI for your git forge: pull requests, issues, Actions
 
 [lazygit](https://github.com/jesseduffield/lazygit) handles the git side of your work. lazyforge handles the forge side: everything that lives on the server.
 
-**Status:** v1 supports **Forgejo, Gitea and GitHub** (github.com or GitHub Enterprise Server). A GitLab adapter is planned. Build from source today; no releases have been published yet.
+**Status:** v1 supports **Forgejo, Gitea and GitHub** (github.com or GitHub Enterprise Server). A GitLab adapter is planned. Prebuilt binaries for Linux and macOS (Intel and ARM), or build from source.
 
 ![lazyforge demo showing pull requests, issues, Actions and a PR overview](docs/screenshots/demo-pull-requests.png)
 
@@ -15,6 +15,18 @@ A keyboard-driven terminal UI for your git forge: pull requests, issues, Actions
 - Inspect CI runs and job logs, and open run pages in your browser.
 - Use the cross-repo **★ Renovate** view to group updates by dependency, inspect failing CI, merge updates across repositories and tick Dependency Dashboard entries.
 - Configure multiple hosts and connect to one per session.
+
+## Install
+
+Linux and macOS, on Intel or ARM. This downloads the latest release, checks its checksum and installs `lazyforge` to `~/.local/bin`:
+
+```bash
+curl -fsSL https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/install.sh | bash
+```
+
+Make sure `~/.local/bin` is on your `PATH`. Set `LAZYFORGE_INSTALL_DIR` to install elsewhere, or `LAZYFORGE_VERSION` (for example `v0.1.0`) to pick a release. Once installed, lazyforge offers newer releases at launch and updates itself.
+
+Windows isn't supported yet.
 
 ## Install from source
 
