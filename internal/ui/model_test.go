@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -436,5 +437,22 @@ func TestRepoListScrollsToCursor(t *testing.T) {
 	m = press(t, m, "G")
 	if row := lines(m)[2]; !strings.Contains(row, "│ dotfiles") {
 		t.Errorf("cursor row not visible: %q", row)
+	}
+}
+
+func TestRepoListWithoutRenovateRow(t *testing.T) {
+	m := seeded(t)
+	repos := []domain.Repo{{RepoRef: domain.RepoRef{Owner: "o", Name: "a"}}, {RepoRef: domain.RepoRef{Owner: "o", Name: "b"}}}
+	l := repoList{noStar: true}
+	l.replace(repos)
+	if r, ok := l.selected(); !ok || r.Name != "a" {
+		t.Fatalf("first row: %v %v", r.Name, ok)
+	}
+	l.setCursor(99)
+	if r, ok := l.selected(); !ok || r.Name != "b" || l.cursor != 1 {
+		t.Fatalf("last row: %v %v cursor %d", r.Name, ok, l.cursor)
+	}
+	if out := l.view(40, 6, m.svc, "PR", time.Now()); strings.Contains(out, renovateRow) || !strings.Contains(out, "a") {
+		t.Fatalf("hidden row rendered or repos missing:\n%s", out)
 	}
 }

@@ -39,6 +39,7 @@ type Options struct {
 	Now            func() time.Time          // nil means time.Now
 	RequireGreenCI func(domain.RepoRef) bool // nil means off
 	RenovateUser   string                    // "" detects Renovate PRs by branch only
+	HideRenovate   bool                      // the repo list omits the ★ Renovate row
 }
 
 type entry struct {
@@ -53,6 +54,7 @@ type Service struct {
 	sem       chan struct{}
 	greenOnly func(domain.RepoRef) bool
 	renovUser string
+	hideStar  bool
 
 	mu     sync.Mutex
 	cache  map[Key]entry
@@ -73,6 +75,7 @@ func New(f forge.Forge, opts Options) *Service {
 		sem:       make(chan struct{}, opts.MaxConcurrent),
 		greenOnly: opts.RequireGreenCI,
 		renovUser: opts.RenovateUser,
+		hideStar:  opts.HideRenovate,
 		cache:     map[Key]entry{},
 		images:    newImageCache(),
 	}

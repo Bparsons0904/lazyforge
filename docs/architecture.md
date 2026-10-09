@@ -161,6 +161,7 @@ type = "forgejo"
 url = "https://git.bobparsons.dev"
 token_cmd = "infisical secrets get FORGEJO_TOKEN --plain"
 renovate_user = "renovate-bot"
+renovate = true # pin the ★ Renovate row; default is on when renovate_user is set
 require_green_ci = true
 
 [hosts.homelab.repos."deadstyle/lazyforge"]

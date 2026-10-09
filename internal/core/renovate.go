@@ -10,6 +10,9 @@ import (
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
 )
 
+// HidesRenovate reports whether the repo list omits the ★ Renovate row.
+func (s *Service) HidesRenovate() bool { return s.hideStar }
+
 // RenovateUser returns the configured renovate_user, "" when Renovate PRs are detected by branch only.
 func (s *Service) RenovateUser() string { return s.renovUser }
 

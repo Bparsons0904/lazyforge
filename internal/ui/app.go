@@ -345,6 +345,7 @@ func (a *App) openSession(ctx context.Context, name string, f forge.Forge) strin
 	svc := core.New(f, core.Options{
 		RequireGreenCI: func(r domain.RepoRef) bool { return live.Load().Hosts[name].RequiresGreenCI(r.String()) },
 		RenovateUser:   live.Load().Hosts[name].RenovateUser,
+		HideRenovate:   !live.Load().Hosts[name].ShowsRenovate(),
 	})
 	a.host, a.session, a.endSession = name, New(sctx, svc), cancel
 	a.session.keys.setHosted(true)

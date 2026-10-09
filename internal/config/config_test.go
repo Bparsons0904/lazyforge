@@ -465,3 +465,20 @@ func TestResolveToken(t *testing.T) {
 		}
 	})
 }
+
+func TestHostShowsRenovate(t *testing.T) {
+	on, off := true, false
+	for name, tc := range map[string]struct {
+		h    config.Host
+		want bool
+	}{
+		"no user, no setting":  {config.Host{}, false},
+		"user, no setting":     {config.Host{RenovateUser: "bot"}, true},
+		"user, switched off":   {config.Host{RenovateUser: "bot", Renovate: &off}, false},
+		"no user, switched on": {config.Host{Renovate: &on}, true},
+	} {
+		if got := tc.h.ShowsRenovate(); got != tc.want {
+			t.Errorf("%s: got %v, want %v", name, got, tc.want)
+		}
+	}
+}

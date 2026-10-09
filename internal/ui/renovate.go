@@ -60,7 +60,7 @@ type starModel struct {
 	marked map[starTarget]bool
 }
 
-func (m Model) onStar() bool { return m.repos.loaded && m.repos.cursor == 0 }
+func (m Model) onStar() bool { return m.repos.loaded && !m.repos.noStar && m.repos.cursor == 0 }
 
 func scanRepo(ctx context.Context, svc *core.Service, seq int, r domain.Repo) tea.Cmd {
 	return func() tea.Msg {

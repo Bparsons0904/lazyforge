@@ -63,6 +63,7 @@ type Model struct {
 // New returns the root model for one session over svc; ctx bounds every fetch the UI makes.
 func New(ctx context.Context, svc *core.Service) Model {
 	m := Model{ctx: ctx, svc: svc, info: svc.Info(), keys: defaultKeys(), help: newHelp(), now: time.Now, tick: tickEvery}
+	m.repos.noStar = svc.HidesRenovate()
 	m.openURL = func(u string) error { return openBrowser(ctx, u) }
 	m.keys.setHosted(false) // only an App hosting the session handles S and the hosts key
 	m.syncKeys()
@@ -224,7 +225,7 @@ func (m *Model) reposKey(msg tea.KeyPressMsg, gg bool) tea.Cmd {
 	case gg:
 		moved = l.setCursor(0)
 	case key.Matches(msg, k.Bottom):
-		moved = l.setCursor(len(l.repos))
+		moved = l.setCursor(l.last())
 	case key.Matches(msg, k.Right):
 		m.enterBoxes(0)
 	case key.Matches(msg, k.Jump):

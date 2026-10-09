@@ -45,6 +45,7 @@ type Host struct {
 	TokenCmd       string                  `toml:"token_cmd,omitempty"`
 	Token          string                  `toml:"token,omitempty"`
 	RenovateUser   string                  `toml:"renovate_user,omitempty"`
+	Renovate       *bool                   `toml:"renovate,omitempty"` // nil = on when renovate_user is set
 	RequireGreenCI bool                    `toml:"require_green_ci,omitempty"`
 	Repos          map[string]RepoSettings `toml:"repos,omitempty"` // key "owner/name"
 }
@@ -61,6 +62,15 @@ func (h Host) RequiresGreenCI(repo string) bool {
 		return *r.RequireGreenCI
 	}
 	return h.RequireGreenCI
+}
+
+// ShowsRenovate reports whether the repo list pins the ★ Renovate row: the renovate
+// setting when present, else whether a renovate_user is configured.
+func (h Host) ShowsRenovate() bool {
+	if h.Renovate != nil {
+		return *h.Renovate
+	}
+	return h.RenovateUser != ""
 }
 
 // Clone deep-copies Hosts and every host's Repos, so edits to the clone never reach c.

@@ -18,20 +18,33 @@ const staleAfter = 7 * 24 * time.Hour
 type repoList struct {
 	repos  []domain.Repo
 	loaded bool
-	cursor int // 0 is the ★ Renovate row; repo i sits at i+1
+	cursor int // 0 is the ★ Renovate row unless noStar; repo i sits at i+head()
+	noStar bool
 }
+
+// head is how many rows sit above the repos: one for the ★ Renovate row, none when it's hidden.
+func (l repoList) head() int {
+	if l.noStar {
+		return 0
+	}
+	return 1
+}
+
+// last is the index of the bottom row.
+func (l repoList) last() int { return max(len(l.repos)+l.head()-1, 0) }
 
 // selected returns the repo under the cursor; ok is false on the ★ Renovate row.
 func (l repoList) selected() (domain.Repo, bool) {
-	if l.cursor == 0 || l.cursor > len(l.repos) {
+	i := l.cursor - l.head()
+	if i < 0 || i >= len(l.repos) {
 		return domain.Repo{}, false
 	}
-	return l.repos[l.cursor-1], true
+	return l.repos[i], true
 }
 
 // setCursor moves the cursor to i, stopping at either end; it reports whether the cursor moved.
 func (l *repoList) setCursor(i int) bool {
-	i = max(min(i, len(l.repos)), 0)
+	i = max(min(i, l.last()), 0)
 	moved := i != l.cursor
 	l.cursor = i
 	return moved
@@ -43,16 +56,17 @@ func (l *repoList) replace(repos []domain.Repo) bool {
 	prev, had := l.selected()
 	l.repos, l.loaded = repos, true
 	if !had {
-		l.cursor = min(l.cursor, len(repos))
-		return l.cursor != 0
+		l.cursor = min(l.cursor, l.last())
+		_, ok := l.selected()
+		return ok
 	}
 	for i, r := range repos {
 		if r.RepoRef == prev.RepoRef {
-			l.cursor = i + 1
+			l.cursor = i + l.head()
 			return false
 		}
 	}
-	l.cursor = min(l.cursor, len(repos))
+	l.cursor = min(l.cursor, l.last())
 	return true
 }
 
@@ -72,16 +86,16 @@ func (l repoList) view(w, h int, svc *core.Service, term string, now time.Time) 
 	inner := max(h-2, 0)
 	first := max(l.cursor-inner+1, 0)
 	var lines []string
-	for i := first; i <= len(l.repos) && i < first+inner; i++ {
+	for i := first; i < len(l.repos)+l.head() && i < first+inner; i++ {
 		base := lipgloss.NewStyle()
 		if i == l.cursor {
 			base = style.Selected
 		}
-		if i == 0 {
+		if i == 0 && !l.noStar {
 			lines = append(lines, style.Virtual.Inherit(base).Render(fitLine(renovateRow, w-4)))
 			continue
 		}
-		r := l.repos[i-1]
+		r := l.repos[i-l.head()]
 		count := ""
 		meta := style.Faint.Inherit(base).Render(fitLine(age(now, r.LastActivity), ageWidth))
 		if crs, _, ok := svc.PeekChangeRequests(r.RepoRef); ok && len(crs) > 0 {
