@@ -233,6 +233,9 @@ func TestListReposAccessAndSort(t *testing.T) {
 	if repos[0].MergeStyle != "merge" {
 		t.Errorf("MergeStyle = %q, want merge", repos[0].MergeStyle)
 	}
+	if repos[0].DefaultBranch != "develop" || repos[1].DefaultBranch != "main" {
+		t.Errorf("DefaultBranch = %q, %q; want develop, main", repos[0].DefaultBranch, repos[1].DefaultBranch)
+	}
 	if repos[0].WebURL != "https://git.bobparsons.dev/deadstyle/lazyforge" {
 		t.Errorf("WebURL = %q", repos[0].WebURL)
 	}

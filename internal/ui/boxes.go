@@ -18,7 +18,10 @@ const (
 	boxCRs boxKind = iota
 	boxIssues
 	boxRuns
+	boxReleases boxKind = 4 // kind 3 (box [4]) is reserved for Renovate
 )
+
+const boxRepo boxKind = 5 // number = kind+1
 
 const (
 	focusWeight     = 12 // with unfocusedWeight, the mockup's 2.4:1
@@ -26,16 +29,68 @@ const (
 	minBoxHeight    = 3 // border plus one row
 )
 
+// readmeState is the selected repo's README; ok is false until the first load lands.
+type readmeState struct {
+	ok bool
+	r  domain.Readme
+}
+
+// branchesState is the selected repo's branch list; ok is false until the first load lands.
+// commits holds each branch's recent commits; a branch missing from it is still loading.
+type branchesState struct {
+	ok      bool
+	list    []domain.Branch
+	commits map[string][]domain.Commit
+}
+
+func (b *branchesState) setCommits(branch string, cs []domain.Commit) {
+	if b.commits == nil {
+		b.commits = map[string][]domain.Commit{}
+	}
+	b.commits[branch] = cs
+}
+
 type boxes struct {
-	repo     domain.RepoRef
-	showRuns bool
-	crs      []domain.ChangeRequest
-	issues   []domain.Issue
-	runs     []domain.Run
-	loaded   [3]bool
-	cursor   [3]int
-	focus    boxKind
-	marked   map[int]bool // CR numbers marked for a bulk merge
+	repo         domain.RepoRef
+	repoRow      domain.Repo
+	showRuns     bool
+	showRepo     bool
+	showBranches bool
+	showFiles    bool
+	crs          []domain.ChangeRequest
+	issues       []domain.Issue
+	runs         []domain.Run
+	releases     []domain.Release
+	readme       readmeState
+	branches     branchesState
+	files        filesState
+	loaded       [boxRepo + 1]bool
+	cursor       [boxRepo + 1]int
+	focus        boxKind
+	marked       map[int]bool // CR numbers marked for a bulk merge
+}
+
+// kinds lists the visible boxes in display order.
+func (b boxes) kinds() []boxKind {
+	ks := []boxKind{boxCRs, boxIssues}
+	if b.showRuns {
+		ks = append(ks, boxRuns)
+	}
+	ks = append(ks, boxReleases)
+	if b.showRepo {
+		ks = append(ks, boxRepo)
+	}
+	return ks
+}
+
+// count is the number of visible boxes.
+func (b boxes) count() int { return len(b.kinds()) }
+
+// step returns the visible box after (delta 1) or before (delta -1) focus, wrapping at either end.
+func (b *boxes) step(delta int) boxKind {
+	ks := b.kinds()
+	i := max(slices.Index(ks, b.focus), 0)
+	return ks[(i+delta+len(ks))%len(ks)]
 }
 
 func (b *boxes) toggleMark(n int) {
@@ -49,19 +104,19 @@ func (b *boxes) toggleMark(n int) {
 	b.marked[n] = true
 }
 
-func (b boxes) count() int {
-	if b.showRuns {
-		return 3
-	}
-	return 2
-}
-
 func (b boxes) len(k boxKind) int {
 	switch k {
 	case boxCRs:
 		return len(b.crs)
 	case boxIssues:
 		return len(b.issues)
+	case boxReleases:
+		return len(b.releases)
+	case boxRepo:
+		if b.showRepo {
+			return 1
+		}
+		return 0
 	default:
 		return len(b.runs)
 	}
@@ -78,7 +133,7 @@ func (b *boxes) clampCursors() {
 	}
 }
 
-// selected returns the item under the focused box's cursor: a ChangeRequest, Issue or Run, or nil.
+// selected returns the item under the focused box's cursor: a ChangeRequest, Issue, Run, Release or the repo, or nil.
 func (b boxes) selected() any {
 	i := b.cursor[b.focus]
 	if i >= b.len(b.focus) {
@@ -89,6 +144,10 @@ func (b boxes) selected() any {
 		return b.crs[i]
 	case boxIssues:
 		return b.issues[i]
+	case boxReleases:
+		return b.releases[i]
+	case boxRepo:
+		return b.repoRow
 	default:
 		return b.runs[i]
 	}
@@ -100,6 +159,10 @@ func boxTitle(k boxKind, term string) string {
 		return crBoxTitle(term)
 	case boxIssues:
 		return "Issues"
+	case boxRepo:
+		return "Repo"
+	case boxReleases:
+		return "Releases"
 	default:
 		return "Actions"
 	}
@@ -119,18 +182,17 @@ func crBoxTitle(term string) string {
 
 // view renders the boxes as a w×h column; focus < 0 renders the equal-height preview.
 func (b boxes) view(w, h int, focus int, active bool, term string, now time.Time) string {
-	n := b.count()
-	hs := splitHeights(h, n, focus)
-	panes := make([]string, 0, n)
-	for i := range n {
-		k := boxKind(i)
-		focused := i == focus
-		accent := style.RepoAccents.Title(i, focused && active)
-		title := accent.Render(fmt.Sprintf("[%d] %s", i+1, boxTitle(k, term)))
-		if b.loaded[k] {
+	ks := b.kinds()
+	hs := splitHeights(h, len(ks), slices.Index(ks, boxKind(focus)))
+	panes := make([]string, 0, len(ks))
+	for i, k := range ks {
+		focused := k == boxKind(focus)
+		accent := style.RepoAccents.Title(int(k), focused && active)
+		title := accent.Render(fmt.Sprintf("[%d] %s", int(k)+1, boxTitle(k, term)))
+		if b.loaded[k] && k != boxRepo {
 			title += " " + style.Count.Render(fmt.Sprint(b.len(k)))
 		}
-		panes = append(panes, frameWith(style.RepoAccents.Border(i, focused && active), title, b.rows(k, w-4, hs[i]-2, focused, now), w, hs[i]))
+		panes = append(panes, frameWith(style.RepoAccents.Border(int(k), focused && active), title, b.rows(k, w-4, hs[i]-2, focused, now), w, hs[i]))
 	}
 	return strings.Join(panes, "\n")
 }
@@ -142,6 +204,12 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 		return []string{style.Faint.Render("Loading…")}
 	case b.len(k) == 0:
 		return []string{style.Faint.Render("— none —")}
+	case k == boxRepo:
+		base := lipgloss.NewStyle()
+		if focused {
+			base = style.Selected
+		}
+		return []string{tagRow(b.repoRow.String()+" ", style.RepoAccents.Text(int(k)), b.repoRow.Description, style.Faint, "", w, base)}
 	}
 	// Keep the tag and age columns stable across the entire section.
 	tagWidth, ageWidth := 0, 0
@@ -154,6 +222,8 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 		case boxIssues:
 			tag = fmt.Sprintf("#%d", b.issues[i].Number)
 			elapsed = age(now, b.issues[i].UpdatedAt)
+		case boxReleases:
+			tag = sanitizeLine(b.releases[i].Tag)
 		default:
 			tag = b.runs[i].Workflow
 			elapsed = age(now, b.runs[i].StartedAt)
@@ -193,6 +263,25 @@ func (b boxes) rows(k boxKind, w, h int, focused bool, now time.Time) []string {
 				m = fmt.Sprintf("%d💬 %s", is.Comments, m)
 			}
 			meta = on(style.Faint, m)
+		case boxReleases:
+			rl := b.releases[i]
+			tag = fitLine(truncate(sanitizeLine(rl.Tag), tagWidth), tagWidth) + " "
+			label = ""
+			if rl.Name != rl.Tag {
+				label = sanitizeLine(rl.Name)
+			}
+			var marks []string
+			if rl.Draft {
+				marks = append(marks, "draft")
+			}
+			if rl.Prerelease {
+				marks = append(marks, "pre-release")
+			}
+			if e := publishedAge(now, rl.PublishedAt); e != "" {
+				marks = append(marks, e)
+			}
+			out = append(out, tagRow(tag, ts, label, style.Text, on(style.Faint, strings.Join(marks, " ")), w, base))
+			continue
 		default:
 			r := b.runs[i]
 			tag = fitLine(truncate(r.Workflow, tagWidth), tagWidth) + " "

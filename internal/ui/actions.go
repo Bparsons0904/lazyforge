@@ -27,11 +27,13 @@ type mergeDoneMsg struct {
 	results []core.MergeResult
 }
 
-// actionDoneMsg reports approve, close, comment and open; verb is the past tense the status bar shows.
+// actionDoneMsg reports approve, close, comment, update and open; verb is the past tense the status bar shows.
 type actionDoneMsg struct {
 	repo domain.RepoRef
 	item forge.ItemRef
 	verb string
+	// suffix follows the item number in the success text, e.g. " (rebase)".
+	suffix string
 	// closed marks a close so actionDone can unmark the change request.
 	closed bool
 	err    error
@@ -47,16 +49,32 @@ var errEmptyComment = errors.New("comment is empty")
 
 // openBrowser starts the platform's URL opener without waiting for it.
 func openBrowser(ctx context.Context, u string) error {
-	name := "xdg-open"
-	if runtime.GOOS == "darwin" {
-		name = "open"
+	name, args := browserCommand(runtime.GOOS, u)
+	return osexec.CommandContext(ctx, name, args...).Start()
+}
+
+func browserCommand(goos, u string) (name string, args []string) {
+	switch goos {
+	case "darwin":
+		return "open", []string{u}
+	case "windows":
+		// rundll32 opens the URL without cmd.exe, which would read a & in the URL as a command separator.
+		return "rundll32", []string{"url.dll,FileProtocolHandler", u}
 	}
-	return osexec.CommandContext(ctx, name, u).Start()
+	return "xdg-open", []string{u}
+}
+
+func defaultEditor(goos string) string {
+	if goos == "windows" {
+		return "notepad"
+	}
+	return "vi"
 }
 
 // syncKeys enables each action key only where it applies, which also hides it from the hints and help.
 func (m *Model) syncKeys() {
 	k := &m.keys
+	k.RunRenovate.SetEnabled(m.svc.CanRunRenovate().OK)
 	if m.onStar() && m.level != levelRepos {
 		m.syncStarKeys()
 		return
@@ -71,25 +89,62 @@ func (m *Model) syncKeys() {
 	_, isIssue := item.(domain.Issue)
 	_, isRun := item.(domain.Run)
 	k.Merge.SetEnabled(isCR && can(forge.ActMerge))
+	k.UpdateBranch.SetEnabled(isOpenCR(item) && can(forge.ActUpdateBranch) && len(m.svc.UpdateStyles()) > 0)
 	k.Mark.SetEnabled(isCR && can(forge.ActMerge))
 	k.Approve.SetEnabled(isCR && can(forge.ActApprove))
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
 	k.Comment.SetEnabled((isCR || isIssue) && can(forge.ActComment))
 	k.Labels.SetEnabled((isCR || isIssue) && can(forge.ActLabels))
-	k.Open.SetEnabled(webURL(item) != "")
+	if m.level == levelRepos {
+		k.Open.SetEnabled(repo.WebURL != "")
+	} else {
+		k.Open.SetEnabled(webURL(m.openTarget(item)) != "")
+	}
 	k.Rerun.SetEnabled(isRun && webURL(item) != "")
+}
+
+// isOpenCR gates u: an update applies only to an open change request.
+func isOpenCR(item any) bool {
+	cr, ok := item.(domain.ChangeRequest)
+	return ok && cr.State == domain.StateOpen
 }
 
 func webURL(item any) string {
 	switch it := item.(type) {
+	case domain.Repo:
+		return it.WebURL
 	case domain.ChangeRequest:
 		return it.WebURL
 	case domain.Issue:
 		return it.WebURL
 	case domain.Run:
 		return it.WebURL
+	case domain.Release:
+		return it.WebURL
+	case domain.Branch:
+		return it.WebURL
+	case domain.TreeEntry:
+		return it.WebURL
 	}
 	return ""
+}
+
+// openTarget is what o opens: the cursor branch on the Branches tab, the cursor entry on the Files tab, otherwise item.
+// Those two tabs never fall back to the repo, so o with no cursor entry opens nothing rather than a page the user didn't point at.
+func (m Model) openTarget(item any) any {
+	if m.branchesActive() {
+		return m.boxes.branches.list[m.details.branchCur]
+	}
+	if m.filesActive() {
+		if e, ok := m.details.cursorEntry(m.boxes.files); ok {
+			return e
+		}
+		return nil
+	}
+	if _, isRepo := item.(domain.Repo); isRepo && m.level == levelDetails && m.details.tab == branchesTab {
+		return nil
+	}
+	return item
 }
 
 func itemRef(r domain.RepoRef, item any) forge.ItemRef {
@@ -108,7 +163,7 @@ func (m *Model) actionKey(msg tea.KeyPressMsg) (cmd tea.Cmd, ok bool) {
 		return m.starActionKey(msg)
 	}
 	k, b := m.keys, &m.boxes
-	item := b.selected()
+	item := m.openTarget(b.selected())
 	switch {
 	case key.Matches(msg, k.Mark):
 		if cr, ok := item.(domain.ChangeRequest); ok {
@@ -135,6 +190,10 @@ func (m *Model) itemActionKey(msg tea.KeyPressMsg, ref forge.ItemRef, item any) 
 		}, true
 	case key.Matches(msg, k.CloseItem):
 		m.dialog = closeDialog(ref, item)
+	case key.Matches(msg, k.UpdateBranch):
+		if cr, ok := item.(domain.ChangeRequest); ok {
+			m.dialog = updateDialog(ref, cr, m.svc.UpdateStyles())
+		}
 	case key.Matches(msg, k.Labels):
 		return m.openLabels(ref), true
 	case key.Matches(msg, k.Comment):
@@ -259,6 +318,15 @@ func (m *Model) mergeDone(msg mergeDoneMsg) tea.Cmd {
 	return nil
 }
 
+// updateBranch runs the update in the background; its result arrives as an actionDoneMsg.
+func (m *Model) updateBranch(ref forge.ItemRef, style forge.UpdateStyle) tea.Cmd {
+	svc, ctx := m.svc, m.ctx
+	return func() tea.Msg {
+		err := svc.UpdateBranch(ctx, ref.Repo, ref.Number, style)
+		return actionDoneMsg{repo: ref.Repo, item: ref, verb: "Updated", suffix: " (" + string(style) + ")", err: err}
+	}
+}
+
 func (m *Model) actionDone(msg actionDoneMsg) tea.Cmd {
 	switch {
 	case errors.Is(msg.err, errEmptyComment):
@@ -268,7 +336,7 @@ func (m *Model) actionDone(msg actionDoneMsg) tea.Cmd {
 		m.setError(msg.err)
 		return nil
 	}
-	m.setInfo(fmt.Sprintf("%s #%d", msg.verb, msg.item.Number))
+	m.setInfo(fmt.Sprintf("%s #%d%s", msg.verb, msg.item.Number, msg.suffix))
 	if m.onStar() {
 		if msg.item.Kind == forge.ItemChangeRequest && msg.closed {
 			delete(m.star.marked, starTarget{msg.repo, msg.item.Number})
@@ -292,7 +360,7 @@ func (m *Model) closeItem(item forge.ItemRef) tea.Cmd {
 	}
 }
 
-// editComment opens $EDITOR (vi when unset) on a fresh temp file; the result arrives as editorDoneMsg.
+// editComment opens $EDITOR (vi, or notepad on Windows, when unset) on a fresh temp file; the result arrives as editorDoneMsg.
 func editComment(ctx context.Context, item forge.ItemRef) tea.Cmd {
 	return func() tea.Msg {
 		f, err := os.CreateTemp("", "lazyforge-comment-*.md")
@@ -305,7 +373,7 @@ func editComment(ctx context.Context, item forge.ItemRef) tea.Cmd {
 		}
 		args := strings.Fields(os.Getenv("EDITOR"))
 		if len(args) == 0 {
-			args = []string{"vi"}
+			args = []string{defaultEditor(runtime.GOOS)}
 		}
 		c := osexec.CommandContext(ctx, args[0], append(args[1:], path)...)
 		// ExecProcess's cmd only returns a message; running it here keeps the file creation off Update.

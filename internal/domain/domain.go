@@ -27,6 +27,7 @@ type Repo struct {
 	LastActivity        time.Time
 	Access              Access
 	MergeStyle          string // the repo's default merge style; "" when the forge doesn't report one
+	DefaultBranch       string // "" when the forge doesn't report one
 }
 
 // State is the lifecycle state of an issue or change request.
@@ -137,4 +138,46 @@ type Release struct {
 type Label struct {
 	ID          int64
 	Name, Color string
+}
+
+// Readme is a repo's README; Name is "" when the repo has none.
+type Readme struct{ Name, Body string }
+
+// Commit is one commit; Message is its subject line.
+type Commit struct {
+	SHA, Message, Author string
+	Date                 time.Time
+}
+
+// Branch is a repo branch with its tip commit; Default marks the repo's default branch.
+type Branch struct {
+	Name    string
+	Default bool
+	Commit  Commit
+	WebURL  string
+}
+
+// EntryType is what a repo tree entry is.
+type EntryType int
+
+// Entry types.
+const (
+	EntryFile EntryType = iota
+	EntryDir
+	EntrySymlink
+	EntrySubmodule
+)
+
+// TreeEntry is one entry of a repo directory; Path is from the repo root with / separators.
+type TreeEntry struct {
+	Name, Path string
+	Type       EntryType
+	Size       int64 // bytes, as the listing reports it
+	WebURL     string
+}
+
+// FilePreview is a file's text for the Files tab, or why there is none; Text is "" when Binary or TooLarge.
+type FilePreview struct {
+	Text             string
+	Binary, TooLarge bool
 }

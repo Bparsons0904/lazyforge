@@ -196,6 +196,48 @@ func RunContract(t *testing.T, newForge func(t *testing.T) (forge.Forge, Fixture
 				t.Errorf("got %v, want ErrNotFound", err)
 			}
 		}},
+		{"UpdateStyles starts with UpdateMerge", func(t *testing.T, f forge.Forge, _ Fixture) {
+			styles := branchUpdater(t, f).UpdateStyles()
+			if len(styles) == 0 || styles[0] != forge.UpdateMerge {
+				t.Errorf("styles %v, want non-empty with UpdateMerge first", styles)
+			}
+		}},
+		{"UpdateBranch with UpdateMerge on the open change request succeeds", func(t *testing.T, f forge.Forge, fx Fixture) {
+			if err := branchUpdater(t, f).UpdateBranch(ctx, fx.Repo, fx.OpenCR, forge.UpdateMerge); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"UpdateBranch of a missing number is ErrNotFound", func(t *testing.T, f forge.Forge, fx Fixture) {
+			err := branchUpdater(t, f).UpdateBranch(ctx, fx.Repo, fx.Missing, forge.UpdateMerge)
+			if !errors.Is(err, forge.ErrNotFound) {
+				t.Errorf("got %v, want ErrNotFound", err)
+			}
+		}},
+		{"UpdateBranch with a style UpdateStyles omits is ErrUnsupported", func(t *testing.T, f forge.Forge, fx Fixture) {
+			bu := branchUpdater(t, f)
+			offered := bu.UpdateStyles()
+			for _, style := range []forge.UpdateStyle{forge.UpdateMerge, forge.UpdateRebase} {
+				if slices.Contains(offered, style) {
+					continue
+				}
+				if err := bu.UpdateBranch(ctx, fx.Repo, fx.OpenCR, style); !errors.Is(err, forge.ErrUnsupported) {
+					t.Errorf("style %s: got %v, want ErrUnsupported", style, err)
+				}
+			}
+		}},
+		{"DispatchWorkflow on Repo succeeds", func(t *testing.T, f forge.Forge, fx Fixture) {
+			wd := workflowDispatcher(t, f)
+			if err := wd.DispatchWorkflow(ctx, fx.Repo, "renovate.yml", "main", map[string]string{"repo": "a/b"}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"DispatchWorkflow in a missing repo is ErrNotFound", func(t *testing.T, f forge.Forge, fx Fixture) {
+			wd := workflowDispatcher(t, f)
+			missing := domain.RepoRef{Owner: fx.Repo.Owner, Name: "no-such-repo"}
+			if err := wd.DispatchWorkflow(ctx, missing, "renovate.yml", "main", nil); !errors.Is(err, forge.ErrNotFound) {
+				t.Errorf("got %v, want ErrNotFound", err)
+			}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -210,6 +252,26 @@ func onHost(base *url.URL, p string) *url.URL {
 	u := *base
 	u.Path = p
 	return &u
+}
+
+// branchUpdater returns f's BranchUpdater, or skips the case for a forge without the capability.
+func branchUpdater(t *testing.T, f forge.Forge) forge.BranchUpdater {
+	t.Helper()
+	bu, ok := f.(forge.BranchUpdater)
+	if !ok {
+		t.Skip("forge is not a forge.BranchUpdater")
+	}
+	return bu
+}
+
+// workflowDispatcher returns f's WorkflowDispatcher, or skips the case for a forge without the capability.
+func workflowDispatcher(t *testing.T, f forge.Forge) forge.WorkflowDispatcher {
+	t.Helper()
+	wd, ok := f.(forge.WorkflowDispatcher)
+	if !ok {
+		t.Skip("forge is not a forge.WorkflowDispatcher")
+	}
+	return wd
 }
 
 // assetReader returns f's AssetReader and its host URL, or skips the case for a forge without the capability.

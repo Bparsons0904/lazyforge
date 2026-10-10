@@ -163,6 +163,9 @@ func TestListReposAccessAndOrder(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
+	if repos[0].DefaultBranch != "develop" || repos[2].DefaultBranch != "main" {
+		t.Errorf("DefaultBranch = %q, %q; want develop for lazyforge and main for rootcamp", repos[0].DefaultBranch, repos[2].DefaultBranch)
+	}
 	reqs := s.requestsTo(http.MethodGet, "/user/repos")
 	if len(reqs) != 2 || !strings.Contains(reqs[0].Query, "affiliation=owner%2Ccollaborator%2Corganization_member") || !strings.Contains(reqs[0].Query, "per_page=100") {
 		t.Fatalf("requests %+v", reqs)

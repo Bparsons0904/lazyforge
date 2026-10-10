@@ -90,6 +90,8 @@ func newServer(t testing.TB) *server {
 	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/pulls", s.listPulls)
 	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/pulls/{index}", s.getPull)
 	mux.HandleFunc("POST "+p+"/repos/{owner}/{repo}/pulls/{index}/merge", s.mergePull)
+	mux.HandleFunc("POST "+p+"/repos/{owner}/{repo}/pulls/{index}/update", s.updatePull)
+	mux.HandleFunc("POST "+p+"/repos/{owner}/{repo}/actions/workflows/{workflow}/dispatches", s.dispatchWorkflow)
 	mux.HandleFunc("PATCH "+p+"/repos/{owner}/{repo}/pulls/{index}", s.patchPull)
 	mux.HandleFunc("POST "+p+"/repos/{owner}/{repo}/pulls/{index}/reviews", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, obj{})
@@ -286,6 +288,30 @@ func (s *server) mergePull(w http.ResponseWriter, r *http.Request) {
 	}
 	pr["state"], pr["merged"] = "closed", true
 	w.WriteHeader(200)
+}
+
+// updatePull answers 200 with an empty body, as Forgejo does, for any pull the server holds.
+func (s *server) updatePull(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.findPull(r) == nil {
+		s.notFound(w)
+		return
+	}
+	w.WriteHeader(200)
+}
+
+// dispatchWorkflow answers 204 for any repo the server holds; it doesn't check that the workflow file exists.
+func (s *server) dispatchWorkflow(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, repo := range s.repos {
+		if repo["full_name"] == r.PathValue("owner")+"/"+r.PathValue("repo") {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	s.notFound(w)
 }
 
 func (s *server) patchPull(w http.ResponseWriter, r *http.Request) {

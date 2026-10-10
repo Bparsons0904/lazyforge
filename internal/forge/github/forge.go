@@ -30,6 +30,7 @@ type repo struct {
 	Name             string    `json:"name"`
 	Description      string    `json:"description"`
 	HTMLURL          string    `json:"html_url"`
+	DefaultBranch    string    `json:"default_branch"`
 	PushedAt         time.Time `json:"pushed_at"`
 	Archived         bool      `json:"archived"`
 	AllowMergeCommit bool      `json:"allow_merge_commit"` // null unless the token can push, and always null in /user/repos
@@ -91,6 +92,7 @@ type release struct {
 	Draft       bool      `json:"draft"`
 	Prerelease  bool      `json:"prerelease"`
 	PublishedAt time.Time `json:"published_at"`
+	CreatedAt   time.Time `json:"created_at"`
 	HTMLURL     string    `json:"html_url"`
 }
 
@@ -114,11 +116,12 @@ func (f *Forge) ListRepos(ctx context.Context) ([]domain.Repo, error) {
 	out := make([]domain.Repo, len(rs))
 	for i, r := range rs {
 		out[i] = domain.Repo{
-			RepoRef:      domain.RepoRef{Owner: r.Owner.Login, Name: r.Name},
-			Description:  r.Description,
-			WebURL:       r.HTMLURL,
-			LastActivity: r.PushedAt,
-			Access:       access(r),
+			RepoRef:       domain.RepoRef{Owner: r.Owner.Login, Name: r.Name},
+			Description:   r.Description,
+			WebURL:        r.HTMLURL,
+			LastActivity:  r.PushedAt,
+			Access:        access(r),
+			DefaultBranch: r.DefaultBranch,
 		}
 	}
 	slices.SortStableFunc(out, func(a, b domain.Repo) int { return b.LastActivity.Compare(a.LastActivity) })
@@ -441,13 +444,18 @@ func (f *Forge) ListReleases(ctx context.Context, r domain.RepoRef) ([]domain.Re
 	}
 	out := make([]domain.Release, len(rs))
 	for i, rl := range rs {
+		published := rl.PublishedAt
+		if published.IsZero() {
+			// GitHub drafts have published_at null; created_at keeps them sortable.
+			published = rl.CreatedAt
+		}
 		out[i] = domain.Release{
 			Tag:         rl.TagName,
 			Name:        rl.Name,
 			Notes:       rl.Body,
 			Draft:       rl.Draft,
 			Prerelease:  rl.Prerelease,
-			PublishedAt: rl.PublishedAt,
+			PublishedAt: published,
 			WebURL:      rl.HTMLURL,
 		}
 	}

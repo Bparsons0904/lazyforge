@@ -42,6 +42,15 @@ func (l repoList) selected() (domain.Repo, bool) {
 	return l.repos[i], true
 }
 
+func (l repoList) byRef(r domain.RepoRef) (domain.Repo, bool) {
+	for _, repo := range l.repos {
+		if repo.RepoRef == r {
+			return repo, true
+		}
+	}
+	return domain.Repo{}, false
+}
+
 // setCursor moves the cursor to i, stopping at either end; it reports whether the cursor moved.
 func (l *repoList) setCursor(i int) bool {
 	i = max(min(i, l.last()), 0)

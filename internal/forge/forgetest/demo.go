@@ -165,6 +165,61 @@ var demoRepos = []demoRepo{
 	{name: "dotfiles", desc: "Shell, editor and WM config", ago: 2 * day},
 }
 
+type demoBranch struct {
+	name string
+	ago  time.Duration // the tip's age; each older commit is an hour further back
+	log  []string      // newest first
+}
+
+// demoBranches are the branches of each demo repo; main is the default branch in every one.
+var demoBranches = map[string][]demoBranch{
+	"homelab": {
+		{"main", 10 * minute, []string{"fix(traefik): drop the swarm provider", "chore: restic keep-daily 40", "docs: note the paperless snapshot policy"}},
+		{"renovate/traefik-3.x", 25 * minute, []string{"chore(deps): update traefik docker tag to v3.2.0"}},
+		{"feature/add-uptime-kuma", day, []string{"feat: add uptime-kuma service", "feat: forward-auth for the status page"}},
+		{"fix/paperless-retention", 3 * day, []string{"fix(backup): prune paperless snapshots", "wip: restic keep-daily 40"}},
+	},
+	"infra": {
+		{"main", hour, []string{"chore(tofu): bump the proxmox provider pin", "docs: explain the DNS zone layout"}},
+		{"renovate/postgres-17.x", 2 * hour, []string{"chore(deps): update postgres docker tag to v17.0"}},
+		{"renovate/opentofu-1.x", 3 * hour, []string{"chore(deps): update opentofu to v1.9.0"}},
+		{"feature/proxmox-dns", 5 * day, []string{"feat(dns): add the lab zone", "feat(dns): split-horizon for home.arpa"}},
+	},
+	"lazyforge": {
+		{"main", 3 * hour, []string{"feat(ui): repo list with boxes", "chore: scaffold the bubbletea model"}},
+		{"feature/numbered-boxes", 4 * hour, []string{"feat: numbered boxes + two-column navigation", "docs: sketch the boxes"}},
+		{"renovate/bubbletea-1.x", 5 * hour, []string{"chore(deps): update module bubbletea to v1.3.0"}},
+		{"docs/keymap", 2 * day, []string{"docs: keymap for the details pane", "docs: design notes"}},
+	},
+	"dotfiles": {
+		{"main", 2 * day, []string{"chore: tmux theme", "chore: zsh aliases"}},
+		{"wip/neovim-lsp", 4 * day, []string{"wip: lsp config"}},
+		{"fix/zsh-path", 6 * day, []string{"fix(zsh): path order", "chore: move the path into .zshenv"}},
+		{"feature/wezterm", 9 * day, []string{"feat: wezterm config"}},
+	},
+}
+
+// seedBranches adds each branch with its commit list; Renovate branches are authored by renovate.
+func seedBranches(f *Fake, ref domain.RepoRef, base string, now time.Time, bs []demoBranch) {
+	for _, b := range bs {
+		author := "you"
+		if strings.HasPrefix(b.name, "renovate/") {
+			author = "renovate"
+		}
+		commits := make([]domain.Commit, len(b.log))
+		for i, msg := range b.log {
+			commits[i] = domain.Commit{
+				SHA: demoSHA(fmt.Appendf(nil, "%s@%s#%d", ref, b.name, i)), Message: msg, Author: author,
+				Date: now.Add(-b.ago - time.Duration(i)*hour),
+			}
+		}
+		f.AddBranch(ref, domain.Branch{
+			Name: b.name, Default: b.name == "main", Commit: commits[0], WebURL: fmt.Sprintf("%s/src/branch/%s", base, b.name),
+		})
+		f.SetCommits(ref, b.name, commits)
+	}
+}
+
 // NewDemo returns a Fake seeded to look like docs/mockup.html, with every timestamp relative to now.
 func NewDemo(now time.Time) *Fake {
 	f := NewFake(forge.HostInfo{
@@ -199,8 +254,39 @@ func NewDemo(now time.Time) *Fake {
 				WebURL: fmt.Sprintf("%s/releases/tag/%s", base, rel.tag),
 			})
 		}
+		seedBranches(f, ref, base, now, demoBranches[r.name])
+		if r.name != "dotfiles" {
+			f.SetReadme(ref, domain.Readme{Name: "README.md", Body: demoReadme(r.name)})
+		}
+		seedTree(f, ref, base)
 	}
 	return f
+}
+
+// seedTree gives a demo repo a small default-branch tree: two directories, a nested one, a text file, a binary, and a file too large to preview.
+func seedTree(f *Fake, ref domain.RepoRef, base string) {
+	entry := func(path string, t domain.EntryType, size int64) domain.TreeEntry {
+		return domain.TreeEntry{
+			Name: path[strings.LastIndex(path, "/")+1:], Path: path, Type: t, Size: size,
+			WebURL: base + "/src/branch/main/" + path,
+		}
+	}
+	f.SetTree(ref, "", []domain.TreeEntry{
+		entry("cmd", domain.EntryDir, 0),
+		entry("internal", domain.EntryDir, 0),
+		entry("README.md", domain.EntryFile, 1200),
+		entry("go.mod", domain.EntryFile, 96),
+		entry("logo.png", domain.EntryFile, 2048),
+		entry("dump.sql", domain.EntryFile, 300<<10),
+	})
+	f.SetTree(ref, "cmd", []domain.TreeEntry{entry("cmd/main.go", domain.EntryFile, 45)})
+	f.SetTree(ref, "internal", []domain.TreeEntry{entry("internal/ui", domain.EntryDir, 0)})
+	f.SetTree(ref, "internal/ui", []domain.TreeEntry{entry("internal/ui/model.go", domain.EntryFile, 2048)})
+	f.SetFile(ref, "cmd/main.go", []byte("package main\n\nfunc main() {}\n"))
+	f.SetFile(ref, "go.mod", []byte(fmt.Sprintf("module %s\n\ngo 1.24\n", ref)))
+	f.SetFile(ref, "README.md", []byte(demoReadme(ref.Name)))
+	f.SetFile(ref, "logo.png", []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"))
+	f.SetFile(ref, "internal/ui/model.go", []byte("package ui\n\n// Model is the root of the UI.\ntype Model struct{}\n"))
 }
 
 func (p demoPR) toDomain(ref domain.RepoRef, base string, now time.Time) domain.ChangeRequest {
@@ -231,6 +317,11 @@ func seedRun(f *Fake, ref domain.RepoRef, base string, now time.Time, r demoRun)
 		logs[id] = strings.Join(j.log, "\n") + "\n"
 	}
 	f.AddRun(ref, run, jobs, logs)
+}
+
+// demoReadme is a short README; the dotfiles demo repo has none, which shows the "No README" state.
+func demoReadme(name string) string {
+	return fmt.Sprintf("# %s\n\nNotes for the %s repo.\n\n## Setup\n\n- clone the repo\n- run `make check`\n\nSee [the design notes](https://example.com/design).\n", name, name)
 }
 
 func demoSHA(seed []byte) string { return fmt.Sprintf("%x", sha256.Sum256(seed))[:40] }

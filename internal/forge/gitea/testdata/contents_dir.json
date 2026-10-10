@@ -1,0 +1,46 @@
+[
+  {
+    "name": "src",
+    "path": "src",
+    "sha": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+    "type": "dir",
+    "size": 0,
+    "url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/contents/src?ref=main",
+    "html_url": "https://git.bobparsons.dev/deadstyle/lazyforge/src/branch/main/src",
+    "git_url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/git/trees/4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+    "download_url": null
+  },
+  {
+    "name": "README.md",
+    "path": "README.md",
+    "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "type": "file",
+    "size": 106,
+    "url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/contents/README.md?ref=main",
+    "html_url": "https://git.bobparsons.dev/deadstyle/lazyforge/src/branch/main/README.md",
+    "git_url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "download_url": "https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/README.md"
+  },
+  {
+    "name": "latest",
+    "path": "latest",
+    "sha": "9c1185a5c5e9fc54612808977ee8f548b2258d31",
+    "type": "symlink",
+    "size": 3,
+    "url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/contents/latest?ref=main",
+    "html_url": "https://git.bobparsons.dev/deadstyle/lazyforge/src/branch/main/latest",
+    "git_url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/git/blobs/9c1185a5c5e9fc54612808977ee8f548b2258d31",
+    "download_url": "https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/latest"
+  },
+  {
+    "name": "vendor",
+    "path": "vendor",
+    "sha": "1f7a7a472abf77e74b3d48b8b6f8f2c0f1b24e7a",
+    "type": "submodule",
+    "size": 0,
+    "url": "https://git.bobparsons.dev/api/v1/repos/deadstyle/lazyforge/contents/vendor?ref=main",
+    "html_url": "https://git.bobparsons.dev/deadstyle/lazyforge/src/commit/1f7a7a472abf77e74b3d48b8b6f8f2c0f1b24e7a/vendor",
+    "git_url": null,
+    "download_url": null
+  }
+]

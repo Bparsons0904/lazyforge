@@ -63,9 +63,10 @@ func TestTinyWindowDoesNotPanic(t *testing.T) {
 func TestSelectionShowsBoxes(t *testing.T) {
 	m := sized(t, 120, 40)
 	m, msgs := step(t, m, "j")
-	// The ★ scan at startup already cached the change requests and issues, so only the runs miss.
-	if c := counts(msgs); c["crs"] != 0 || c["issues"] != 0 || c["runs"] != 1 || len(msgs) != 1 {
-		t.Fatalf("selecting homelab issued %v, want only the uncached runs load", c)
+	// The ★ scan at startup already cached the change requests and issues, so only the runs, releases, README, branches and root tree miss.
+	// The commits load waits for the branch list, so it isn't issued yet.
+	if c := counts(msgs); c["crs"] != 0 || c["issues"] != 0 || c["runs"] != 1 || c["releases"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["tree"] != 1 || c["preview"] != 0 || len(msgs) != 5 {
+		t.Fatalf("selecting homelab issued %v, want only the uncached runs, releases, README, branches and root tree loads", c)
 	}
 	for _, msg := range msgs {
 		m = run(t, m, msg)
@@ -83,8 +84,8 @@ func TestRunsGateHidesActions(t *testing.T) {
 	f.SetGate(forge.ActRuns, errors.New("no actions"))
 	m := sizedWith(t, seededWith(t, f), 120, 40)
 	m, msgs := step(t, m, "j")
-	if c := counts(msgs); c["runs"] != 0 || c["crs"] != 0 || c["issues"] != 0 || len(msgs) != 0 {
-		t.Fatalf("gated select issued %v", c)
+	if c := counts(msgs); c["runs"] != 0 || c["crs"] != 0 || c["issues"] != 0 || c["releases"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["tree"] != 1 || len(msgs) != 4 {
+		t.Fatalf("gated select issued %v, want only the releases, README, branches and root tree loads", c)
 	}
 	for _, msg := range msgs {
 		m = run(t, m, msg)
@@ -134,8 +135,9 @@ func TestCachedReselectIssuesNoFetch(t *testing.T) {
 	m = press(t, m, "j")
 	m, _ = step(t, m, "k")
 	m, msgs := step(t, m, "j")
-	if len(msgs) != 0 {
-		t.Fatalf("cached re-select fetched %v", counts(msgs))
+	// Landing on a branch always refetches its commits, and the Files tab reloads the root listing; everything else stays cached.
+	if c := counts(msgs); c["commits"] != 1 || c["tree"] != 1 || len(msgs) != 2 {
+		t.Fatalf("cached re-select fetched %v, want only the cursor branch's commits and the root tree", c)
 	}
 	if len(m.boxes.crs) != 3 {
 		t.Fatalf("cache not seeded: %d CRs", len(m.boxes.crs))
@@ -147,13 +149,13 @@ func TestRefreshRefetchesEvenWhenCached(t *testing.T) {
 	m = press(t, m, "j")
 	_, msgs := step(t, m, "r")
 	c := counts(msgs)
-	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || len(msgs) != 4 {
+	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["releases"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["commits"] != 1 || c["tree"] != 2 || len(msgs) != 10 {
 		t.Fatalf("r issued %v", c)
 	}
 
 	_, cmd := m.Update(refreshTickMsg{})
 	c = counts(exec(t, cmd))
-	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["tick"] != 1 {
+	if c["repos"] != 1 || c["crs"] != 1 || c["issues"] != 1 || c["runs"] != 1 || c["releases"] != 1 || c["readme"] != 1 || c["branches"] != 1 || c["commits"] != 1 || c["tree"] != 2 || c["tick"] != 1 {
 		t.Fatalf("tick issued %v, want the loads plus one new tick", c)
 	}
 }
@@ -185,25 +187,41 @@ func TestNavigation(t *testing.T) {
 	if got := lines(m)[0]; !strings.Contains(got, want) {
 		t.Errorf("header %q lacks %q", got, want)
 	}
-	m = press(t, m, "j", "j", "j", "j", "j")
-	if m.boxes.cursor[boxCRs] != 2 {
-		t.Fatalf("j x5: cursor %d, want 2", m.boxes.cursor[boxCRs])
+	m = press(t, m, "j", "j")
+	if m.boxes.focus != boxCRs || m.boxes.cursor[boxCRs] != 2 {
+		t.Fatalf("j x2: focus %v cursor %d, want the last PR", m.boxes.focus, m.boxes.cursor[boxCRs])
 	}
-	m = press(t, m, "k", "k", "k", "k")
-	if m.boxes.cursor[boxCRs] != 0 {
-		t.Fatalf("k x4: cursor %d, want 0", m.boxes.cursor[boxCRs])
+	m = press(t, m, "j")
+	if m.boxes.focus != boxIssues || m.boxes.cursor[boxIssues] != 0 {
+		t.Fatalf("j past the last PR: focus %v cursor %d, want the first issue", m.boxes.focus, m.boxes.cursor[boxIssues])
+	}
+	m = press(t, m, "k")
+	if m.boxes.focus != boxCRs || m.boxes.cursor[boxCRs] != 2 {
+		t.Fatalf("k above the first issue: focus %v cursor %d, want the last PR", m.boxes.focus, m.boxes.cursor[boxCRs])
+	}
+	m = press(t, m, "k", "k", "k")
+	if m.boxes.focus != boxCRs || m.boxes.cursor[boxCRs] != 0 {
+		t.Fatalf("k above the first box: focus %v cursor %d, want to stay on the first PR", m.boxes.focus, m.boxes.cursor[boxCRs])
 	}
 	m = press(t, m, "2")
 	if m.boxes.focus != boxIssues {
 		t.Fatalf("2: focus %v", m.boxes.focus)
 	}
 	m = press(t, m, "3", "tab")
+	if m.boxes.focus != boxReleases {
+		t.Fatalf("tab from [3]: focus %v, want the Releases box", m.boxes.focus)
+	}
+	m = press(t, m, "tab")
+	if m.boxes.focus != boxRepo {
+		t.Fatalf("tab from [5]: focus %v, want the Repo box", m.boxes.focus)
+	}
+	m = press(t, m, "tab")
 	if m.boxes.focus != boxCRs {
 		t.Fatalf("tab from last box: focus %v, want wrap to first", m.boxes.focus)
 	}
 	m = press(t, m, "shift+tab")
-	if m.boxes.focus != boxRuns {
-		t.Fatalf("shift+tab from first: focus %v, want wrap to last", m.boxes.focus)
+	if m.boxes.focus != boxRepo {
+		t.Fatalf("shift+tab from first: focus %v, want wrap to the Repo box", m.boxes.focus)
 	}
 	m = press(t, m, "1", "l")
 	if m.level != levelDetails {
@@ -397,8 +415,8 @@ func TestHelpOverlay(t *testing.T) {
 
 func TestStatusBarHintsPerLevel(t *testing.T) {
 	want := map[level][]string{
-		levelRepos:   {"REPOS", "j/k repo · l enter · 1-5 jump to box · ? help"},
-		levelBoxes:   {"BOXES", "j/k move · 1-5/tab box · l details · h back"},
+		levelRepos:   {"REPOS", "j/k repo · l enter · 1-6 jump to box · o open · ? help"},
+		levelBoxes:   {"BOXES", "j/k move · 1-6/tab box · l details · h back"},
 		levelDetails: {"DETAILS", "j/k scroll · [ ] tabs · h back"},
 	}
 	m := sized(t, 120, 40)

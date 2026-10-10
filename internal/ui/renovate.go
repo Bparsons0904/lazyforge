@@ -483,13 +483,33 @@ func (m *Model) starSetCursor(i int) {
 	s.cursor[s.focus] = max(min(i, s.len(s.focus)-1), 0)
 }
 
+func (m *Model) moveInStar(delta int) {
+	s := &m.star
+	if i := s.cursor[s.focus] + delta; i >= 0 && i < s.len(s.focus) {
+		m.starSetCursor(i)
+		return
+	}
+	for j := int(s.focus) + delta; j >= 0 && j < starBoxes; j += delta {
+		n := s.len(starBox(j))
+		if n == 0 || !m.focusStar(j) {
+			continue
+		}
+		if delta < 0 {
+			s.cursor[s.focus] = n - 1
+		} else {
+			s.cursor[s.focus] = 0
+		}
+		return
+	}
+}
+
 func (m *Model) starBoxesKey(msg tea.KeyPressMsg, gg bool) {
 	k, s := m.keys, &m.star
 	switch {
 	case key.Matches(msg, k.Down):
-		m.starSetCursor(s.cursor[s.focus] + 1)
+		m.moveInStar(1)
 	case key.Matches(msg, k.Up):
-		m.starSetCursor(s.cursor[s.focus] - 1)
+		m.moveInStar(-1)
 	case gg:
 		m.starSetCursor(0)
 	case key.Matches(msg, k.Bottom):
@@ -534,7 +554,7 @@ func (m *Model) starDetailsKey(msg tea.KeyPressMsg, gg bool) {
 
 func (m *Model) syncStarDetails() {
 	bodyH, _, rightW := m.layout()
-	m.details.syncText("★ "+fmt.Sprint(m.star.focus)+" "+m.star.crumb(), m.star.detail(m.now(), func(r domain.RepoRef, b string) string { return m.details.markdown(r, b, contentWidth(rightW)) }), rightW, bodyH)
+	m.details.syncText("★ "+fmt.Sprint(m.star.focus)+" "+m.star.crumb(), m.star.detail(m.now(), func(r domain.RepoRef, b string) string { return m.details.markdown(r, b, contentWidth(rightW)) }), 1, rightW, bodyH)
 }
 
 // syncStarKeys enables each action key only where the ★ row under the cursor supports it.
@@ -545,13 +565,24 @@ func (m *Model) syncStarKeys() {
 	_, isCR := item.(domain.ChangeRequest)
 	_, isIssue := item.(domain.Issue)
 	k.Merge.SetEnabled(m.starCanMerge())
+	k.UpdateBranch.SetEnabled(isOpenCR(item) && can(forge.ActUpdateBranch) && len(m.svc.UpdateStyles()) > 0)
 	k.Mark.SetEnabled(isCR && (s.focus == starPRs || s.focus == starCI) && can(forge.ActMerge))
 	k.Approve.SetEnabled(isCR && can(forge.ActApprove))
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
 	k.Comment.SetEnabled((isCR || isIssue) && can(forge.ActComment))
 	k.Labels.SetEnabled((isCR || isIssue) && can(forge.ActLabels))
-	k.Open.SetEnabled(webURL(item) != "")
+	k.Open.SetEnabled(webURL(m.starOpenTarget(item)) != "")
 	k.Rerun.SetEnabled(false)
+}
+
+// starOpenTarget swaps a By repo row, which has no item, for its repo so o opens the repo's page.
+func (m Model) starOpenTarget(item any) any {
+	if r, ok := m.star.selected().(renovate.RepoSummary); ok {
+		if repo, ok := m.repos.byRef(r.Repo); ok {
+			return repo
+		}
+	}
+	return item
 }
 
 func (m Model) starCanMerge() bool {

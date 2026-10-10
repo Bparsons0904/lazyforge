@@ -1,0 +1,10 @@
+{
+  "type": "file",
+  "encoding": "base64",
+  "size": 137,
+  "name": "README.md",
+  "path": "README.md",
+  "content": "IyBsYXp5Zm9yZ2UKCkEga2V5Ym9hcmQtZHJpdmVuIHRlcm1pbmFsIFVJIGZv\nciBnaXQgZm9yZ2VzLgoKLSBGb3JnZWpvIGFuZCBHaXRlYQotIEdpdEh1Ygot\nIEdpdExhYgoKU2VlIFt0aGUgZGVzaWduXShkb2NzL2Rlc2lnbi5tZCkuCg==\n",
+  "sha": "3a7bd3e2360a3d80c2dc4f2f0b5b3ac1d7b47a5e",
+  "download_url": "https://raw.githubusercontent.com/deadstyle/lazyforge/develop/README.md"
+}

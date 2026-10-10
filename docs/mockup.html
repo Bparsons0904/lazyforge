@@ -132,7 +132,7 @@ table.doc th{color:var(--muted);font-weight:600}
     <div class="card decided wide">
       <h2>Decided so far</h2>
       <ul>
-        <li>A repo's sections are numbered boxes, like lazygit's panels: <b>[1] Pull requests [2] Issues [3] Actions [4] Renovate [5] Releases</b>.</li>
+        <li>A repo's sections are numbered boxes, like lazygit's panels: <b>[1] Pull requests [2] Issues [3] Actions [4] Renovate [5] Releases [6] Repo</b>.</li>
         <li>When you're on a repo, those boxes are the preview on the right. Press <kbd>l</kbd> and they move to the left column, with the details of the selected item on the right.</li>
         <li><kbd>l</kbd> from a box moves focus into the details pane. It doesn't open a third set of columns.</li>
       </ul>
@@ -141,8 +141,8 @@ table.doc th{color:var(--muted);font-weight:600}
       <h2>Navigation model</h2>
       <table class="doc">
         <tr><th>Focus</th><th>Left</th><th>Right</th><th>Keys</th></tr>
-        <tr><td>Repos</td><td>Repo list (★ Renovate pinned, the rest by activity)</td><td>The selected repo's boxes, as a preview</td><td><kbd>j/k</kbd> pick a repo · <kbd>l</kbd> or <kbd>1–5</kbd> go in</td></tr>
-        <tr><td>Boxes</td><td>The repo's boxes; the focused one grows</td><td>Details of the selected item</td><td><kbd>j/k</kbd> within a box · <kbd>1–5</kbd> / <kbd>tab</kbd> between boxes · <kbd>l</kbd> into the details</td></tr>
+        <tr><td>Repos</td><td>Repo list (★ Renovate pinned, the rest by activity)</td><td>The selected repo's boxes, as a preview</td><td><kbd>j/k</kbd> pick a repo · <kbd>l</kbd> or <kbd>1–6</kbd> go in</td></tr>
+        <tr><td>Boxes</td><td>The repo's boxes; the focused one grows</td><td>Details of the selected item</td><td><kbd>j/k</kbd> within a box · <kbd>1–6</kbd> / <kbd>tab</kbd> between boxes · <kbd>l</kbd> into the details</td></tr>
         <tr><td>Details</td><td>Same boxes, dimmed</td><td>Details, focused, with tabs</td><td><kbd>j/k</kbd> scroll · <kbd>[ ]</kbd> tabs · actions</td></tr>
       </table>
       <p style="margin:10px 0 0;color:var(--muted);font-size:14px"><kbd>h</kbd> always steps back one level. The action keys (<kbd>m</kbd>, <kbd>a</kbd>, <kbd>x</kbd> and so on) work from both the boxes and the details pane.</p>
@@ -184,11 +184,11 @@ table.doc th{color:var(--muted);font-weight:600}
     <div class="card">
       <h2>Suggested v1</h2>
       <ul>
-        <li>Repo list plus boxes [1]–[3], with details and the Overview tab</li>
+        <li>Repo list plus boxes [1]–[3], the Repo box [6] with its README, Files and Branches tabs, and details with the Overview tab</li>
         <li>★ Renovate view, including [2] Updates by dependency</li>
         <li>Merge, approve, close, comment (in <code>$EDITOR</code>), open in browser and refresh</li>
         <li>Bulk merge, with a warning when CI isn't green</li>
-        <li>Next after v1: the Files tab with diffs (optionally via <code>delta</code>), the Logs tab, and boxes [4] and [5]</li>
+        <li>Next after v1: the Files tab with diffs (optionally via <code>delta</code>), the Logs tab, boxes [4] and [5]</li>
       </ul>
     </div>
   </section>
@@ -253,7 +253,7 @@ const repos = [
       {kind:'run', id:317, wf:'validate', status:'failure', branch:'renovate/traefik-3.x', commit:'7be0d14', trigger:'pull_request', dur:'34s', ago:'25m',
         jobs:[{name:'lint', status:'success', log:lintLog}, {name:'validate', status:'failure', log:traefikFail}]},
     ],
-    releases:[{kind:'release', tag:'2026.09.1', ago:'5d', notes:'- traefik 3.1\n- immich added\n- nightly restic check'}]},
+    releases:[{kind:'release', tag:'2026.10.0-rc1', prerelease:true, ago:'1d', notes:'- restic 0.17 test build'}, {kind:'release', tag:'2026.09.1', ago:'5d', notes:'- traefik 3.1\n- immich added\n- nightly restic check'}]},
   {name:'infra', ago:'1h', desc:'OpenTofu for Proxmox VMs and DNS',
     prs:[
       rpr(18, 'opentofu', '1.8.5', '1.9.0', 'minor', '.forgejo/workflows/plan.yml',
@@ -333,7 +333,47 @@ function boxesFor(r) {
     {title:'Actions', items:r.runs},
     {title:'Renovate', items:r.deps},
     {title:'Releases', items:r.releases},
+    {title:'Repo', noCount:true, items:[{kind:'repo', repo:r.name, desc:r.desc, readme:r.name === 'dotfiles' ? '' : r.desc + '.\n\n- clone the repo\n- run make check', branches:demoBranches(), files:demoFiles()}]},
   ];
+}
+
+// demo branches for the Repo box's Branches tab: the default first, then by recent commit; the cursor starts on main
+function demoBranches() {
+  return {
+    tips: [
+      {name:'main', def:true, subj:'fix: handle empty repo list', ago:'2h'},
+      {name:'feature/92-branches', subj:'feat(ui): Branches tab in the Repo box', ago:'3h'},
+      {name:'renovate/typescript-5.x', subj:'chore(deps): update typescript to 5.6.2', ago:'1d', pr:41},
+    ],
+    commits: [
+      {sha:'a41f9c2', subj:'fix: handle empty repo list', who:'you', ago:'2h'},
+      {sha:'7be03d1', subj:'chore: bump go to 1.24', who:'renovate', ago:'3d'},
+      {sha:'c09e5a8', subj:'docs: note the keymap change', who:'you', ago:'1w'},
+    ],
+  };
+}
+
+// demo tree for the Repo box's Files tab: the root listing, with the cursor on go.mod and its contents previewed
+function demoFiles() {
+  return {
+    entries: ['cmd/', 'internal/', 'dump.sql', 'go.mod', 'logo.png', 'README.md'],
+    cur: 'go.mod',
+    text: 'module git.bobparsons.dev/deadstyle/homelab\n\ngo 1.24\n',
+  };
+}
+
+function filesBody(it) {
+  const {entries, cur, text} = it.files;
+  const list = entries.map(e => `<div class="row${e === cur ? ' sel' : ''}"><span>${esc(e)}</span></div>`).join('');
+  const preview = text.split('\n').map(l => `<div>${esc(l)}</div>`).join('');
+  return `<div style="display:flex;gap:8px"><div style="width:40%;min-width:0">${list}</div><div class="dim">│</div><div style="flex:1;min-width:0">${preview}</div></div>`;
+}
+
+function branchesBody(it) {
+  const {tips, commits} = it.branches;
+  const row = t => `<div>${esc(t.name)}${t.def ? ' <span class="g">default</span>' : ''} <span class="dim">${esc(t.subj)} · ${t.ago}${t.pr ? ' · <span class="num">#' + t.pr + '</span>' : ''}</span></div>`;
+  return `<div class="sec">Branches</div>${tips.map(row).join('')}
+    <div class="sec">Commits on main</div>${commits.map(c => `<div><span class="num">${c.sha}</span> ${esc(c.subj)} <span class="dim">${esc(c.who)} · ${c.ago}</span></div>`).join('')}`;
 }
 
 /* ---------------- rows ---------------- */
@@ -349,7 +389,8 @@ function itemRow(it, showRepo) {
     case 'issue': return {html:`<span class="num">#${it.n}</span> ${repo}${it.dashboard ? '<span class="m">⚙</span> ' : ''}${esc(it.title)}`, meta:`${it.comments.length ? it.comments.length + '💬 ' : ''}${it.ago}`};
     case 'run': return {html:`${ICON[it.status]} ${repo}${esc(it.wf)} <span class="dim">${esc(it.branch)}</span>`, meta:it.ago};
     case 'dep': return {html:`${it.ticked ? '<span class="g">☑</span>' : '<span class="dim">☐</span>'} ${esc(it.title.replace('chore(deps): ', ''))}`, meta:esc(it.section.toLowerCase())};
-    case 'release': return {html:`<span class="t">${esc(it.tag)}</span>`, meta:it.ago};
+    case 'release': return {html:`<span class="t">${esc(it.tag)}</span>${it.name && it.name !== it.tag ? ' ' + esc(it.name) : ''}`, meta:[it.draft ? 'draft' : '', it.prerelease ? 'pre-release' : '', it.ago].filter(Boolean).join(' ')};
+    case 'repo': return {html:`<span class="b">${esc(it.repo)}</span> <span class="dim">${esc(it.desc)}</span>`, meta:''};
     case 'group': return {html:`${esc(it.pkg)} <span class="dim">${esc(it.from)} →</span> <span class="b">${esc(it.to)}</span> ${bumpPill(it.bump)}`, meta:`${it.prs.length > 1 ? `<span class="p">×${it.prs.length}</span> ` : ''}${it.prs.map(p => ICON[p.ci]).join('')}`};
   }
 }
@@ -377,6 +418,7 @@ function tabsFor(it) {
   if (it.kind === 'pr') return ['Overview', 'Files', 'Comments', 'Checks'];
   if (it.kind === 'issue') return it.dashboard ? ['Overview'] : ['Overview', 'Comments'];
   if (it.kind === 'run') return ['Overview', 'Logs'];
+  if (it.kind === 'repo') return ['README', 'Files', 'Branches'];
   return ['Overview'];
 }
 
@@ -418,7 +460,12 @@ function detail(it, tab) {
       <div class="txt">${it.ticked ? '<span class="g">☑ ticked</span>: Renovate has opened, or will open, this PR.' : '<span class="dim">☐ not ticked</span>: Renovate is holding this update (' + esc(it.section.toLowerCase()) + ').'}</div>
       <div class="foot">${it.ticked ? 'o open the dashboard in the browser' : 'space ticks the checkbox, so Renovate creates the PR on its next run'}</div>`;
   }
-  if (it.kind === 'release') return `<div class="h1">${esc(it.tag)}</div><div class="dim">${esc(it.repo)} · released ${it.ago} ago</div>${textBlock(it.notes)}`;
+  if (it.kind === 'release') return `<div class="h1">${esc(it.name || it.tag)}</div><div class="dim">${[esc(it.repo), esc(it.tag), it.draft ? 'draft' : '', it.prerelease ? 'pre-release' : '', it.ago + ' ago'].filter(Boolean).join(' · ')}</div>${it.notes ? textBlock(it.notes) : '<div class="dim">No release notes</div>'}`;
+  if (it.kind === 'repo') {
+    if (name === 'Branches') return branchesBody(it);
+    if (name === 'Files') return filesBody(it);
+    return name !== 'README' ? '<div class="dim">Coming soon</div>' : it.readme ? textBlock(it.readme) : '<div class="dim">No README</div>';
+  }
   // group
   return `<div class="h1">${esc(it.pkg)} ${esc(it.from)} → <span class="b">${esc(it.to)}</span> ${bumpPill(it.bump)}</div>
     <div class="dim">${it.prs.length} repo${it.prs.length > 1 ? 's' : ''} · ${it.prs.filter(p => p.ci === 'pass').length} with green CI</div>
@@ -498,7 +545,7 @@ function space() {
 }
 
 const KEYS = [
-  ['j / k', 'move (in the details pane: scroll)'], ['h / l', 'back / in (repos → boxes → details)'], ['1 – 5', 'jump straight to a box (also from the repo list)'],
+  ['j / k', 'move (in the details pane: scroll)'], ['h / l', 'back / in (repos → boxes → details)'], ['1 – 6', 'jump straight to a box (also from the repo list)'],
   ['tab / S-tab', 'next / previous box'], ['[ / ]', 'previous / next details tab'], ['gg / G', 'top / bottom'], ['^d / ^u', 'half-page scroll in the details pane'],
   ['space', 'mark a PR / tick a Renovate entry'], ['m', 'merge (marked PRs, the current PR, or a whole update)'], ['a', 'approve PR'], ['x', 'close PR / issue'],
   ['c', 'comment in $EDITOR'], ['R', 're-run workflow'], ['o', 'open in browser'], ['r', 'refresh'], ['?', 'toggle help'], ['esc', 'close dialog / clear marks'],
@@ -564,7 +611,7 @@ const pane = (title, body, cls) => `<div class="pane ${cls}"><div class="ptitle"
 function boxesHtml(r, focus, active) {
   return boxesFor(r).map((b, i) => {
     const rows = b.items.length ? b.items.map((it, j) => renderRow(itemRow(it, r.virtual), j, i === focus ? S.bcur[i] : -1)).join('') : '<div class="empty">— none —</div>';
-    return `<div class="bx${i === focus ? ' focus' : ''}${i === focus && active ? ' active' : ''}" data-b="${i}"><div class="ptitle"><span class="n">[${i + 1}]</span> ${esc(b.title)} <span class="dim">${b.items.length}</span></div><div class="pbody">${rows}</div></div>`;
+    return `<div class="bx${i === focus ? ' focus' : ''}${i === focus && active ? ' active' : ''}" data-b="${i}"><div class="ptitle"><span class="n">[${i + 1}]</span> ${esc(b.title)} ${b.noCount ? '' : `<span class="dim">${b.items.length}</span>`}</div><div class="pbody">${rows}</div></div>`;
   }).join('');
 }
 
@@ -610,8 +657,8 @@ function render() {
   const kind = it && it.kind;
   const act = {pr:[['m', 'merge'], ['a', 'approve'], ['space', 'mark'], ['x', 'close']], issue:[['c', 'comment'], ['x', 'close']], run:[['R', 're-run']],
     dep:[['space', 'tick']], group:[['m', 'merge all']], release:[['o', 'browser']]}[kind] || [];
-  const H = S.level === 0 ? [['j/k', 'repo'], ['l', 'enter'], ['1-5', 'jump to box'], ['?', 'help']]
-    : S.level === 1 ? [['j/k', 'move'], ['1-5/tab', 'box'], ['l', 'details'], ...act, ['h', 'back']]
+  const H = S.level === 0 ? [['j/k', 'repo'], ['l', 'enter'], ['1-6', 'jump to box'], ['?', 'help']]
+    : S.level === 1 ? [['j/k', 'move'], ['1-6/tab', 'box'], ['l', 'details'], ...act, ['h', 'back']]
     : [['j/k', 'scroll'], ['[ ]', 'tabs'], ...act, ['h', 'back']];
   $('hints').innerHTML = (S.marks.size ? `<span class="p">● ${S.marks.size} marked</span>  ` : '') + H.map(([a, b]) => `<b>${a}</b> ${b}`).join('  ');
   $('toast').textContent = S.toast;

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -148,6 +149,7 @@ func TestNotFound(t *testing.T) {
 		"GetChangeRequest": func() error { _, err := f.GetChangeRequest(ctx, repoRef, 999); return err },
 		"Merge":            func() error { return f.Merge(ctx, repoRef, 999, forge.MergeOpts{HeadSHA: "abc"}) },
 		"Approve":          func() error { return f.Approve(ctx, repoRef, 999) },
+		"UpdateBranch":     func() error { return f.UpdateBranch(ctx, repoRef, 999, forge.UpdateMerge) },
 		"EditIssueBody":    func() error { return f.EditIssueBody(ctx, repoRef, 999, "x") },
 		"Close issue":      func() error { return f.Close(ctx, missingIssue) },
 		"Close CR":         func() error { return f.Close(ctx, missingCR) },
@@ -215,6 +217,80 @@ func TestMerge(t *testing.T) {
 		}
 		if err := f.Merge(ctx, repoRef, openCR, opts); err == nil {
 			t.Fatal("want error on second merge")
+		}
+	})
+}
+
+func TestUpdateStyles(t *testing.T) {
+	f := seeded()
+	if got := f.UpdateStyles(); !slices.Equal(got, []forge.UpdateStyle{forge.UpdateMerge, forge.UpdateRebase}) {
+		t.Errorf("default styles = %v", got)
+	}
+	f.SetUpdateStyles(forge.UpdateMerge)
+	if got := f.UpdateStyles(); !slices.Equal(got, []forge.UpdateStyle{forge.UpdateMerge}) {
+		t.Errorf("styles after SetUpdateStyles = %v", got)
+	}
+}
+
+func TestUpdateBranch(t *testing.T) {
+	ctx := context.Background()
+	ref := forge.ItemRef{Repo: repoRef, Kind: forge.ItemChangeRequest, Number: openCR}
+
+	t.Run("success moves the head and marks CI pending", func(t *testing.T) {
+		f := seeded()
+		if err := f.UpdateBranch(ctx, repoRef, openCR, forge.UpdateRebase); err != nil {
+			t.Fatal(err)
+		}
+		cr, err := f.GetChangeRequest(ctx, repoRef, openCR)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cr.HeadSHA == "abc" || cr.CI != domain.CIPending {
+			t.Errorf("after update: head %q CI %v, want a new head and CIPending", cr.HeadSHA, cr.CI)
+		}
+		m := f.Mutations()
+		if len(m) != 1 || m[0].Op != "update-branch" || m[0].Item != ref || m[0].Style != forge.UpdateRebase {
+			t.Errorf("mutations = %+v", m)
+		}
+	})
+
+	t.Run("unadvertised style is ErrUnsupported and records nothing", func(t *testing.T) {
+		f := seeded()
+		f.SetUpdateStyles(forge.UpdateMerge)
+		if err := f.UpdateBranch(ctx, repoRef, openCR, forge.UpdateRebase); !errors.Is(err, forge.ErrUnsupported) {
+			t.Fatalf("err = %v, want ErrUnsupported", err)
+		}
+		if len(f.Mutations()) != 0 {
+			t.Errorf("mutations = %+v", f.Mutations())
+		}
+	})
+
+	t.Run("missing, merged and closed change requests fail without a mutation", func(t *testing.T) {
+		f := seeded()
+		f.AddChangeRequest(repoRef, domain.ChangeRequest{Number: 3, HeadSHA: "ghi", State: domain.StateClosed})
+		if err := f.UpdateBranch(ctx, repoRef, 999, forge.UpdateMerge); !errors.Is(err, forge.ErrNotFound) {
+			t.Errorf("missing: err = %v, want ErrNotFound", err)
+		}
+		if err := f.UpdateBranch(ctx, repoRef, mergedCR, forge.UpdateMerge); !errors.Is(err, forge.ErrRefused) {
+			t.Errorf("merged: err = %v, want ErrRefused", err)
+		}
+		if err := f.UpdateBranch(ctx, repoRef, 3, forge.UpdateMerge); !errors.Is(err, forge.ErrRefused) {
+			t.Errorf("closed: err = %v, want ErrRefused", err)
+		}
+		if len(f.Mutations()) != 0 {
+			t.Errorf("mutations = %+v", f.Mutations())
+		}
+	})
+
+	t.Run("FailNext returns the error and records nothing", func(t *testing.T) {
+		f := seeded()
+		boom := errors.New("boom")
+		f.FailNext(boom)
+		if err := f.UpdateBranch(ctx, repoRef, openCR, forge.UpdateMerge); !errors.Is(err, boom) {
+			t.Fatalf("err = %v, want boom", err)
+		}
+		if len(f.Mutations()) != 0 {
+			t.Errorf("mutations = %+v", f.Mutations())
 		}
 	})
 }
@@ -365,6 +441,8 @@ func TestContextCancelled(t *testing.T) {
 		"Close":              func() error { return f.Close(ctx, issue) },
 		"ListReleases":       func() error { _, err := f.ListReleases(ctx, repoRef); return err },
 		"Approve":            func() error { return f.Approve(ctx, repoRef, openCR) },
+		"UpdateBranch":       func() error { return f.UpdateBranch(ctx, repoRef, openCR, forge.UpdateMerge) },
+		"DispatchWorkflow":   func() error { return f.DispatchWorkflow(ctx, repoRef, "renovate.yml", "main", nil) },
 		"ListRuns":           func() error { _, err := f.ListRuns(ctx, repoRef, forge.RunFilter{}); return err },
 		"ListJobs":           func() error { _, err := f.ListJobs(ctx, repoRef, runID); return err },
 		"JobLog":             func() error { _, err := f.JobLog(ctx, repoRef, jobID); return err },
@@ -400,6 +478,46 @@ func TestFailNext(t *testing.T) {
 	if len(f.Mutations()) != 0 {
 		t.Errorf("failed merge recorded mutations: %+v", f.Mutations())
 	}
+}
+
+func TestDispatchWorkflow(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("records the dispatch with a copy of its inputs", func(t *testing.T) {
+		f := seeded()
+		inputs := map[string]string{"repo": "owner/files"}
+		if err := f.DispatchWorkflow(ctx, repoRef, "renovate.yml", "main", inputs); err != nil {
+			t.Fatal(err)
+		}
+		inputs["repo"] = "changed"
+		want := forgetest.Mutation{Op: "dispatch-workflow", Item: forge.ItemRef{Repo: repoRef}, Workflow: "renovate.yml", Ref: "main", Inputs: map[string]string{"repo": "owner/files"}}
+		if got := f.Mutations(); len(got) != 1 || !reflect.DeepEqual(got[0], want) {
+			t.Errorf("mutations = %+v, want one %+v", got, want)
+		}
+	})
+
+	t.Run("unknown repo is ErrNotFound and records nothing", func(t *testing.T) {
+		f := seeded()
+		missing := domain.RepoRef{Owner: "owner", Name: "gone"}
+		if err := f.DispatchWorkflow(ctx, missing, "renovate.yml", "main", nil); !errors.Is(err, forge.ErrNotFound) {
+			t.Fatalf("err = %v, want ErrNotFound", err)
+		}
+		if got := f.Mutations(); len(got) != 0 {
+			t.Errorf("mutations = %+v, want none", got)
+		}
+	})
+
+	t.Run("FailNext returns its error and records nothing", func(t *testing.T) {
+		f := seeded()
+		boom := errors.New("boom")
+		f.FailNext(boom)
+		if err := f.DispatchWorkflow(ctx, repoRef, "renovate.yml", "main", nil); !errors.Is(err, boom) {
+			t.Fatalf("err = %v, want boom", err)
+		}
+		if got := f.Mutations(); len(got) != 0 {
+			t.Errorf("mutations = %+v, want none", got)
+		}
+	})
 }
 
 func TestRunsJobsLogs(t *testing.T) {

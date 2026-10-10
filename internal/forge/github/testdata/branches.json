@@ -1,0 +1,17 @@
+[
+  {
+    "name": "feature/x",
+    "commit": {"sha": "2222222222222222222222222222222222222222", "url": "https://api.github.com/repos/o/r/commits/2222222222222222222222222222222222222222"},
+    "protected": false
+  },
+  {
+    "name": "main",
+    "commit": {"sha": "1111111111111111111111111111111111111111", "url": "https://api.github.com/repos/o/r/commits/1111111111111111111111111111111111111111"},
+    "protected": true
+  },
+  {
+    "name": "a&b#c/d",
+    "commit": {"sha": "3333333333333333333333333333333333333333", "url": "https://api.github.com/repos/o/r/commits/3333333333333333333333333333333333333333"},
+    "protected": false
+  }
+]

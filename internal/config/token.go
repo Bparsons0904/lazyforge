@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -22,7 +23,8 @@ func ResolveToken(ctx context.Context, h Host) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, tokenCmdTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "sh", "-c", h.TokenCmd)
+	name, args := shellCommand(runtime.GOOS, h.TokenCmd)
+	cmd := exec.CommandContext(ctx, name, args...)
 	// A grandchild (for example `a; sleep 5`) can keep the stdout pipe open after sh is
 	// killed; without a delay Output would block until it exits.
 	cmd.WaitDelay = time.Second
@@ -42,4 +44,11 @@ func ResolveToken(ctx context.Context, h Host) (string, error) {
 		return "", errors.New("token_cmd printed nothing")
 	}
 	return tok, nil
+}
+
+func shellCommand(goos, cmd string) (name string, args []string) {
+	if goos == "windows" {
+		return "cmd", []string{"/C", cmd}
+	}
+	return "sh", []string{"-c", cmd}
 }

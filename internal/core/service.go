@@ -3,8 +3,10 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,22 +26,31 @@ const (
 	KindIssues
 	KindReleases
 	KindRuns
+	KindReadme
+	KindBranches
+	KindCommits
+	KindTree
+	KindPreview
 )
 
-// Key identifies a cache entry; Repo is zero for KindRepos and Number is reserved for per-item kinds.
+// Key identifies a cache entry; Repo is zero for KindRepos, Number is for per-item kinds, and Ref is a branch
+// for branch and tree kinds ("" is the default branch for tree kinds). Path is the directory or file for tree kinds.
 type Key struct {
 	Kind   Kind
 	Repo   domain.RepoRef
 	Number int
+	Ref    string
+	Path   string
 }
 
 // Options configures a Service.
 type Options struct {
-	MaxConcurrent  int                       // 0 means 4
-	Now            func() time.Time          // nil means time.Now
-	RequireGreenCI func(domain.RepoRef) bool // nil means off
-	RenovateUser   string                    // "" detects Renovate PRs by branch only
-	HideRenovate   bool                      // the repo list omits the ★ Renovate row
+	MaxConcurrent    int                       // 0 means 4
+	Now              func() time.Time          // nil means time.Now
+	RequireGreenCI   func(domain.RepoRef) bool // nil means off
+	RenovateUser     string                    // "" detects Renovate PRs by branch only
+	HideRenovate     bool
+	RenovateWorkflow func() RenovateWorkflow // nil or a zero result means none is configured; read on every use
 }
 
 type entry struct {
@@ -49,12 +60,13 @@ type entry struct {
 
 // Service caches reads from one forge and bounds its concurrent calls; it is safe for concurrent use.
 type Service struct {
-	f         forge.Forge
-	now       func() time.Time
-	sem       chan struct{}
-	greenOnly func(domain.RepoRef) bool
-	renovUser string
-	hideStar  bool
+	f             forge.Forge
+	now           func() time.Time
+	sem           chan struct{}
+	greenOnly     func(domain.RepoRef) bool
+	renovUser     string
+	hideStar      bool
+	renovWorkflow func() RenovateWorkflow
 
 	mu     sync.Mutex
 	cache  map[Key]entry
@@ -70,14 +82,15 @@ func New(f forge.Forge, opts Options) *Service {
 		opts.Now = time.Now
 	}
 	return &Service{
-		f:         f,
-		now:       opts.Now,
-		sem:       make(chan struct{}, opts.MaxConcurrent),
-		greenOnly: opts.RequireGreenCI,
-		renovUser: opts.RenovateUser,
-		hideStar:  opts.HideRenovate,
-		cache:     map[Key]entry{},
-		images:    newImageCache(),
+		f:             f,
+		now:           opts.Now,
+		sem:           make(chan struct{}, opts.MaxConcurrent),
+		greenOnly:     opts.RequireGreenCI,
+		renovUser:     opts.RenovateUser,
+		hideStar:      opts.HideRenovate,
+		renovWorkflow: opts.RenovateWorkflow,
+		cache:         map[Key]entry{},
+		images:        newImageCache(),
 	}
 }
 
@@ -136,12 +149,30 @@ func (s *Service) PeekIssues(r domain.RepoRef) ([]domain.Issue, time.Time, bool)
 	return peek[domain.Issue](s, Key{Kind: KindIssues, Repo: r})
 }
 
-// Releases fetches releases for r.
+// Releases fetches releases for r, newest first; a repo with the releases unit disabled yields none.
 func (s *Service) Releases(ctx context.Context, r domain.RepoRef) ([]domain.Release, error) {
 	return fetch(ctx, s, Key{Kind: KindReleases, Repo: r}, "list releases for "+r.String(),
 		func(ctx context.Context) ([]domain.Release, error) {
-			return s.f.ListReleases(ctx, r)
+			rs, err := s.f.ListReleases(ctx, r)
+			if errors.Is(err, forge.ErrNotFound) {
+				return []domain.Release{}, nil
+			}
+			slices.SortStableFunc(rs, newestRelease)
+			return rs, err
 		})
+}
+
+// newestRelease orders by PublishedAt descending, with undated releases last.
+func newestRelease(a, b domain.Release) int {
+	switch {
+	case a.PublishedAt.IsZero() && b.PublishedAt.IsZero():
+		return 0
+	case a.PublishedAt.IsZero():
+		return 1
+	case b.PublishedAt.IsZero():
+		return -1
+	}
+	return b.PublishedAt.Compare(a.PublishedAt)
 }
 
 // PeekReleases returns the cached releases for r without I/O.
@@ -164,6 +195,88 @@ func (s *Service) Runs(ctx context.Context, r domain.RepoRef) ([]domain.Run, err
 // PeekRuns returns the cached runs for r without I/O.
 func (s *Service) PeekRuns(r domain.RepoRef) ([]domain.Run, time.Time, bool) {
 	return peek[domain.Run](s, Key{Kind: KindRuns, Repo: r})
+}
+
+// Readme fetches r's README; a repo without one yields the zero Readme and a nil error, cached like any answer.
+func (s *Service) Readme(ctx context.Context, r domain.RepoRef) (domain.Readme, error) {
+	rr, ok := s.f.(forge.ReadmeReader)
+	if !ok {
+		return domain.Readme{}, fmt.Errorf("README of %s: %w", r, forge.ErrUnsupported)
+	}
+	vals, err := fetch(ctx, s, Key{Kind: KindReadme, Repo: r}, "README of "+r.String(),
+		func(ctx context.Context) ([]domain.Readme, error) {
+			rd, err := rr.GetReadme(ctx, r)
+			if errors.Is(err, forge.ErrNotFound) {
+				return []domain.Readme{{}}, nil
+			}
+			return []domain.Readme{rd}, err
+		})
+	if err != nil {
+		return domain.Readme{}, err
+	}
+	return vals[0], nil
+}
+
+// PeekReadme returns the cached README for r without I/O.
+func (s *Service) PeekReadme(r domain.RepoRef) (domain.Readme, time.Time, bool) {
+	vals, at, ok := peek[domain.Readme](s, Key{Kind: KindReadme, Repo: r})
+	if !ok {
+		return domain.Readme{}, time.Time{}, false
+	}
+	return vals[0], at, true
+}
+
+// Branches fetches r's branches: the default first, then newest tip commit first, ties by name.
+func (s *Service) Branches(ctx context.Context, r domain.RepoRef) ([]domain.Branch, error) {
+	br, ok := s.f.(forge.BranchReader)
+	if !ok {
+		return nil, fmt.Errorf("branches of %s: %w", r, forge.ErrUnsupported)
+	}
+	return fetch(ctx, s, Key{Kind: KindBranches, Repo: r}, "list branches for "+r.String(),
+		func(ctx context.Context) ([]domain.Branch, error) {
+			bs, err := br.ListBranches(ctx, r)
+			slices.SortFunc(bs, compareBranches)
+			return bs, err
+		})
+}
+
+// PeekBranches returns the cached branches for r without I/O.
+func (s *Service) PeekBranches(r domain.RepoRef) ([]domain.Branch, time.Time, bool) {
+	return peek[domain.Branch](s, Key{Kind: KindBranches, Repo: r})
+}
+
+func compareBranches(a, b domain.Branch) int {
+	if a.Default != b.Default {
+		if a.Default {
+			return -1
+		}
+		return 1
+	}
+	if c := b.Commit.Date.Compare(a.Commit.Date); c != 0 {
+		return c
+	}
+	return strings.Compare(a.Name, b.Name)
+}
+
+// Commits fetches the newest-first commits of branch; a branch the forge reports as gone or empty yields none, not an error.
+func (s *Service) Commits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error) {
+	br, ok := s.f.(forge.BranchReader)
+	if !ok {
+		return nil, fmt.Errorf("commits of %s on %s: %w", r, branch, forge.ErrUnsupported)
+	}
+	return fetch(ctx, s, Key{Kind: KindCommits, Repo: r, Ref: branch}, "commits of "+branch+" in "+r.String(),
+		func(ctx context.Context) ([]domain.Commit, error) {
+			cs, err := br.ListCommits(ctx, r, branch)
+			if errors.Is(err, forge.ErrNotFound) {
+				return nil, nil
+			}
+			return cs, err
+		})
+}
+
+// PeekCommits returns the cached commits of branch in r without I/O.
+func (s *Service) PeekCommits(r domain.RepoRef, branch string) ([]domain.Commit, time.Time, bool) {
+	return peek[domain.Commit](s, Key{Kind: KindCommits, Repo: r, Ref: branch})
 }
 
 // acquire takes a semaphore slot, giving up if ctx ends first.

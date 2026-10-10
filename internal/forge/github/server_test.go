@@ -163,6 +163,8 @@ func newServer(t testing.TB) *server {
 	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/pulls", s.listPulls)
 	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/pulls/{index}", s.getPull)
 	mux.HandleFunc("PUT "+p+"/repos/{owner}/{repo}/pulls/{index}/merge", s.mergePull)
+	mux.HandleFunc("PUT "+p+"/repos/{owner}/{repo}/pulls/{index}/update-branch", s.updateBranch)
+	mux.HandleFunc("POST "+p+"/repos/{owner}/{repo}/actions/workflows/{workflow}/dispatches", s.dispatchWorkflow)
 	mux.HandleFunc("PATCH "+p+"/repos/{owner}/{repo}/pulls/{index}", s.patchPull)
 	mux.HandleFunc("POST "+p+"/repos/{owner}/{repo}/pulls/{index}/reviews", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, obj{"state": "APPROVED"})
@@ -442,6 +444,30 @@ func (s *server) mergePull(w http.ResponseWriter, r *http.Request) {
 	}
 	pr["state"], pr["merged_at"] = "closed", time.Now().UTC().Format(time.RFC3339)
 	writeJSON(w, 200, obj{"sha": "0000000000000000000000000000000000000000", "merged": true, "message": "Pull Request successfully merged"})
+}
+
+// updateBranch answers 202 with GitHub's queued-update message; the head moves later, outside the response.
+func (s *server) updateBranch(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.findPull(r) == nil {
+		s.notFound(w)
+		return
+	}
+	writeJSON(w, 202, obj{"message": "Updating pull request branch.", "url": "https://github.com/" + r.PathValue("owner") + "/" + r.PathValue("repo") + "/pull/" + r.PathValue("index")})
+}
+
+// dispatchWorkflow answers 204 for any repo the server holds; it doesn't check that the workflow file exists.
+func (s *server) dispatchWorkflow(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, repo := range s.repos {
+		if repo["full_name"] == r.PathValue("owner")+"/"+r.PathValue("repo") {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+	s.notFound(w)
 }
 
 func (s *server) patchPull(w http.ResponseWriter, r *http.Request) {

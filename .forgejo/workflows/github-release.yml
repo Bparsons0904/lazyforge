@@ -1,0 +1,37 @@
+# Secret GH_RELEASE_TOKEN: a GitHub token with Contents read/write on Bparsons0904/lazyforge, for the mirror step.
+name: github-release
+
+# Manual backfill: mirrors an existing Forgejo release to GitHub. The release step in release.yml does this on tag push.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing Forgejo release to mirror (for example v0.1.0)
+        required: true
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    env:
+      FORGEJO_URL: ${{ github.server_url }}
+      REPO: ${{ github.repository }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the Forgejo release assets
+        env:
+          FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/assets"
+          curl -fsS -H "Authorization: token $FORGEJO_TOKEN" \
+            "$FORGEJO_URL/api/v1/repos/$REPO/releases/tags/$TAG" -o "$RUNNER_TEMP/release.json"
+          python3 -c 'import json, sys; print("\n".join(a["browser_download_url"] for a in json.load(open(sys.argv[1]))["assets"]))' "$RUNNER_TEMP/release.json" > "$RUNNER_TEMP/urls.txt"
+          while read -r url; do
+            curl -fsSL -H "Authorization: token $FORGEJO_TOKEN" -o "$RUNNER_TEMP/assets/$(basename "$url")" "$url"
+          done < "$RUNNER_TEMP/urls.txt"
+
+      - name: Publish to GitHub
+        env:
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+        run: scripts/publish-github-release.sh "$TAG" "$RUNNER_TEMP/assets"

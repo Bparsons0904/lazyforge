@@ -1,0 +1,66 @@
+[
+  {
+    "type": "dir",
+    "size": 0,
+    "name": "src",
+    "path": "src",
+    "sha": "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+    "url": "https://api.github.com/repos/cli/cli/contents/src?ref=trunk",
+    "git_url": "https://api.github.com/repos/cli/cli/git/trees/4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+    "html_url": "https://github.com/cli/cli/tree/trunk/src",
+    "download_url": null,
+    "_links": {
+      "self": "https://api.github.com/repos/cli/cli/contents/src?ref=trunk",
+      "git": "https://api.github.com/repos/cli/cli/git/trees/4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+      "html": "https://github.com/cli/cli/tree/trunk/src"
+    }
+  },
+  {
+    "type": "file",
+    "size": 106,
+    "name": "README.md",
+    "path": "README.md",
+    "sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "url": "https://api.github.com/repos/cli/cli/contents/README.md?ref=trunk",
+    "git_url": "https://api.github.com/repos/cli/cli/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "html_url": "https://github.com/cli/cli/blob/trunk/README.md",
+    "download_url": "https://raw.githubusercontent.com/cli/cli/trunk/README.md",
+    "_links": {
+      "self": "https://api.github.com/repos/cli/cli/contents/README.md?ref=trunk",
+      "git": "https://api.github.com/repos/cli/cli/git/blobs/e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "html": "https://github.com/cli/cli/blob/trunk/README.md"
+    }
+  },
+  {
+    "type": "symlink",
+    "size": 3,
+    "name": "latest",
+    "path": "latest",
+    "sha": "9c1185a5c5e9fc54612808977ee8f548b2258d31",
+    "url": "https://api.github.com/repos/cli/cli/contents/latest?ref=trunk",
+    "git_url": "https://api.github.com/repos/cli/cli/git/blobs/9c1185a5c5e9fc54612808977ee8f548b2258d31",
+    "html_url": "https://github.com/cli/cli/blob/trunk/latest",
+    "download_url": null,
+    "_links": {
+      "self": "https://api.github.com/repos/cli/cli/contents/latest?ref=trunk",
+      "git": "https://api.github.com/repos/cli/cli/git/blobs/9c1185a5c5e9fc54612808977ee8f548b2258d31",
+      "html": "https://github.com/cli/cli/blob/trunk/latest"
+    }
+  },
+  {
+    "type": "file",
+    "size": 0,
+    "name": "vendor",
+    "path": "vendor",
+    "sha": "1f7a7a472abf77e74b3d48b8b6f8f2c0f1b24e7a",
+    "url": "https://api.github.com/repos/cli/cli/contents/vendor?ref=trunk",
+    "git_url": null,
+    "html_url": "https://github.com/cli/cli/tree/1f7a7a472abf77e74b3d48b8b6f8f2c0f1b24e7a/vendor",
+    "download_url": null,
+    "_links": {
+      "self": "https://api.github.com/repos/cli/cli/contents/vendor?ref=trunk",
+      "git": null,
+      "html": "https://github.com/cli/cli/tree/1f7a7a472abf77e74b3d48b8b6f8f2c0f1b24e7a/vendor"
+    }
+  }
+]

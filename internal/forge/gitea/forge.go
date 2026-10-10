@@ -30,6 +30,7 @@ type repo struct {
 	HTMLURL           string    `json:"html_url"`
 	UpdatedAt         time.Time `json:"updated_at"`
 	DefaultMergeStyle string    `json:"default_merge_style"`
+	DefaultBranch     string    `json:"default_branch"`
 	Permissions       struct {
 		Admin bool `json:"admin"`
 		Push  bool `json:"push"`
@@ -98,6 +99,7 @@ type release struct {
 	Draft       bool      `json:"draft"`
 	Prerelease  bool      `json:"prerelease"`
 	PublishedAt time.Time `json:"published_at"`
+	CreatedAt   time.Time `json:"created_at"`
 	HTMLURL     string    `json:"html_url"`
 }
 
@@ -121,12 +123,13 @@ func (f *Forge) ListRepos(ctx context.Context) ([]domain.Repo, error) {
 			access = domain.AccessRead
 		}
 		out[i] = domain.Repo{
-			RepoRef:      domain.RepoRef{Owner: r.Owner.Login, Name: r.Name},
-			Description:  r.Description,
-			WebURL:       r.HTMLURL,
-			LastActivity: r.UpdatedAt,
-			Access:       access,
-			MergeStyle:   r.DefaultMergeStyle,
+			RepoRef:       domain.RepoRef{Owner: r.Owner.Login, Name: r.Name},
+			Description:   r.Description,
+			WebURL:        r.HTMLURL,
+			LastActivity:  r.UpdatedAt,
+			Access:        access,
+			MergeStyle:    r.DefaultMergeStyle,
+			DefaultBranch: r.DefaultBranch,
 		}
 	}
 	slices.SortStableFunc(out, func(a, b domain.Repo) int { return b.LastActivity.Compare(a.LastActivity) })
@@ -348,13 +351,18 @@ func (f *Forge) ListReleases(ctx context.Context, r domain.RepoRef) ([]domain.Re
 	}
 	out := make([]domain.Release, len(rs))
 	for i, rl := range rs {
+		published := rl.PublishedAt
+		if published.IsZero() {
+			// An unpublished release may carry no published_at; created_at keeps it sortable.
+			published = rl.CreatedAt
+		}
 		out[i] = domain.Release{
 			Tag:         rl.TagName,
 			Name:        rl.Name,
 			Notes:       rl.Body,
 			Draft:       rl.Draft,
 			Prerelease:  rl.Prerelease,
-			PublishedAt: rl.PublishedAt,
+			PublishedAt: published,
 			WebURL:      rl.HTMLURL,
 		}
 	}

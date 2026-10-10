@@ -8,52 +8,54 @@ import (
 type keyMap struct {
 	Up, Down, Left, Right, NextBox, PrevBox, PrevTab, NextTab,
 	Top, Bottom, HalfDown, HalfUp, Jump, Refresh, Help, Quit, Interrupt, Close,
-	Merge, Approve, CloseItem, Comment, Labels, Open, Rerun, Mark, Confirm, Settings, Enter key.Binding
+	Merge, UpdateBranch, Approve, CloseItem, Comment, Labels, Open, Rerun, RunRenovate, Mark, Confirm, Settings, Enter key.Binding
 }
 
 // defaultKeys gives help text only to the first binding of each pair, so the overlay lists the pair once.
 func defaultKeys() keyMap {
 	return keyMap{
-		Up:        key.NewBinding(key.WithKeys("k", "up")),
-		Down:      key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "move")),
-		Left:      key.NewBinding(key.WithKeys("h", "left")),
-		Right:     key.NewBinding(key.WithKeys("l", "right", "enter"), key.WithHelp("h/l", "back/in")),
-		NextBox:   key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab/S-tab", "box")),
-		PrevBox:   key.NewBinding(key.WithKeys("shift+tab")),
-		PrevTab:   key.NewBinding(key.WithKeys("[")),
-		NextTab:   key.NewBinding(key.WithKeys("]"), key.WithHelp("[ ]", "tabs")),
-		Top:       key.NewBinding(key.WithKeys("g"), key.WithHelp("gg/G", "top/bottom")),
-		Bottom:    key.NewBinding(key.WithKeys("G")),
-		HalfDown:  key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("^d/^u", "half page")),
-		HalfUp:    key.NewBinding(key.WithKeys("ctrl+u")),
-		Jump:      key.NewBinding(key.WithKeys("1", "2", "3", "4", "5"), key.WithHelp("1-5", "jump to box")),
-		Refresh:   key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
-		Help:      key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
-		Quit:      key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
-		Interrupt: key.NewBinding(key.WithKeys("ctrl+c")),
-		Close:     key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "dismiss")),
-		Merge:     key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),
-		Approve:   key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "approve")),
-		CloseItem: key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "close")),
-		Labels:    key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "labels")),
-		Comment:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
-		Open:      key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
-		Rerun:     key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "run page")),
-		Mark:      key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
-		Confirm:   key.NewBinding(key.WithKeys("y", "enter"), key.WithHelp("y/enter", "confirm")),
-		Settings:  key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "settings")),
-		Enter:     key.NewBinding(key.WithKeys("enter")), // enter alone, so text inputs still receive l and y
+		Up:           key.NewBinding(key.WithKeys("k", "up")),
+		Down:         key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/k", "move")),
+		Left:         key.NewBinding(key.WithKeys("h", "left")),
+		Right:        key.NewBinding(key.WithKeys("l", "right", "enter"), key.WithHelp("h/l", "back/in")),
+		NextBox:      key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab/S-tab", "box")),
+		PrevBox:      key.NewBinding(key.WithKeys("shift+tab")),
+		PrevTab:      key.NewBinding(key.WithKeys("[")),
+		NextTab:      key.NewBinding(key.WithKeys("]"), key.WithHelp("[ ]", "tabs")),
+		Top:          key.NewBinding(key.WithKeys("g"), key.WithHelp("gg/G", "top/bottom")),
+		Bottom:       key.NewBinding(key.WithKeys("G")),
+		HalfDown:     key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("^d/^u", "half page")),
+		HalfUp:       key.NewBinding(key.WithKeys("ctrl+u")),
+		Jump:         key.NewBinding(key.WithKeys("1", "2", "3", "4", "5", "6"), key.WithHelp("1-6", "jump to box")),
+		Refresh:      key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "refresh")),
+		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
+		Quit:         key.NewBinding(key.WithKeys("q"), key.WithHelp("q", "quit")),
+		Interrupt:    key.NewBinding(key.WithKeys("ctrl+c")),
+		Close:        key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "dismiss")),
+		Merge:        key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "merge")),
+		UpdateBranch: key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "update")),
+		Approve:      key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "approve")),
+		CloseItem:    key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "close")),
+		Labels:       key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "labels")),
+		Comment:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
+		Open:         key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
+		Rerun:        key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "run page")),
+		RunRenovate:  key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "run Renovate")),
+		Mark:         key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
+		Confirm:      key.NewBinding(key.WithKeys("y", "enter"), key.WithHelp("y/enter", "confirm")),
+		Settings:     key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "settings")),
+		Enter:        key.NewBinding(key.WithKeys("enter")), // enter alone, so text inputs still receive l and y
 	}
 }
 
 func (k keyMap) shortHelp(l level) []key.Binding {
 	switch l {
 	case levelBoxes:
-		return append([]key.Binding{hint(k.Down, "j/k", "move"), hint(k.Jump, "1-5/tab", "box"), hint(k.Right, "l", "details"), hint(k.Left, "h", "back")}, k.actions()...)
+		return append([]key.Binding{hint(k.Down, "j/k", "move"), hint(k.Jump, "1-6/tab", "box"), hint(k.Right, "l", "details"), hint(k.Left, "h", "back")}, k.actions()...)
 	case levelDetails:
 		return append([]key.Binding{hint(k.Down, "j/k", "scroll"), hint(k.NextTab, "[ ]", "tabs"), hint(k.Left, "h", "back")}, k.actions()...)
 	default:
-		bs := []key.Binding{hint(k.Down, "j/k", "repo"), hint(k.Right, "l", "enter"), k.Jump, k.Help}
+		bs := []key.Binding{hint(k.Down, "j/k", "repo"), hint(k.Right, "l", "enter"), k.Jump, k.Open, k.RunRenovate, k.Help}
 		if k.hosted() {
 			bs = append(bs, hint(k.Left, "h", "hosts"), k.Settings)
 		}
@@ -71,7 +73,7 @@ func (k keyMap) fullHelp() [][]key.Binding {
 }
 
 func (k keyMap) actions() []key.Binding {
-	return []key.Binding{k.Merge, k.Mark, k.Approve, k.CloseItem, k.Comment, k.Open, k.Rerun, k.Labels}
+	return []key.Binding{k.Merge, k.Mark, k.Approve, k.CloseItem, k.Comment, k.Open, k.Rerun, k.RunRenovate, k.Labels, k.UpdateBranch}
 }
 
 // gPrefix runs the gg prefix: the first g is consumed (swallowed), a g right after it reports gg,

@@ -116,3 +116,48 @@ type AssetReader interface {
 	// OpenAsset returns the body of u, which must be on the session's host; the caller closes it.
 	OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error)
 }
+
+// ReadmeReader is implemented by adapters that can read a repo's README.
+type ReadmeReader interface {
+	// GetReadme returns the README on the default branch, or an error matching ErrNotFound when the repo has none.
+	GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, error)
+}
+
+// BranchReader is implemented by adapters that can list branches and a branch's commits.
+type BranchReader interface {
+	// ListBranches returns every branch (GitHub: at most 100) with its tip commit and Default set; order is unspecified.
+	ListBranches(ctx context.Context, r domain.RepoRef) ([]domain.Branch, error)
+	// ListCommits returns the newest-first commits of branch, at most 30; ErrNotFound when the branch is gone.
+	ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error)
+}
+
+// TreeReader is implemented by adapters that can list a repo directory and read a file on a branch.
+type TreeReader interface {
+	// ListTree returns the entries of dir ("" is the root) at ref ("" is the default branch), in any order; ErrNotFound when dir or ref is missing or the repo is empty.
+	ListTree(ctx context.Context, r domain.RepoRef, ref, dir string) ([]domain.TreeEntry, error)
+	// ReadFile returns the bytes of the file at path on ref ("" is the default branch); ErrNotFound when the ref or path is missing.
+	ReadFile(ctx context.Context, r domain.RepoRef, ref, path string) ([]byte, error)
+}
+
+// UpdateStyle is sent as the Forgejo style query parameter.
+type UpdateStyle string
+
+// Update styles.
+const (
+	UpdateMerge  UpdateStyle = "merge"
+	UpdateRebase UpdateStyle = "rebase"
+)
+
+// BranchUpdater is optional: callers detect it with a type assertion, and core reports ErrUnsupported for an adapter without it.
+type BranchUpdater interface {
+	// UpdateStyles returns the styles UpdateBranch accepts, UpdateMerge first; it does no I/O.
+	UpdateStyles() []UpdateStyle
+	// UpdateBranch brings change request n up to date with its target branch; ErrUnsupported for a style UpdateStyles omits.
+	UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style UpdateStyle) error
+}
+
+// WorkflowDispatcher is optional: callers detect it with a type assertion.
+type WorkflowDispatcher interface {
+	// DispatchWorkflow starts workflow, a file in r's workflows directory, on ref with inputs (nil for none); ErrNotFound when r or workflow is missing.
+	DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error
+}

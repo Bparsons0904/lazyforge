@@ -79,8 +79,10 @@ func TestRepoRowShowsCountAndAge(t *testing.T) {
 	m = press(t, m, "j")
 	var homelabRow string
 	for _, l := range lines(m) {
+		// The first match is the repo list row; the Repo box's own row also names homelab, lower down.
 		if strings.Contains(l, "homelab") && strings.Contains(l, "│") {
 			homelabRow = l
+			break
 		}
 	}
 	if !strings.Contains(homelabRow, "3 PR") || !strings.Contains(homelabRow, "4m") {
@@ -112,11 +114,11 @@ func TestBoxHeightsFollowFocus(t *testing.T) {
 }
 
 func TestSplitHeightsFocusRatio(t *testing.T) {
-	hs := splitHeights(38, 3, 1)
-	if hs[1] < 2*hs[0] || hs[1] < 2*hs[2] || hs[0]+hs[1]+hs[2] != 38 {
+	hs := splitHeights(38, 4, 1)
+	if hs[1] < 2*hs[0] || hs[1] < 2*hs[2] || hs[1] < 2*hs[3] || hs[0]+hs[1]+hs[2]+hs[3] != 38 {
 		t.Fatalf("heights %v: focused box should be about 2.4x each other box", hs)
 	}
-	if eq := splitHeights(38, 3, -1); slices.Max(eq)-slices.Min(eq) > 1 {
+	if eq := splitHeights(38, 4, -1); slices.Max(eq)-slices.Min(eq) > 1 {
 		t.Fatalf("preview heights %v not equal", eq)
 	}
 }
@@ -132,8 +134,8 @@ func TestAccentsCoverEveryBox(t *testing.T) {
 	if len(style.StarAccents) < starBoxes {
 		t.Fatalf("%d star accents for %d boxes", len(style.StarAccents), starBoxes)
 	}
-	if len(style.RepoAccents) < int(boxRuns)+1 {
-		t.Fatalf("%d repo accents for %d boxes", len(style.RepoAccents), int(boxRuns)+1)
+	if len(style.RepoAccents) < int(boxRepo)+1 {
+		t.Fatalf("%d repo accents for %d boxes", len(style.RepoAccents), int(boxRepo)+1)
 	}
 }
 
@@ -196,7 +198,7 @@ func TestStaleRepoNamesFade(t *testing.T) {
 func TestDetailsRendersMarkdownBody(t *testing.T) {
 	var d details
 	cr := domain.ChangeRequest{Number: 3, Title: "bump", Body: "**bold** and [a link](https://example.com)\n\n- [ ] <!-- hidden -->task"}
-	d.sync(cr, domain.RepoRef{Owner: "o", Name: "r"}, 60, 20, time.Now())
+	d.sync(cr, boxes{repo: domain.RepoRef{Owner: "o", Name: "r"}}, false, 60, 20, time.Now())
 	got := d.vp.View()
 	if !strings.Contains(got, "\x1b]8;;https://example.com\x1b\\") {
 		t.Errorf("link isn't a hyperlink in %q", got)
@@ -229,7 +231,7 @@ func TestDetailsMarkdownFollowsBodyAndWidth(t *testing.T) {
 func TestDetailsRendersIssueMarkdownBody(t *testing.T) {
 	var d details
 	is := domain.Issue{Number: 4, Title: "t", Body: "# Heading\n\n**bold** [l](https://example.com)"}
-	d.sync(is, domain.RepoRef{Owner: "o", Name: "r"}, 60, 20, time.Now())
+	d.sync(is, boxes{repo: domain.RepoRef{Owner: "o", Name: "r"}}, false, 60, 20, time.Now())
 	got := d.vp.View()
 	text := strip(got)
 	if strings.Contains(text, "**") || strings.Contains(text, "](") || strings.Contains(text, "# Heading") {

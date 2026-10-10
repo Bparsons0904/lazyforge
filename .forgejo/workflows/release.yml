@@ -1,3 +1,4 @@
+# Secret GH_RELEASE_TOKEN: a GitHub token with Contents read/write on Bparsons0904/lazyforge, for the mirror step.
 name: release
 
 on:
@@ -43,3 +44,9 @@ jobs:
           FORGEJO_URL: ${{ github.server_url }}
           FORGEJO_REPO: ${{ github.repository }}
         run: scripts/publish-release.sh "$RELEASE_VERSION"
+
+      - name: Mirror to GitHub
+        if: github.event_name == 'push'
+        env:
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+        run: scripts/publish-github-release.sh "$RELEASE_VERSION" dist

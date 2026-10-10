@@ -16,57 +16,88 @@ import (
 )
 
 var (
-	_ forge.Forge       = (*Fake)(nil)
-	_ forge.Approver    = (*Fake)(nil)
-	_ forge.RunLister   = (*Fake)(nil)
-	_ forge.LogReader   = (*Fake)(nil)
-	_ forge.AssetReader = (*Fake)(nil)
+	_ forge.Forge              = (*Fake)(nil)
+	_ forge.Approver           = (*Fake)(nil)
+	_ forge.RunLister          = (*Fake)(nil)
+	_ forge.LogReader          = (*Fake)(nil)
+	_ forge.AssetReader        = (*Fake)(nil)
+	_ forge.ReadmeReader       = (*Fake)(nil)
+	_ forge.BranchReader       = (*Fake)(nil)
+	_ forge.TreeReader         = (*Fake)(nil)
+	_ forge.BranchUpdater      = (*Fake)(nil)
+	_ forge.WorkflowDispatcher = (*Fake)(nil)
 )
 
-// Mutation records one state-changing call; Op is merge, approve, close, comment or edit-issue-body.
+type branchKey struct {
+	repo   domain.RepoRef
+	branch string
+}
+
+type pathKey struct {
+	repo domain.RepoRef
+	ref  string
+	path string
+}
+
+// Mutation records one state-changing call; Op is merge, approve, close, comment, edit-issue-body, update-branch or dispatch-workflow.
 type Mutation struct {
-	Op   string
-	Item forge.ItemRef
-	Body string
-	Opts forge.MergeOpts
+	Op            string
+	Item          forge.ItemRef
+	Body          string
+	Opts          forge.MergeOpts
+	Style         forge.UpdateStyle
+	Workflow, Ref string
+	Inputs        map[string]string
 }
 
 // Fake is an in-memory forge for tests; seed it, then use it as a forge.Forge.
 type Fake struct {
-	mu        sync.Mutex
-	info      forge.HostInfo
-	known     map[domain.RepoRef]bool
-	labels    map[domain.RepoRef][]domain.Label
-	repos     []domain.Repo
-	crs       map[domain.RepoRef][]domain.ChangeRequest
-	issues    map[domain.RepoRef][]domain.Issue
-	releases  map[domain.RepoRef][]domain.Release
-	runs      map[domain.RepoRef][]domain.Run
-	jobs      map[int64][]domain.Job
-	logs      map[int64]string
-	comments  map[forge.ItemRef][]domain.Comment
-	assets    map[string][]byte
-	gates     map[forge.Action]error
-	failNext  error
-	mutations []Mutation
-	nextID    int64
+	mu           sync.Mutex
+	info         forge.HostInfo
+	known        map[domain.RepoRef]bool
+	labels       map[domain.RepoRef][]domain.Label
+	repos        []domain.Repo
+	crs          map[domain.RepoRef][]domain.ChangeRequest
+	issues       map[domain.RepoRef][]domain.Issue
+	releases     map[domain.RepoRef][]domain.Release
+	readmes      map[domain.RepoRef]domain.Readme
+	branches     map[domain.RepoRef][]domain.Branch
+	commits      map[branchKey][]domain.Commit
+	tree         map[pathKey][]domain.TreeEntry
+	files        map[pathKey][]byte
+	runs         map[domain.RepoRef][]domain.Run
+	jobs         map[int64][]domain.Job
+	logs         map[int64]string
+	comments     map[forge.ItemRef][]domain.Comment
+	assets       map[string][]byte
+	gates        map[forge.Action]error
+	updateStyles []forge.UpdateStyle
+	failNext     error
+	mutations    []Mutation
+	nextID       int64
 }
 
 // NewFake returns an empty Fake reporting info.
 func NewFake(info forge.HostInfo) *Fake {
 	return &Fake{
-		info:     info,
-		known:    map[domain.RepoRef]bool{},
-		labels:   map[domain.RepoRef][]domain.Label{},
-		crs:      map[domain.RepoRef][]domain.ChangeRequest{},
-		issues:   map[domain.RepoRef][]domain.Issue{},
-		releases: map[domain.RepoRef][]domain.Release{},
-		runs:     map[domain.RepoRef][]domain.Run{},
-		jobs:     map[int64][]domain.Job{},
-		logs:     map[int64]string{},
-		comments: map[forge.ItemRef][]domain.Comment{},
-		assets:   map[string][]byte{},
-		gates:    map[forge.Action]error{},
+		info:         info,
+		known:        map[domain.RepoRef]bool{},
+		labels:       map[domain.RepoRef][]domain.Label{},
+		crs:          map[domain.RepoRef][]domain.ChangeRequest{},
+		issues:       map[domain.RepoRef][]domain.Issue{},
+		releases:     map[domain.RepoRef][]domain.Release{},
+		readmes:      map[domain.RepoRef]domain.Readme{},
+		branches:     map[domain.RepoRef][]domain.Branch{},
+		commits:      map[branchKey][]domain.Commit{},
+		tree:         map[pathKey][]domain.TreeEntry{},
+		files:        map[pathKey][]byte{},
+		runs:         map[domain.RepoRef][]domain.Run{},
+		jobs:         map[int64][]domain.Job{},
+		logs:         map[int64]string{},
+		comments:     map[forge.ItemRef][]domain.Comment{},
+		assets:       map[string][]byte{},
+		gates:        map[forge.Action]error{},
+		updateStyles: []forge.UpdateStyle{forge.UpdateMerge, forge.UpdateRebase},
 	}
 }
 
@@ -104,6 +135,14 @@ func (f *Fake) AddRelease(r domain.RepoRef, rel domain.Release) {
 	f.releases[r] = append(f.releases[r], rel)
 }
 
+// SetReadme seeds a repo's README and makes the repo known; a known repo without one answers ErrNotFound.
+func (f *Fake) SetReadme(r domain.RepoRef, rd domain.Readme) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.known[r] = true
+	f.readmes[r] = rd
+}
+
 // AddRun seeds a run with its jobs and per-job log text keyed by job ID.
 func (f *Fake) AddRun(r domain.RepoRef, run domain.Run, jobs []domain.Job, logs map[int64]string) {
 	f.mu.Lock()
@@ -121,6 +160,13 @@ func (f *Fake) SetGate(a forge.Action, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.gates[a] = err
+}
+
+// SetUpdateStyles sets the styles UpdateBranch accepts; none clears them all.
+func (f *Fake) SetUpdateStyles(styles ...forge.UpdateStyle) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.updateStyles = slices.Clone(styles)
 }
 
 // FailNext makes the next forge call return err, then clears itself.
@@ -329,6 +375,123 @@ func (f *Fake) ListReleases(ctx context.Context, r domain.RepoRef) ([]domain.Rel
 	return slices.Clone(f.releases[r]), nil
 }
 
+// GetReadme implements forge.ReadmeReader.
+func (f *Fake) GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, error) {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return domain.Readme{}, err
+	}
+	if err := f.repoErr(r); err != nil {
+		return domain.Readme{}, err
+	}
+	rd, ok := f.readmes[r]
+	if !ok {
+		return domain.Readme{}, fmt.Errorf("README of %s: %w", r, forge.ErrNotFound)
+	}
+	return rd, nil
+}
+
+// AddBranch seeds a branch; the repo becomes known even without AddRepo.
+func (f *Fake) AddBranch(r domain.RepoRef, b domain.Branch) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.known[r] = true
+	f.branches[r] = append(f.branches[r], b)
+}
+
+// SetCommits seeds the newest-first commits of a branch; a branch without any answers ErrNotFound.
+func (f *Fake) SetCommits(r domain.RepoRef, branch string, cs []domain.Commit) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.commits[branchKey{r, branch}] = slices.Clone(cs)
+}
+
+// ListBranches implements forge.BranchReader.
+func (f *Fake) ListBranches(ctx context.Context, r domain.RepoRef) ([]domain.Branch, error) {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return nil, err
+	}
+	if err := f.repoErr(r); err != nil {
+		return nil, err
+	}
+	return slices.Clone(f.branches[r]), nil
+}
+
+// ListCommits implements forge.BranchReader.
+func (f *Fake) ListCommits(ctx context.Context, r domain.RepoRef, branch string) ([]domain.Commit, error) {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return nil, err
+	}
+	if err := f.repoErr(r); err != nil {
+		return nil, err
+	}
+	cs, ok := f.commits[branchKey{r, branch}]
+	if !ok {
+		return nil, fmt.Errorf("commits of %s on %s: %w", r, branch, forge.ErrNotFound)
+	}
+	return slices.Clone(cs), nil
+}
+
+// SetTree seeds the entries of dir ("" is the root) on the default branch and makes r known; an unseeded dir on a known repo answers ErrNotFound.
+func (f *Fake) SetTree(r domain.RepoRef, dir string, entries []domain.TreeEntry) {
+	f.SetTreeAt(r, "", dir, entries)
+}
+
+// SetTreeAt seeds the entries of dir ("" is the root) at ref ("" is the default branch) and makes r known.
+func (f *Fake) SetTreeAt(r domain.RepoRef, ref, dir string, entries []domain.TreeEntry) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.known[r] = true
+	f.tree[pathKey{r, ref, dir}] = slices.Clone(entries)
+}
+
+// SetFile seeds the bytes of the file at path on the default branch and makes r known.
+func (f *Fake) SetFile(r domain.RepoRef, path string, body []byte) {
+	f.SetFileAt(r, "", path, body)
+}
+
+// SetFileAt seeds the bytes of the file at path on ref ("" is the default branch) and makes r known.
+func (f *Fake) SetFileAt(r domain.RepoRef, ref, path string, body []byte) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.known[r] = true
+	f.files[pathKey{r, ref, path}] = slices.Clone(body)
+}
+
+// ListTree implements forge.TreeReader.
+func (f *Fake) ListTree(ctx context.Context, r domain.RepoRef, ref, dir string) ([]domain.TreeEntry, error) {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return nil, err
+	}
+	if err := f.repoErr(r); err != nil {
+		return nil, err
+	}
+	es, ok := f.tree[pathKey{r, ref, dir}]
+	if !ok {
+		return nil, fmt.Errorf("tree %s at %q on %q: %w", r, dir, ref, forge.ErrNotFound)
+	}
+	return slices.Clone(es), nil
+}
+
+// ReadFile implements forge.TreeReader.
+func (f *Fake) ReadFile(ctx context.Context, r domain.RepoRef, ref, path string) ([]byte, error) {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return nil, err
+	}
+	if err := f.repoErr(r); err != nil {
+		return nil, err
+	}
+	b, ok := f.files[pathKey{r, ref, path}]
+	if !ok {
+		return nil, fmt.Errorf("file %s at %q on %q: %w", r, path, ref, forge.ErrNotFound)
+	}
+	return slices.Clone(b), nil
+}
+
 // Approve implements forge.Approver.
 func (f *Fake) Approve(ctx context.Context, r domain.RepoRef, n int) error {
 	defer f.mu.Unlock()
@@ -339,6 +502,49 @@ func (f *Fake) Approve(ctx context.Context, r domain.RepoRef, n int) error {
 		return err
 	}
 	f.record(Mutation{Op: "approve", Item: forge.ItemRef{Repo: r, Kind: forge.ItemChangeRequest, Number: n}})
+	return nil
+}
+
+// UpdateStyles returns a copy of the styles set by SetUpdateStyles.
+func (f *Fake) UpdateStyles() []forge.UpdateStyle {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.updateStyles)
+}
+
+// UpdateBranch gives the change request a new head with pending CI on success.
+func (f *Fake) UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style forge.UpdateStyle) error {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return err
+	}
+	cr, err := f.cr(r, n)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(f.updateStyles, style) {
+		return fmt.Errorf("update %s#%d with %s: %w", r, n, style, forge.ErrUnsupported)
+	}
+	if cr.State != domain.StateOpen {
+		return fmt.Errorf("update %s#%d: %w: change request is not open", r, n, forge.ErrRefused)
+	}
+	f.nextID++
+	cr.HeadSHA = fmt.Sprintf("updated-%d", f.nextID)
+	cr.CI = domain.CIPending
+	f.record(Mutation{Op: "update-branch", Item: forge.ItemRef{Repo: r, Kind: forge.ItemChangeRequest, Number: n}, Style: style})
+	return nil
+}
+
+// DispatchWorkflow records Inputs as a copy of inputs.
+func (f *Fake) DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return err
+	}
+	if err := f.repoErr(r); err != nil {
+		return err
+	}
+	f.record(Mutation{Op: "dispatch-workflow", Item: forge.ItemRef{Repo: r}, Workflow: workflow, Ref: ref, Inputs: maps.Clone(inputs)})
 	return nil
 }
 

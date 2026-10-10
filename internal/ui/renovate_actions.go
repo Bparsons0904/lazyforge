@@ -37,7 +37,7 @@ func (m *Model) starActionKey(msg tea.KeyPressMsg) (cmd tea.Cmd, ok bool) {
 	case key.Matches(msg, k.Merge):
 		return m.starRecheck(), true
 	default:
-		return m.itemActionKey(msg, itemRef(repo, item), item)
+		return m.itemActionKey(msg, itemRef(repo, item), m.starOpenTarget(item))
 	}
 	return nil, true
 }

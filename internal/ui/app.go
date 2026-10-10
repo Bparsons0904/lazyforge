@@ -123,6 +123,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.size = &msg
 	case tea.KeyPressMsg:
 		return a, a.handleKey(msg)
+	case tea.PasteMsg:
+		if a.screen == screenSettings && a.settings.mode == modeInput {
+			a.settings.input, _ = a.settings.input.Update(msg)
+			return a, nil
+		}
 	case stampedMsg:
 		if msg.gen != a.gen {
 			return a, nil
@@ -343,9 +348,10 @@ func (a *App) openSession(ctx context.Context, name string, f forge.Forge) strin
 	sctx, cancel := context.WithCancel(ctx)
 	live := a.live
 	svc := core.New(f, core.Options{
-		RequireGreenCI: func(r domain.RepoRef) bool { return live.Load().Hosts[name].RequiresGreenCI(r.String()) },
-		RenovateUser:   live.Load().Hosts[name].RenovateUser,
-		HideRenovate:   !live.Load().Hosts[name].ShowsRenovate(),
+		RequireGreenCI:   func(r domain.RepoRef) bool { return live.Load().Hosts[name].RequiresGreenCI(r.String()) },
+		RenovateUser:     live.Load().Hosts[name].RenovateUser,
+		HideRenovate:     !live.Load().Hosts[name].ShowsRenovate(),
+		RenovateWorkflow: func() core.RenovateWorkflow { return renovateWorkflow(live.Load().Hosts[name].RenovateWorkflow) },
 	})
 	a.host, a.session, a.endSession = name, New(sctx, svc), cancel
 	a.session.keys.setHosted(true)
@@ -353,6 +359,15 @@ func (a *App) openSession(ctx context.Context, name string, f forge.Forge) strin
 		a.session.width, a.session.height = a.size.Width, a.size.Height
 	}
 	return del
+}
+
+// renovateWorkflow parses a host's renovate_workflow; zero when it is unset or malformed, which hides N.
+func renovateWorkflow(s string) core.RenovateWorkflow {
+	owner, name, file, err := config.SplitWorkflow(s)
+	if err != nil {
+		return core.RenovateWorkflow{}
+	}
+	return core.RenovateWorkflow{Repo: domain.RepoRef{Owner: owner, Name: name}, File: file}
 }
 
 // startSession opens a session that the user chose, so it also records name as the last host.
@@ -474,10 +489,12 @@ func (reposLoadedMsg) fromSession()          {}
 func (changeRequestsLoadedMsg) fromSession() {}
 func (issuesLoadedMsg) fromSession()         {}
 func (runsLoadedMsg) fromSession()           {}
+func (releasesLoadedMsg) fromSession()       {}
 func (refreshTickMsg) fromSession()          {}
 func (recheckedMsg) fromSession()            {}
 func (mergeDoneMsg) fromSession()            {}
 func (actionDoneMsg) fromSession()           {}
+func (renovateRunMsg) fromSession()          {}
 func (renovateScannedMsg) fromSession()      {}
 func (starRecheckedMsg) fromSession()        {}
 func (starMergeDoneMsg) fromSession()        {}

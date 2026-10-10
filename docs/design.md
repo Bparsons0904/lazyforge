@@ -23,7 +23,7 @@ Two columns are visible at any time. The left column is where you are, and the r
 |---|---|---|---|
 | 0. Host picker | Configured hosts | — | Skipped when a single host is configured or `--host` is passed |
 | 1. Repos | Repo list: ★ Renovate pinned first, then by most recent activity | Preview of the selected repo's boxes | `l` from the host picker |
-| 2. Boxes | The repo's numbered boxes; the focused box grows | Details of the selected item | `l` or `1`–`5` from the repo list |
+| 2. Boxes | The repo's numbered boxes; the focused box grows | Details of the selected item | `l` or `1`–`6` from the repo list |
 | 3. Details | Boxes (unfocused) | Details pane, focused, with tabs | `l` from a box |
 
 - `h` always steps back one level. From the repo list, it goes back to the host picker.
@@ -54,7 +54,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
    - a classic token with `repo`: repos, PRs, CI status, merging, approving and closing PRs, issues, comments, labels and Renovate dashboard ticks
    - a fine-grained token with Contents, Pull requests and Issues read/write, plus Actions, Checks and Commit statuses read
 5. **Connection test:** shows "Signed in as *name* · *N* repositories". On failure it says why (bad token, missing permission, server unreachable) and stays on the step until it's fixed.
-6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip.
+6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip. Below it, an optional field takes the workflow that runs Renovate, as `owner/repo/file`; Tab moves between the two fields. Leave it blank to hide `N`.
 7. **Name and save:** a short name for the host (suggested from the URL). Saving goes straight into the repo list.
 
 ## Settings
@@ -64,6 +64,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 - **Updates:** turn the startup update check on or off.
 - **Splash screen:** turn the startup splash on or off.
 - **Images:** show images inline in the details pane, on by default.
+- **Renovate:** per host, the Renovate bot username and the workflow that `N` runs (blank hides `N`). Enter on a row edits it in place: enter saves, esc cancels, and a workflow that isn't `owner/repo/file` is refused with the format hint. A workflow change applies at once; a new bot username applies the next time you connect to that host.
 - **Merging:** "only merge when CI is green" per host, with a per-repo override.
 - The host picker has a **+ Add host** entry, which opens the same flow.
 - Settings are saved to the config file right away. There's no separate save step.
@@ -79,6 +80,13 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 | `[3]` Actions | Recent workflow runs | Overview · Logs |
 | `[4]` Renovate | Dependency Dashboard checkbox entries (open, awaiting schedule, rate-limited) | Overview |
 | `[5]` Releases | Releases and tags | Overview |
+| `[6]` Repo | The repo itself | README · Files · Branches |
+
+The Branches tab lists the repo's branches, the default branch first and then by most recent commit. Each row shows the name, the tip's subject and age, a `default` marker, and `#N` when an open PR comes from that branch. The selected branch's recent commits show below the list. `j`/`k` move the cursor, `l` or `enter` shows the branch on the Files tab, and `o` opens the branch in the browser. The tab is read-only, with no ahead/behind counts.
+
+The Files tab browses the repo's tree at the default branch, or at the branch picked on the Branches tab until the repo changes or another branch is picked. A pick starts at the repo root. The breadcrumb ends in `<branch>:<path>`, for example `develop:src/ui`, on every branch, the default branch included. The tree is in two columns. The left column is the current directory, directories first and then by name. The right column previews the cursor entry: a directory's names, or a text file's contents. `j`/`k` move the cursor, `l` opens a directory or, on a file, moves into its preview, and `h` goes back out, to the list and then up a directory. `o` opens the cursor entry on the shown branch in the browser. Files over 256 KiB and binary files show a note instead of a preview, and submodules and symlinks show as entries with no preview. The tab is read-only.
+
+The Releases box lists the repo's releases, newest first by publish date; a release with no date sorts last and shows no age. A draft is marked `draft` and a prerelease `pre-release`. Selecting a release shows its name and notes in the details pane, with the notes rendered as markdown. `o` opens the release in the browser. The box is read-only.
 
 ### ★ Renovate (virtual, spans the repos you own or belong to)
 
@@ -99,21 +107,23 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 
 | Key | Action |
 |---|---|
-| `j` / `k` | Move. In the details pane: scroll. |
-| `h` / `l` | Back / in |
-| `1`–`5` | Jump to a box (also works from the repo list) |
+| `j` / `k` | Move. At the last row of a box, `j` carries on to the first row of the next box; at the first row, `k` goes to the last row of the previous box (empty boxes are skipped, and the first and last box stop). In the details pane: scroll, or move the cursor on the Branches or Files tab. |
+| `h` / `l` | Back / in. On the Files tab: `l` enters a directory or a file's preview, and `h` leaves the preview, then goes up a directory. On the Branches tab, `l` shows the cursor branch on the Files tab. |
+| `1`–`6` | Jump to a box (also works from the repo list) |
 | `tab` / `shift-tab` | Next / previous box |
 | `[` / `]` | Previous / next details tab |
 | `gg` / `G` | Top / bottom |
-| `ctrl-d` / `ctrl-u` | Half-page scroll in the details pane |
+| `ctrl-d` / `ctrl-u` | Half-page scroll in the details pane, or half-page move on the Branches or Files tab |
 | `space` | Mark a PR for bulk actions, or tick a Renovate dashboard entry |
 | `m` | Merge: the marked PRs, the current PR, or every PR in an update group (`[2]` of ★ Renovate) |
+| `u` | Update the current PR with the latest target branch: a dialog asks whether to merge it in or rebase onto it (GitHub offers merge only). Needs repository write access. |
+| `N` | Run Renovate now: a dialog asks whether to run it for this repo or for all repos. Needs a `renovate_workflow` for the host and write access to its repo. |
 | `a` | Approve |
 | `x` | Close a PR or issue |
 | `c` | Comment (opens `$EDITOR`) |
 | `L` | Edit labels on the selected PR or issue (requires repository write access) |
 | `R` | Re-run a workflow: opens the run's page in the browser until the forge offers a re-run API |
-| `o` | Open in browser |
+| `o` | Open in browser: the selected item, or the repo's page on the repo list, the Repo box and ★ By repo rows |
 | `r` | Refresh |
 | `S` | Settings |
 | `?` | Help |
@@ -127,17 +137,20 @@ Every merge and close goes through a confirm dialog. The dialog lists the target
 - **"Only merge when CI is green"** is a setting per host, with a per-repo override. When it's on, failing or running CI turns the warning into a refusal. It's off by default.
 - **Bulk merges carry on past a failure.** The dialog then shows a result per PR: merged, refused (for example "changed since you confirmed", or conflicts) or failed. PRs that didn't merge stay marked, so `m` retries just those after lazyforge re-checks them. A PR that changed after you confirmed is never merged unseen.
 
+Updating a PR (`u`) asks how to bring in the latest target branch: merge or rebase, with `j`/`k` to choose and Enter to confirm. GitHub offers merge only. The status bar shows the outcome, or the forge's reason when it refuses (for example a conflict, missing permission, or nothing to update), and the PR is refreshed so its CI reflects the new head.
+
 ## Renovate features
 
 - **Detecting Renovate PRs:** by author, using the `renovate_user` setting for each host. The `renovate/` branch prefix is a fallback.
 - **Package, versions and bump type:** parsed from the table in the Renovate PR body. If parsing fails, the PR still shows with its plain title.
 - **Grouping by dependency:** the key is ecosystem + package + target version, so `actions/checkout` v3 → v7 and v4 → v7 share a row (the row shows the starting versions). PRs whose body can't be parsed stay out of groups but still appear in `[3]`.
 - **Batched PRs:** a PR that carries several packages (such as "Go non-major") gets its own row in Updates by dependency and always merges whole. Merging one package never merges others as a side effect.
+- **Running Renovate now (`N`):** starts the workflow named by the host's `renovate_workflow` on its default branch. A run for one repo passes that repo to the workflow as its `repo` input; a run for all repos passes no input. The workflow must declare an optional `repo` input and pass it to Renovate as `RENOVATE_AUTODISCOVER_FILTER` for the one-repo choice to be limited to one repo (the README has a snippet). The status bar confirms the start, or the forge's reason when it refuses.
 - **Ticking dashboard entries:** done by editing the Dependency Dashboard issue body, changing `- [ ]` to `- [x]`. Renovate acts on the change during its next run.
 
 ## Install and updates
 
-- **Install:** one command, `curl -fsSL https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/install.sh | bash`. It picks the right binary for the OS and architecture, verifies its checksum, and installs to `~/.local/bin`. Running it again upgrades in place.
+- **Install:** one command, `curl -fsSL https://git.bobparsons.dev/deadstyle/lazyforge/raw/branch/main/install.sh | bash`. It picks the right binary for the OS and architecture, verifies its checksum, and installs to `~/.local/bin`. Running it again upgrades in place. Windows has the PowerShell equivalent, `install.ps1`, which installs to `%LOCALAPPDATA%\Programs\lazyforge` from zip archives.
 - **Updates:** at every startup, before the UI opens, lazyforge checks for a newer release. If there is one, it asks whether to update first. Yes downloads, verifies and replaces the binary, then starts the new version. No starts the current version, and the next launch asks again.
 - The check never delays startup by more than about two seconds and never blocks when offline. It can be turned off with a flag, an environment variable or config. When lazyforge was installed by a package manager, it says an update is available instead of replacing itself.
 
@@ -147,7 +160,7 @@ Answered by the PM on 2026-10-02 (#13):
 
 - `j` at the bottom of a box stops there, like lazygit.
 - The focused box grows, as in the mockup.
-- The boxes stay `[1]`–`[5]` as listed. Others may come later.
+- The boxes stay `[1]`–`[6]` as listed. Others may come later.
 - Refresh: `r`, plus a background refresh every five minutes.
 - Merge strategy: always the repo's default from the forge.
 - ★ Renovate scans the repos you own or belong to, including your orgs.
@@ -159,11 +172,11 @@ Answered by the PM on 2026-10-02 (#13):
 
 ## v1 scope
 
-- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]`, details with the Overview tab
+- Onboarding, Settings, host picker, repo list, boxes `[1]`–`[3]`, the Releases box `[5]` (Overview tab) and the Repo box `[6]` with its README, Files and Branches tabs, details with the Overview tab
 - ★ Renovate view, all five boxes
 - Merge, approve, close, comment (`$EDITOR`), open in browser, refresh, `R` (opens the run page)
 - Bulk merge (marked PRs and update groups), with the CI warning and the "only merge when green" setting
 - Forgejo/Gitea and GitHub adapters (the GitHub adapter ships with the public release, the PM's call in #83)
 - Install script, release binaries, and the startup update check
 
-After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, boxes `[4]` and `[5]`, then the GitLab adapter.
+After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, box `[4]`, the Repo box's Files tab, then the GitLab adapter.

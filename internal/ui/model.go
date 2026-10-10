@@ -121,6 +121,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loadFailed(msg.key, msg.err) {
 			m.boxes.runs, m.boxes.loaded[boxRuns] = msg.items, true
 		}
+	case releasesLoadedMsg:
+		if !m.loadFailed(msg.key, msg.err) {
+			m.boxes.releases, m.boxes.loaded[boxReleases] = msg.items, true
+		}
+	case readmeLoadedMsg:
+		if !m.loadFailed(msg.key, msg.err) {
+			m.boxes.readme = readmeState{ok: true, r: msg.readme}
+		}
+	case branchesLoadedMsg:
+		cmd = m.branchesLoaded(msg)
+	case commitsLoadedMsg:
+		m.commitsLoaded(msg)
+	case treeLoadedMsg:
+		cmd = m.treeLoaded(msg)
+	case previewLoadedMsg:
+		m.previewLoaded(msg)
 	case renovateScannedMsg:
 		m.scanned(msg)
 	case starRecheckedMsg:
@@ -133,6 +149,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.mergeDone(msg)
 	case actionDoneMsg:
 		cmd = m.actionDone(msg)
+	case renovateRunMsg:
+		m.renovateRunDone(msg)
 	case labelsLoadedMsg:
 		if m.labels == msg.picker {
 			m.labels.load(msg)
@@ -156,6 +174,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.imagePlaced(msg)
 	}
 	m.boxes.clampCursors()
+	if !m.filesActive() {
+		m.details.filesFocus = false
+	}
 	m.syncDetails()
 	m.syncKeys()
 	return m, tea.Batch(cmd, m.syncImages())
@@ -193,11 +214,17 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.svc.ClearImages()
 		m.details.img.forgetFailed()
 		return m.refresh()
+	case key.Matches(msg, k.RunRenovate):
+		m.dialog = renovateRunDialog(m.renovateScope())
+		return nil
 	}
 	if m.level != levelRepos {
 		if cmd, ok := m.actionKey(msg); ok {
 			return cmd
 		}
+	} else if repo, ok := m.repos.selected(); ok && key.Matches(msg, k.Open) {
+		cmd, _ := m.itemActionKey(msg, forge.ItemRef{Repo: repo.RepoRef}, repo)
+		return cmd
 	}
 	switch {
 	case m.level == levelBoxes && m.onStar():
@@ -207,7 +234,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case m.level == levelBoxes:
 		m.boxesKey(msg, gg)
 	case m.level == levelDetails:
-		m.detailsKey(msg, gg)
+		return m.detailsKey(msg, gg)
 	default:
 		return m.reposKey(msg, gg)
 	}
@@ -254,7 +281,7 @@ func (m *Model) enterBoxes(box int) {
 
 // focusBox focuses box i, or reports false with a status message when the repo has no such box.
 func (m *Model) focusBox(i int) bool {
-	if i < 0 || i >= m.boxes.count() {
+	if !slices.Contains(m.boxes.kinds(), boxKind(i)) {
 		m.setInfo(fmt.Sprintf("No box [%d] here", i+1))
 		return false
 	}
@@ -265,13 +292,35 @@ func (m *Model) focusBox(i int) bool {
 	return true
 }
 
+// moveInBoxes moves the focused box's cursor by delta (1 or -1). At the box's edge it carries on into the next non-empty box in that direction, landing on its nearest row, and stops at the first or last box.
+func (m *Model) moveInBoxes(delta int) {
+	b := &m.boxes
+	if i := b.cursor[b.focus] + delta; i >= 0 && i < b.len(b.focus) {
+		b.setCursor(i)
+		return
+	}
+	ks := b.kinds()
+	for j := slices.Index(ks, b.focus) + delta; j >= 0 && j < len(ks); j += delta {
+		n := b.len(ks[j])
+		if n == 0 || !m.focusBox(int(ks[j])) {
+			continue
+		}
+		if delta < 0 {
+			b.cursor[ks[j]] = n - 1
+		} else {
+			b.cursor[ks[j]] = 0
+		}
+		return
+	}
+}
+
 func (m *Model) boxesKey(msg tea.KeyPressMsg, gg bool) {
 	k, b := m.keys, &m.boxes
 	switch {
 	case key.Matches(msg, k.Down):
-		b.setCursor(b.cursor[b.focus] + 1)
+		m.moveInBoxes(1)
 	case key.Matches(msg, k.Up):
-		b.setCursor(b.cursor[b.focus] - 1)
+		m.moveInBoxes(-1)
 	case gg:
 		b.setCursor(0)
 	case key.Matches(msg, k.Bottom):
@@ -279,9 +328,9 @@ func (m *Model) boxesKey(msg tea.KeyPressMsg, gg bool) {
 	case key.Matches(msg, k.Jump):
 		m.focusBox(jumpIndex(msg))
 	case key.Matches(msg, k.NextBox):
-		m.focusBox((int(b.focus) + 1) % b.count())
+		m.focusBox(int(b.step(1)))
 	case key.Matches(msg, k.PrevBox):
-		m.focusBox((int(b.focus) + b.count() - 1) % b.count())
+		m.focusBox(int(b.step(-1)))
 	case key.Matches(msg, k.Right):
 		if b.selected() == nil {
 			m.setInfo("This box is empty")
@@ -319,9 +368,19 @@ func (m *Model) scrollKey(msg tea.KeyPressMsg, gg bool) bool {
 	return true
 }
 
-func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) {
+func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) tea.Cmd {
+	if m.filesActive() {
+		if cmd, ok := m.filesKey(msg, gg); ok {
+			return cmd
+		}
+	}
+	if m.branchesActive() {
+		if cmd, ok := m.branchesKey(msg, gg); ok {
+			return cmd
+		}
+	}
 	if m.scrollKey(msg, gg) {
-		return
+		return nil
 	}
 	k, b := m.keys, &m.boxes
 	switch {
@@ -334,14 +393,84 @@ func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) {
 			m.level = levelBoxes
 		}
 	case key.Matches(msg, k.NextBox):
-		m.focusBox((int(b.focus) + 1) % b.count())
+		m.focusBox(int(b.step(1)))
 		m.level = levelBoxes
 	case key.Matches(msg, k.PrevBox):
-		m.focusBox((int(b.focus) + b.count() - 1) % b.count())
+		m.focusBox(int(b.step(-1)))
 		m.level = levelBoxes
 	case key.Matches(msg, k.Left):
 		m.level = levelBoxes
 	}
+	return nil
+}
+
+// branchesActive reports whether the Branches tab takes the cursor keys: the Repo's details at the details level, with a branch to move over.
+func (m Model) branchesActive() bool {
+	_, isRepo := m.boxes.selected().(domain.Repo)
+	return m.level == levelDetails && isRepo && m.details.tab == branchesTab && m.boxes.showBranches && len(m.boxes.branches.list) > 0
+}
+
+// branchesKey moves the branch cursor for the cursor keys and reports whether msg was one; a move loads the new branch's commits.
+func (m *Model) branchesKey(msg tea.KeyPressMsg, gg bool) (tea.Cmd, bool) {
+	k, d, n := m.keys, &m.details, len(m.boxes.branches.list)
+	bodyH, _, _ := m.layout()
+	page := max(branchRows(max(bodyH-2, 0))/2, 1)
+	was := d.branchCur
+	switch {
+	case key.Matches(msg, k.Right) && n > 0:
+		return m.browseBranch(), true
+	case key.Matches(msg, k.Down):
+		d.branchCur++
+	case key.Matches(msg, k.Up):
+		d.branchCur--
+	case key.Matches(msg, k.HalfDown):
+		d.branchCur += page
+	case key.Matches(msg, k.HalfUp):
+		d.branchCur -= page
+	case gg:
+		d.branchCur = 0
+	case key.Matches(msg, k.Bottom):
+		d.branchCur = n - 1
+	default:
+		return nil, false
+	}
+	d.branchCur = max(min(d.branchCur, n-1), 0)
+	if d.branchCur == was {
+		return nil, true
+	}
+	return m.landOn(), true
+}
+
+// branchesLoaded stores the branch list, keeps the cursor on the branch it was on, and loads the commits of the branch under it when that changed.
+func (m *Model) branchesLoaded(msg branchesLoadedMsg) tea.Cmd {
+	if m.loadFailed(msg.key, msg.err) {
+		return nil
+	}
+	b, d := &m.boxes, &m.details
+	prev := ""
+	if d.branchCur < len(b.branches.list) {
+		prev = b.branches.list[d.branchCur].Name
+	}
+	b.branches.ok, b.branches.list = true, msg.branches
+	d.branchCur = max(min(d.branchCur, len(msg.branches)-1), 0)
+	if i := slices.IndexFunc(msg.branches, func(x domain.Branch) bool { return x.Name == prev }); i >= 0 {
+		d.branchCur = i
+	}
+	if len(msg.branches) == 0 || msg.branches[d.branchCur].Name == prev {
+		return nil
+	}
+	return m.landOn()
+}
+
+// commitsLoaded stores a branch's commits, dropping a result for another repo or for a branch the list no longer has.
+func (m *Model) commitsLoaded(msg commitsLoadedMsg) {
+	if m.loadFailed(msg.key, msg.err) {
+		return
+	}
+	if !slices.ContainsFunc(m.boxes.branches.list, func(x domain.Branch) bool { return x.Name == msg.key.Ref }) {
+		return
+	}
+	m.boxes.branches.setCommits(msg.key.Ref, msg.commits)
 }
 
 func jumpIndex(msg tea.KeyPressMsg) int {
@@ -366,7 +495,7 @@ func (m *Model) syncDetails() {
 		}
 		return
 	}
-	m.details.sync(m.boxes.selected(), m.boxes.repo, rightW, bodyH, m.now())
+	m.details.sync(m.boxes.selected(), m.boxes, m.level == levelDetails, rightW, bodyH, m.now())
 }
 
 // View renders nothing until the first WindowSizeMsg, since layout depends on it.
@@ -433,6 +562,9 @@ func (m Model) breadcrumb(w int) string {
 		if m.level != levelRepos {
 			crumbs = append(crumbs, fmt.Sprintf("[%d] %s", m.boxes.focus+1, boxTitle(m.boxes.focus, m.info.ChangeRequestTerm)))
 			if c := itemCrumb(m.boxes.selected()); c != "" {
+				crumbs = append(crumbs, c)
+			}
+			if c := m.filesCrumb(); c != "" {
 				crumbs = append(crumbs, c)
 			}
 		}

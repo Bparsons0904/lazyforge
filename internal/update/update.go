@@ -3,6 +3,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bufio"
 	"compress/gzip"
 	"context"
@@ -14,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -23,39 +25,103 @@ import (
 // DefaultBaseURL is the Forgejo host that publishes lazyforge releases.
 const DefaultBaseURL = "https://git.bobparsons.dev"
 
+// The GitHub mirror of the Forgejo releases, used when Forgejo is unreachable.
+const (
+	DefaultGitHubAPIURL = "https://api.github.com"
+	DefaultGitHubURL    = "https://github.com"
+)
+
 const repoPath = "deadstyle/lazyforge"
+
+// errUnreachable marks a source that could not be reached: a transport error, a timeout or a 5xx status.
+var errUnreachable = errors.New("unreachable")
+
+// Source is one host's release layout; Name labels it in errors.
+type Source struct {
+	Name         string // "forgejo" or "github"
+	LatestURL    string // JSON with tag_name and body
+	DownloadBase string // assets live at DownloadBase + "/" + tag + "/" + asset
+}
+
+// DownloadURL returns the URL of one asset of tag on this source.
+func (s Source) DownloadURL(tag, asset string) string {
+	return s.DownloadBase + "/" + tag + "/" + asset
+}
+
+// Forgejo is the release layout of the Forgejo host at baseURL.
+func Forgejo(baseURL string) Source {
+	return Source{
+		Name:         "forgejo",
+		LatestURL:    baseURL + "/api/v1/repos/" + repoPath + "/releases/latest",
+		DownloadBase: baseURL + "/" + repoPath + "/releases/download",
+	}
+}
+
+// GitHub is the release layout of the GitHub mirror, with its API at apiURL and its web host at webURL.
+func GitHub(apiURL, webURL string) Source {
+	return Source{
+		Name:         "github",
+		LatestURL:    apiURL + "/repos/Bparsons0904/lazyforge/releases/latest",
+		DownloadBase: webURL + "/Bparsons0904/lazyforge/releases/download",
+	}
+}
 
 // Release is the latest published release.
 type Release struct {
 	Tag     string
 	Summary string // first non-empty line of the release body
+	Source  Source // where Latest found it; Apply downloads from here
 }
 
-// Checker talks to the release host.
+// Checker talks to the release hosts.
 type Checker struct {
-	BaseURL      string
-	Client       *http.Client // must be non-nil; the caller sets Timeout
+	Sources      []Source     // tried in order by Latest
+	Client       *http.Client // must be non-nil; Timeout applies per request, so per source
 	GOOS, GOARCH string
 }
 
-// Latest fetches the latest release; a non-200 response is an error.
+// Latest returns the latest release from the first source that answers; a source that
+// answers with a non-5xx error stops the search, since another host would only disagree.
 func (c Checker) Latest(ctx context.Context) (Release, error) {
-	body, err := c.get(ctx, c.BaseURL+"/api/v1/repos/"+repoPath+"/releases/latest")
+	if len(c.Sources) == 0 {
+		return Release{}, errors.New("no release sources configured")
+	}
+	var errs []error
+	for _, s := range c.Sources {
+		rel, err := c.latest(ctx, s)
+		if err == nil {
+			return rel, nil
+		}
+		errs = append(errs, err)
+		if !errors.Is(err, errUnreachable) {
+			return Release{}, errors.Join(errs...)
+		}
+	}
+	return Release{}, errors.Join(errs...)
+}
+
+func (c Checker) latest(ctx context.Context, s Source) (Release, error) {
+	body, err := c.get(ctx, s.LatestURL)
 	if err != nil {
-		return Release{}, err
+		return Release{}, fmt.Errorf("%s: %w", s.Name, err)
 	}
 	defer discard(body.Close)
+	// Read the whole body here so a cut-off response is classed as unreachable, not as a bad document.
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return Release{}, fmt.Errorf("%s: %w: read %s: %w", s.Name, errUnreachable, s.LatestURL, err)
+	}
 	var r struct {
 		Tag  string `json:"tag_name"`
 		Body string `json:"body"`
 	}
-	if err := json.NewDecoder(body).Decode(&r); err != nil {
-		return Release{}, fmt.Errorf("decode latest release: %w", err)
+	if err := json.Unmarshal(data, &r); err != nil {
+		return Release{}, fmt.Errorf("%s: decode latest release: %w", s.Name, err)
 	}
 	if r.Tag == "" {
-		return Release{}, errors.New("latest release has no tag")
+		return Release{}, fmt.Errorf("%s: latest release has no tag", s.Name)
 	}
-	return Release{Tag: r.Tag, Summary: firstLine(r.Body)}, nil
+	return Release{Tag: r.Tag, Summary: firstLine(r.Body), Source: s}, nil
 }
 
 func firstLine(s string) string {
@@ -74,10 +140,13 @@ func (c Checker) get(ctx context.Context, url string) (io.ReadCloser, error) {
 	}
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("get %s: %w", url, err)
+		return nil, fmt.Errorf("%w: get %s: %w", errUnreachable, url, err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		_ = resp.Body.Close()
+		if resp.StatusCode >= http.StatusInternalServerError {
+			return nil, fmt.Errorf("%w: get %s: status %d", errUnreachable, url, resp.StatusCode)
+		}
 		return nil, fmt.Errorf("get %s: status %d", url, resp.StatusCode)
 	}
 	return resp.Body, nil
@@ -110,18 +179,26 @@ func Ask(in io.Reader, out io.Writer, current string, rel Release) bool {
 }
 
 // Apply downloads and verifies the release archive, then swaps it in for exe via rename.
-// Nothing at exe changes unless every earlier step succeeded.
+// Nothing at exe changes unless every earlier step succeeded. The archive and checksums both come
+// from rel.Source, and Apply never falls back to another source.
 func (c Checker) Apply(ctx context.Context, rel Release, exe string) (err error) {
+	if rel.Source.DownloadBase == "" {
+		return errors.New("release has no download source")
+	}
 	dir := filepath.Dir(exe)
 	archive := fmt.Sprintf("lazyforge_%s_%s_%s.tar.gz", rel.Tag, c.GOOS, c.GOARCH)
-	base := c.BaseURL + "/" + repoPath + "/releases/download/" + rel.Tag + "/"
+	extract := extractTarGz
+	if c.GOOS == "windows" {
+		archive = fmt.Sprintf("lazyforge_%s_%s_%s.zip", rel.Tag, c.GOOS, c.GOARCH)
+		extract = extractZip
+	}
 
-	arc, err := c.download(ctx, base+archive, dir)
+	arc, err := c.download(ctx, rel.Source.DownloadURL(rel.Tag, archive), dir)
 	if err != nil {
 		return err
 	}
 	defer discard(func() error { return os.Remove(arc) })
-	sums, err := c.download(ctx, base+"checksums.txt", dir)
+	sums, err := c.download(ctx, rel.Source.DownloadURL(rel.Tag, "checksums.txt"), dir)
 	if err != nil {
 		return err
 	}
@@ -201,8 +278,8 @@ func verify(arc, sums, name string) error {
 	return nil
 }
 
-// extract writes the archive's lazyforge entry to a 0755 temp file in dir and returns its path.
-func extract(arc, dir string) (string, error) {
+// extractTarGz writes the archive's lazyforge entry to a 0755 temp file in dir and returns its path.
+func extractTarGz(arc, dir string) (string, error) {
 	f, err := os.Open(arc)
 	if err != nil {
 		return "", err
@@ -224,23 +301,49 @@ func extract(arc, dir string) (string, error) {
 		if h.Typeflag != tar.TypeReg || filepath.Clean(h.Name) != "lazyforge" {
 			continue
 		}
-		out, err := os.CreateTemp(dir, ".lazyforge-new-*")
-		if err != nil {
-			return "", err
-		}
-		_, err = io.Copy(out, tr)
-		if cerr := out.Close(); err == nil {
-			err = cerr
-		}
-		if err == nil {
-			err = os.Chmod(out.Name(), 0o755)
-		}
-		if err != nil {
-			_ = os.Remove(out.Name())
-			return "", fmt.Errorf("extract binary: %w", err)
-		}
-		return out.Name(), nil
+		return writeBinary(dir, tr)
 	}
+}
+
+// extractZip writes the archive's lazyforge.exe entry to a 0755 temp file in dir and returns its path.
+func extractZip(arc, dir string) (string, error) {
+	zr, err := zip.OpenReader(arc)
+	if err != nil {
+		return "", fmt.Errorf("open archive: %w", err)
+	}
+	defer discard(zr.Close)
+	for _, f := range zr.File {
+		if !f.Mode().IsRegular() || path.Clean(f.Name) != "lazyforge.exe" {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return "", fmt.Errorf("read archive: %w", err)
+		}
+		defer discard(rc.Close)
+		return writeBinary(dir, rc)
+	}
+	return "", errors.New("archive has no lazyforge binary")
+}
+
+// writeBinary copies src to a 0755 temp file in dir and returns its path; a failed copy leaves nothing behind.
+func writeBinary(dir string, src io.Reader) (string, error) {
+	out, err := os.CreateTemp(dir, ".lazyforge-new-*")
+	if err != nil {
+		return "", err
+	}
+	_, err = io.Copy(out, src)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(out.Name(), 0o755)
+	}
+	if err != nil {
+		_ = os.Remove(out.Name())
+		return "", fmt.Errorf("extract binary: %w", err)
+	}
+	return out.Name(), nil
 }
 
 // Rollback restores exe+".old" over exe.

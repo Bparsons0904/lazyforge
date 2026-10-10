@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -23,7 +24,18 @@ type details struct {
 	img    *imageSet // nil while images are off
 	imgGen int       // bumped whenever rendered image output can change; part of the memo key
 	want   []imageRef
+	// branchCur is the Branches tab's cursor; it is clamped to the list wherever the list changes.
+	branchCur  int
+	branchHL   bool   // highlight the cursor; only at the details level
+	filesRef   string // the branch Files browses; "" is the default branch
+	filesDir   string
+	filesCur   int
+	filesOff   int
+	filesFocus bool
 }
+
+// branchesTab is the Branches tab's index in tabs for a Repo.
+const branchesTab = 2
 
 type imageRef struct {
 	repo domain.RepoRef
@@ -60,8 +72,13 @@ func (d *details) markdown(repo domain.RepoRef, body string, width int) string {
 	return d.md.out
 }
 
-// tabs lists the details tabs that have content for item; later tickets append to it.
-func tabs(any) []string { return []string{"Overview"} }
+// tabs lists the details tabs for item; a Repo has README, Files and Branches.
+func tabs(item any) []string {
+	if _, ok := item.(domain.Repo); ok {
+		return []string{"README", "Files", "Branches"}
+	}
+	return []string{"Overview"}
+}
 
 // cycleTab moves delta tabs along, wrapping at either end.
 func (d *details) cycleTab(item any, delta int) {
@@ -72,14 +89,108 @@ func (d *details) cycleTab(item any, delta int) {
 // contentWidth subtracts the pane border and its one column of padding per side.
 func contentWidth(w int) int { return max(w-4, 1) }
 
-func (d *details) sync(item any, repo domain.RepoRef, w, h int, now time.Time) {
+func (d *details) sync(item any, b boxes, highlight bool, w, h int, now time.Time) {
 	cw := contentWidth(w)
-	d.syncText(fmt.Sprintf("%v %s", repo, itemID(item)), overview(item, repo, now, func(r domain.RepoRef, b string) string { return d.markdown(r, b, cw) }), w, h)
+	n := len(tabs(item))
+	// The Repo text depends on d.tab, so clamp before choosing it.
+	d.tab = min(d.tab, n-1)
+	d.branchHL = highlight
+	var text string
+	if _, ok := item.(domain.Repo); ok {
+		text = d.repoText(b, cw, max(h-2, 0), now)
+	} else {
+		text = overview(item, b.repo, now, func(r domain.RepoRef, body string) string { return d.markdown(r, body, cw) })
+	}
+	d.syncText(fmt.Sprintf("%v %s", b.repo, itemID(item)), text, n, w, h)
 }
 
-// syncText shows text in the pane; a changed id scrolls back to the top.
-func (d *details) syncText(id, text string, w, h int) {
-	d.tab = min(d.tab, len(tabs(nil))-1)
+// repoText is the Repo box's text for the active tab; ch is the pane's text height.
+func (d *details) repoText(b boxes, cw, ch int, now time.Time) string {
+	if d.tab == branchesTab {
+		return d.branchesText(b.branches, b.crs, b.loaded[boxCRs], b.showBranches, cw, ch, now)
+	}
+	if d.tab == filesTab {
+		return d.filesText(b, cw, ch)
+	}
+	switch {
+	case !b.readme.ok:
+		return style.Faint.Render("Loading…")
+	case b.readme.r.Name == "":
+		return style.Faint.Render("No README")
+	}
+	return d.markdown(b.repo, b.readme.r.Body, cw)
+}
+
+// branchesText composes the Branches tab: the branch list above the cursor branch's commits, exactly ch lines.
+func (d *details) branchesText(bs branchesState, crs []domain.ChangeRequest, crsLoaded, available bool, cw, ch int, now time.Time) string {
+	switch {
+	case !available:
+		return style.Faint.Render("Branches aren't available on this host")
+	case !bs.ok:
+		return style.Faint.Render("Loading…")
+	case len(bs.list) == 0:
+		return style.Faint.Render("No branches")
+	}
+	cur := max(min(d.branchCur, len(bs.list)-1), 0)
+	rows := branchRows(ch)
+	first := max(cur-rows+1, 0)
+	// Names share one column, capped so a long name can't crowd out the subject.
+	nameW := 0
+	for _, b := range bs.list {
+		nameW = max(nameW, lipgloss.Width(b.Name))
+	}
+	nameW = min(nameW, max(cw/2, 0))
+	lines := []string{style.Heading.Render("Branches")}
+	for i := first; i < len(bs.list) && i < first+rows; i++ {
+		base := lipgloss.NewStyle()
+		if d.branchHL && i == cur {
+			base = style.Selected
+		}
+		lines = append(lines, branchRow(bs.list[i], nameW, crs, crsLoaded, now, cw, base))
+	}
+	name := bs.list[cur].Name
+	lines = append(lines, style.Heading.Render("Commits on "+name))
+	cs, ok := bs.commits[name]
+	switch {
+	case !ok:
+		lines = append(lines, style.Faint.Render("Loading…"))
+	case len(cs) == 0:
+		lines = append(lines, style.Faint.Render("— none —"))
+	default:
+		for _, c := range cs[:min(len(cs), max(ch-len(lines), 0))] {
+			lines = append(lines, commitRow(c, now, cw))
+		}
+	}
+	return fitLines(lines, cw, ch)
+}
+
+// branchRows is how many branch rows fit above the commits in a pane ch lines tall.
+func branchRows(ch int) int { return max(1, (ch+1)/2-1) }
+
+// branchRow is one branch: name, tip subject, then the default and open-PR markers and the tip's age.
+func branchRow(b domain.Branch, nameW int, crs []domain.ChangeRequest, crsLoaded bool, now time.Time, w int, base lipgloss.Style) string {
+	var marks []string
+	if b.Default {
+		marks = append(marks, "default")
+	}
+	if i := slices.IndexFunc(crs, func(c domain.ChangeRequest) bool { return c.SourceBranch == b.Name }); crsLoaded && i >= 0 {
+		marks = append(marks, fmt.Sprintf("#%d", crs[i].Number))
+	}
+	marks = append(marks, age(now, b.Commit.Date))
+	meta := style.Faint.Inherit(base).Render(strings.Join(marks, " "))
+	tag := fitLine(truncate(b.Name, nameW), nameW) + " "
+	return tagRow(tag, style.Text, b.Commit.Message, style.Text, meta, w, base)
+}
+
+// commitRow is one commit: short SHA, subject, then author and age.
+func commitRow(c domain.Commit, now time.Time, w int) string {
+	meta := style.Faint.Render(c.Author + " · " + age(now, c.Date))
+	return tagRow(c.SHA[:min(7, len(c.SHA))]+" ", style.Faint, c.Message, style.Text, meta, w, lipgloss.NewStyle())
+}
+
+// syncText shows text in the pane; a changed id scrolls back to the top. tabCount bounds d.tab.
+func (d *details) syncText(id, text string, tabCount, w, h int) {
+	d.tab = min(d.tab, tabCount-1)
 	cw, ch := contentWidth(w), max(h-2, 0)
 	d.vp.SetWidth(cw)
 	d.vp.SetHeight(ch)
@@ -112,6 +223,10 @@ func itemID(item any) string {
 		return fmt.Sprintf("issue %d", it.Number)
 	case domain.Run:
 		return fmt.Sprintf("run %d", it.ID)
+	case domain.Release:
+		return "release " + it.Tag
+	case domain.Repo:
+		return "repo"
 	default:
 		return ""
 	}
@@ -126,6 +241,8 @@ func itemCrumb(item any) string {
 		return fmt.Sprintf("#%d", it.Number)
 	case domain.Run:
 		return fmt.Sprintf("%s #%d", it.Workflow, it.Number)
+	case domain.Release:
+		return sanitizeLine(it.Tag)
 	default:
 		return ""
 	}
@@ -162,6 +279,31 @@ func overview(item any, repo domain.RepoRef, now time.Time, md func(domain.RepoR
 			ciIcon(it.Status, lipgloss.NewStyle()) + " " + style.Heading.Render(fmt.Sprintf("%s #%d", it.Workflow, it.Number)),
 			style.Faint.Render(fmt.Sprintf("%s · %s · %s @ %s", repo, it.Event, it.Branch, commit)),
 			style.Faint.Render(fmt.Sprintf("%s ago · took %s", age(now, it.StartedAt), it.Duration.Round(time.Second))),
+		}
+	case domain.Release:
+		heading := it.Name
+		if heading == "" {
+			heading = it.Tag
+		}
+		meta := []string{repo.String(), sanitizeLine(it.Tag)}
+		if it.Draft {
+			meta = append(meta, "draft")
+		}
+		if it.Prerelease {
+			meta = append(meta, "pre-release")
+		}
+		if e := publishedAge(now, it.PublishedAt); e != "" {
+			meta = append(meta, e+" ago")
+		}
+		body := style.Faint.Render("No release notes")
+		if strings.TrimSpace(it.Notes) != "" {
+			body = md(repo, it.Notes)
+		}
+		lines = []string{
+			style.Heading.Render(sanitizeLine(heading)),
+			style.Faint.Render(strings.Join(meta, " · ")),
+			"",
+			body,
 		}
 	default:
 		lines = []string{style.Faint.Render("Nothing here.")}
