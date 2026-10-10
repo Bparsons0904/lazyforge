@@ -12,7 +12,7 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/yuin/goldmark/v2 v2.1.6
 	golang.org/x/mod v0.41.0
-	golang.org/x/sync v0.22.0
+	golang.org/x/sync v0.24.0
 )
 
 require (
