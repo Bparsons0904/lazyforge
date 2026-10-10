@@ -89,6 +89,39 @@ lazyforge -config /path/to/config.toml
 
 Use `lazyforge -help` for all flags, `-version` to print the build version, or `-no-update-check` to skip the startup release check.
 
+### Run Renovate now (optional)
+
+If Renovate runs as a workflow on your forge, set `renovate_workflow = "owner/repo/file.yml"` on the host (or fill in the Renovate step of onboarding or host edit). `N` then starts that workflow on its repo's default branch. You need write access to that repo, and on GitHub a token that can write Actions. Leave it unset to hide `N`.
+
+A run for all repos sends no inputs, so any `workflow_dispatch` workflow works for that. A run for one repo sends an input named `repo` with the value `owner/name`, so the workflow has to declare it and pass it to Renovate as `RENOVATE_AUTODISCOVER_FILTER`. GitHub rejects inputs a workflow doesn't declare, so without this the one-repo choice fails with the forge's message.
+
+```yaml
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: "Limit the run to one repo (owner/name). Empty runs every repo."
+        required: false
+        default: ""
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Renovate
+        env:
+          ONLY_REPO: ${{ inputs.repo }}
+        run: |
+          if [ -n "$ONLY_REPO" ]; then
+            export RENOVATE_AUTODISCOVER_FILTER="$ONLY_REPO"
+          fi
+          renovate
+```
+
+The snippet shows only the parts `N` relies on; keep your own container image, token and `RENOVATE_*` settings.
+
 ## Keys
 
 | Key | Action |

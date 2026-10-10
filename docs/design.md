@@ -144,7 +144,7 @@ Updating a PR (`u`) asks how to bring in the latest target branch: merge or reba
 - **Package, versions and bump type:** parsed from the table in the Renovate PR body. If parsing fails, the PR still shows with its plain title.
 - **Grouping by dependency:** the key is ecosystem + package + target version, so `actions/checkout` v3 → v7 and v4 → v7 share a row (the row shows the starting versions). PRs whose body can't be parsed stay out of groups but still appear in `[3]`.
 - **Batched PRs:** a PR that carries several packages (such as "Go non-major") gets its own row in Updates by dependency and always merges whole. Merging one package never merges others as a side effect.
-- **Running Renovate now (`N`):** starts the workflow named by the host's `renovate_workflow` on its default branch. A run for one repo passes that repo to the workflow as its `repo` input; a run for all repos passes no input. The status bar confirms the start, or the forge's reason when it refuses.
+- **Running Renovate now (`N`):** starts the workflow named by the host's `renovate_workflow` on its default branch. A run for one repo passes that repo to the workflow as its `repo` input; a run for all repos passes no input. The workflow must declare an optional `repo` input and pass it to Renovate as `RENOVATE_AUTODISCOVER_FILTER` for the one-repo choice to be limited to one repo (the README has a snippet). The status bar confirms the start, or the forge's reason when it refuses.
 - **Ticking dashboard entries:** done by editing the Dependency Dashboard issue body, changing `- [ ]` to `- [x]`. Renovate acts on the change during its next run.
 
 ## Install and updates
