@@ -196,6 +196,35 @@ func RunContract(t *testing.T, newForge func(t *testing.T) (forge.Forge, Fixture
 				t.Errorf("got %v, want ErrNotFound", err)
 			}
 		}},
+		{"UpdateStyles starts with UpdateMerge", func(t *testing.T, f forge.Forge, _ Fixture) {
+			styles := branchUpdater(t, f).UpdateStyles()
+			if len(styles) == 0 || styles[0] != forge.UpdateMerge {
+				t.Errorf("styles %v, want non-empty with UpdateMerge first", styles)
+			}
+		}},
+		{"UpdateBranch with UpdateMerge on the open change request succeeds", func(t *testing.T, f forge.Forge, fx Fixture) {
+			if err := branchUpdater(t, f).UpdateBranch(ctx, fx.Repo, fx.OpenCR, forge.UpdateMerge); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"UpdateBranch of a missing number is ErrNotFound", func(t *testing.T, f forge.Forge, fx Fixture) {
+			err := branchUpdater(t, f).UpdateBranch(ctx, fx.Repo, fx.Missing, forge.UpdateMerge)
+			if !errors.Is(err, forge.ErrNotFound) {
+				t.Errorf("got %v, want ErrNotFound", err)
+			}
+		}},
+		{"UpdateBranch with a style UpdateStyles omits is ErrUnsupported", func(t *testing.T, f forge.Forge, fx Fixture) {
+			bu := branchUpdater(t, f)
+			offered := bu.UpdateStyles()
+			for _, style := range []forge.UpdateStyle{forge.UpdateMerge, forge.UpdateRebase} {
+				if slices.Contains(offered, style) {
+					continue
+				}
+				if err := bu.UpdateBranch(ctx, fx.Repo, fx.OpenCR, style); !errors.Is(err, forge.ErrUnsupported) {
+					t.Errorf("style %s: got %v, want ErrUnsupported", style, err)
+				}
+			}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -210,6 +239,16 @@ func onHost(base *url.URL, p string) *url.URL {
 	u := *base
 	u.Path = p
 	return &u
+}
+
+// branchUpdater returns f's BranchUpdater, or skips the case for a forge without the capability.
+func branchUpdater(t *testing.T, f forge.Forge) forge.BranchUpdater {
+	t.Helper()
+	bu, ok := f.(forge.BranchUpdater)
+	if !ok {
+		t.Skip("forge is not a forge.BranchUpdater")
+	}
+	return bu
 }
 
 // assetReader returns f's AssetReader and its host URL, or skips the case for a forge without the capability.

@@ -94,6 +94,14 @@ func (withTree) ReadFile(context.Context, domain.RepoRef, string, string) ([]byt
 	return nil, nil
 }
 
+type withUpdater struct{ base }
+
+func (withUpdater) UpdateStyles() []forge.UpdateStyle { return nil }
+
+func (withUpdater) UpdateBranch(context.Context, domain.RepoRef, int, forge.UpdateStyle) error {
+	return nil
+}
+
 type full struct {
 	withApprover
 	withRuns
@@ -101,12 +109,14 @@ type full struct {
 	withReadme
 	withBranches
 	withTree
+	withUpdater
 	base
 }
 
 var allActions = []forge.Action{
 	forge.ActMerge, forge.ActApprove, forge.ActClose, forge.ActComment,
 	forge.ActEditIssue, forge.ActRuns, forge.ActLogs, forge.ActBranches, forge.ActFiles,
+	forge.ActUpdateBranch,
 }
 
 func repoWith(a domain.Access) domain.Repo {
@@ -139,6 +149,7 @@ func TestCanCapability(t *testing.T) {
 		{"readme without ReadmeReader", withRuns{base{kind: forge.KindGitea}}, forge.ActReadme},
 		{"branches without BranchReader", withRuns{base{kind: forge.KindGitea}}, forge.ActBranches},
 		{"files without TreeReader", withRuns{base{kind: forge.KindGitea}}, forge.ActFiles},
+		{"update branch without BranchUpdater", withRuns{base{kind: forge.KindGitea}}, forge.ActUpdateBranch},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -176,6 +187,15 @@ func TestCanGate(t *testing.T) {
 	if got := forge.Can(f, forge.ActClose, repoWith(domain.AccessAdmin)); !got.OK {
 		t.Errorf("ungated close: got %+v, want OK", got)
 	}
+	gated := newFull(func(a forge.Action) error {
+		if a == forge.ActUpdateBranch {
+			return errors.New("branch protected")
+		}
+		return nil
+	})
+	if got := forge.Can(gated, forge.ActUpdateBranch, repoWith(domain.AccessAdmin)); got.OK || got.Reason != "branch protected" {
+		t.Errorf("gated update branch: got %+v, want {false, \"branch protected\"}", got)
+	}
 }
 
 func TestCanPermission(t *testing.T) {
@@ -206,6 +226,9 @@ func TestCanPermission(t *testing.T) {
 		{forge.ActBranches, domain.AccessRead, true},
 		{forge.ActFiles, domain.AccessNone, false},
 		{forge.ActFiles, domain.AccessRead, true},
+		{forge.ActUpdateBranch, domain.AccessRead, false},
+		{forge.ActUpdateBranch, domain.AccessWrite, true},
+		{forge.ActUpdateBranch, domain.AccessAdmin, true},
 	}
 	f := newFull(nil)
 	for _, tt := range tests {
@@ -272,5 +295,40 @@ func TestLabelCapabilityAndPermission(t *testing.T) {
 	}
 	if !forge.Can(f, forge.ActLabels, repoWith(domain.AccessWrite)).OK {
 		t.Fatal("label writes disabled with write access")
+	}
+}
+
+func TestUpdateBranchReasons(t *testing.T) {
+	t.Run("read access names the repo", func(t *testing.T) {
+		got := forge.Can(newFull(nil), forge.ActUpdateBranch, repoWith(domain.AccessRead))
+		want := "you don't have write access to owner/name"
+		if got.OK || got.Reason != want {
+			t.Errorf("got %+v, want {false, %q}", got, want)
+		}
+	})
+
+	t.Run("forge without BranchUpdater names its kind", func(t *testing.T) {
+		got := forge.Can(withRuns{base{kind: forge.KindGitea}}, forge.ActUpdateBranch, repoWith(domain.AccessAdmin))
+		want := "gitea doesn't support this"
+		if got.OK || got.Reason != want {
+			t.Errorf("got %+v, want {false, %q}", got, want)
+		}
+	})
+}
+
+func TestActionValuesUnchanged(t *testing.T) {
+	// Actions are appended, never inserted, so the numbers of the existing ones stay put.
+	existing := []forge.Action{
+		forge.ActMerge, forge.ActApprove, forge.ActClose, forge.ActComment,
+		forge.ActEditIssue, forge.ActRuns, forge.ActLogs, forge.ActLabels,
+		forge.ActAssets, forge.ActReadme, forge.ActBranches, forge.ActFiles,
+	}
+	for i, a := range existing {
+		if int(a) != i {
+			t.Errorf("action at position %d has value %d, want %d", i, int(a), i)
+		}
+	}
+	if forge.ActUpdateBranch != forge.ActFiles+1 {
+		t.Errorf("ActUpdateBranch = %d, want ActFiles+1 = %d", forge.ActUpdateBranch, forge.ActFiles+1)
 	}
 }

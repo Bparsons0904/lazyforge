@@ -25,9 +25,10 @@ const (
 	phaseDone
 )
 
-// dialog confirms a merge or a close; a close has one target in item and no running or done phase.
+// dialog confirms a merge, a close or an update; a close and an update have one target in item and no running or done phase.
 type dialog struct {
 	isClose   bool
+	isUpdate  bool
 	phase     dialogPhase
 	targets   []core.Target // merge only
 	strategy  string
@@ -38,9 +39,12 @@ type dialog struct {
 	prefix    bool
 	renovUser string // host's renovate_user, for spotting author-detected Renovate PRs
 	results   []core.MergeResult
-	item      forge.ItemRef // close only
-	label     string        // close only: "#n title"
-	ci        string        // close only: the CR's CI icon
+	item      forge.ItemRef       // close and update
+	label     string              // close and update: "#n title"
+	ci        string              // close and update: the CR's CI icon
+	styles    []forge.UpdateStyle // update only, in the order the forge lists them
+	cursor    int                 // update only: index into styles
+	target    string              // update only: the branch the update brings in
 }
 
 type mergeOpts struct {
@@ -90,6 +94,22 @@ func closeDialog(ref forge.ItemRef, item any) *dialog {
 	return d
 }
 
+// updateDialog asks which style brings cr up to date; the cursor starts on the first style the forge lists.
+func updateDialog(ref forge.ItemRef, cr domain.ChangeRequest, styles []forge.UpdateStyle) *dialog {
+	target := cr.TargetBranch
+	if target == "" {
+		target = "target branch"
+	}
+	return &dialog{
+		isUpdate: true,
+		item:     ref,
+		label:    fmt.Sprintf("#%d %s", cr.Number, cr.Title),
+		ci:       " " + ciIcon(cr.CI, lipgloss.NewStyle()),
+		styles:   styles,
+		target:   target,
+	}
+}
+
 func (m *Model) dialogKey(msg tea.KeyPressMsg) tea.Cmd {
 	d, k := m.dialog, m.keys
 	switch d.phase {
@@ -97,6 +117,8 @@ func (m *Model) dialogKey(msg tea.KeyPressMsg) tea.Cmd {
 		switch {
 		case key.Matches(msg, k.Close):
 			m.dialog = nil
+		case d.isUpdate:
+			return m.updateKey(msg)
 		case key.Matches(msg, k.Confirm) && d.isClose:
 			m.dialog = nil
 			return m.closeItem(d.item)
@@ -119,10 +141,31 @@ func (m *Model) dialogKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// esc is handled by dialogKey, not here.
+func (m *Model) updateKey(msg tea.KeyPressMsg) tea.Cmd {
+	d, k := m.dialog, m.keys
+	switch {
+	case key.Matches(msg, k.Down):
+		if d.cursor < len(d.styles)-1 {
+			d.cursor++
+		}
+	case key.Matches(msg, k.Up):
+		if d.cursor > 0 {
+			d.cursor--
+		}
+	case key.Matches(msg, k.Confirm) && len(d.styles) > 0:
+		m.dialog = nil
+		return m.updateBranch(d.item, d.styles[d.cursor])
+	}
+	return nil
+}
+
 func (d dialog) title(term string) string {
 	switch {
 	case d.isClose:
 		return fmt.Sprintf("Close #%d", d.item.Number)
+	case d.isUpdate:
+		return fmt.Sprintf("Update #%d", d.item.Number)
 	case len(d.targets) == 1 && d.prefix:
 		return fmt.Sprintf("Merge %s #%d", d.targets[0].Repo, d.targets[0].CR.Number)
 	case len(d.targets) == 1:
@@ -132,6 +175,9 @@ func (d dialog) title(term string) string {
 }
 
 func (d dialog) lines() []string {
+	if d.isUpdate {
+		return d.updateLines()
+	}
 	if d.isClose {
 		return []string{style.Text.Render(d.label) + d.ci}
 	}
@@ -172,6 +218,18 @@ func (d dialog) lines() []string {
 	return out
 }
 
+func (d dialog) updateLines() []string {
+	out := []string{style.Text.Render(d.label) + d.ci, style.Faint.Render("Update with the latest " + d.target + ":")}
+	for i, s := range d.styles {
+		if i == d.cursor {
+			out = append(out, style.Text.Render("› "+string(s)))
+		} else {
+			out = append(out, style.Faint.Render("  "+string(s)))
+		}
+	}
+	return out
+}
+
 func outcome(r core.MergeResult) string {
 	switch r.Outcome {
 	case core.OutcomeMerged:
@@ -192,6 +250,9 @@ func (d dialog) hints(k keyMap) []key.Binding {
 		return []key.Binding{hint(k.Close, "esc", "stop starting new merges")}
 	case phaseDone:
 		return []key.Binding{hint(k.Close, "esc/enter", "close")}
+	}
+	if d.isUpdate && len(d.styles) > 1 {
+		return []key.Binding{hint(k.Down, "j/k", "choose"), k.Confirm, hint(k.Close, "esc", "cancel")}
 	}
 	return []key.Binding{k.Confirm, hint(k.Close, "esc", "cancel")}
 }

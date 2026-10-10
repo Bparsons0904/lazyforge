@@ -138,3 +138,20 @@ type TreeReader interface {
 	// ReadFile returns the bytes of the file at path on ref ("" is the default branch); ErrNotFound when the ref or path is missing.
 	ReadFile(ctx context.Context, r domain.RepoRef, ref, path string) ([]byte, error)
 }
+
+// UpdateStyle is sent as the Forgejo style query parameter.
+type UpdateStyle string
+
+// Update styles.
+const (
+	UpdateMerge  UpdateStyle = "merge"
+	UpdateRebase UpdateStyle = "rebase"
+)
+
+// BranchUpdater is optional: callers detect it with a type assertion, and core reports ErrUnsupported for an adapter without it.
+type BranchUpdater interface {
+	// UpdateStyles returns the styles UpdateBranch accepts, UpdateMerge first; it does no I/O.
+	UpdateStyles() []UpdateStyle
+	// UpdateBranch brings change request n up to date with its target branch; ErrUnsupported for a style UpdateStyles omits.
+	UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style UpdateStyle) error
+}

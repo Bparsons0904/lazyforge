@@ -115,6 +115,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 | `ctrl-d` / `ctrl-u` | Half-page scroll in the details pane, or half-page move on the Branches or Files tab |
 | `space` | Mark a PR for bulk actions, or tick a Renovate dashboard entry |
 | `m` | Merge: the marked PRs, the current PR, or every PR in an update group (`[2]` of ★ Renovate) |
+| `u` | Update the current PR with the latest target branch: a dialog asks whether to merge it in or rebase onto it (GitHub offers merge only). Needs repository write access. |
 | `a` | Approve |
 | `x` | Close a PR or issue |
 | `c` | Comment (opens `$EDITOR`) |
@@ -133,6 +134,8 @@ Every merge and close goes through a confirm dialog. The dialog lists the target
 - **Branch protection is the forge's job.** A repo that requires passing checks refuses the merge whatever lazyforge does, and lazyforge shows the forge's reason.
 - **"Only merge when CI is green"** is a setting per host, with a per-repo override. When it's on, failing or running CI turns the warning into a refusal. It's off by default.
 - **Bulk merges carry on past a failure.** The dialog then shows a result per PR: merged, refused (for example "changed since you confirmed", or conflicts) or failed. PRs that didn't merge stay marked, so `m` retries just those after lazyforge re-checks them. A PR that changed after you confirmed is never merged unseen.
+
+Updating a PR (`u`) asks how to bring in the latest target branch: merge or rebase, with `j`/`k` to choose and Enter to confirm. GitHub offers merge only. The status bar shows the outcome, or the forge's reason when it refuses (for example a conflict, missing permission, or nothing to update), and the PR is refreshed so its CI reflects the new head.
 
 ## Renovate features
 

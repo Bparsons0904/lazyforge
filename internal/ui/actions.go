@@ -27,11 +27,13 @@ type mergeDoneMsg struct {
 	results []core.MergeResult
 }
 
-// actionDoneMsg reports approve, close, comment and open; verb is the past tense the status bar shows.
+// actionDoneMsg reports approve, close, comment, update and open; verb is the past tense the status bar shows.
 type actionDoneMsg struct {
 	repo domain.RepoRef
 	item forge.ItemRef
 	verb string
+	// suffix follows the item number in the success text, e.g. " (rebase)".
+	suffix string
 	// closed marks a close so actionDone can unmark the change request.
 	closed bool
 	err    error
@@ -86,6 +88,7 @@ func (m *Model) syncKeys() {
 	_, isIssue := item.(domain.Issue)
 	_, isRun := item.(domain.Run)
 	k.Merge.SetEnabled(isCR && can(forge.ActMerge))
+	k.UpdateBranch.SetEnabled(isOpenCR(item) && can(forge.ActUpdateBranch) && len(m.svc.UpdateStyles()) > 0)
 	k.Mark.SetEnabled(isCR && can(forge.ActMerge))
 	k.Approve.SetEnabled(isCR && can(forge.ActApprove))
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
@@ -97,6 +100,12 @@ func (m *Model) syncKeys() {
 		k.Open.SetEnabled(webURL(m.openTarget(item)) != "")
 	}
 	k.Rerun.SetEnabled(isRun && webURL(item) != "")
+}
+
+// isOpenCR gates u: an update applies only to an open change request.
+func isOpenCR(item any) bool {
+	cr, ok := item.(domain.ChangeRequest)
+	return ok && cr.State == domain.StateOpen
 }
 
 func webURL(item any) string {
@@ -180,6 +189,10 @@ func (m *Model) itemActionKey(msg tea.KeyPressMsg, ref forge.ItemRef, item any) 
 		}, true
 	case key.Matches(msg, k.CloseItem):
 		m.dialog = closeDialog(ref, item)
+	case key.Matches(msg, k.UpdateBranch):
+		if cr, ok := item.(domain.ChangeRequest); ok {
+			m.dialog = updateDialog(ref, cr, m.svc.UpdateStyles())
+		}
 	case key.Matches(msg, k.Labels):
 		return m.openLabels(ref), true
 	case key.Matches(msg, k.Comment):
@@ -304,6 +317,15 @@ func (m *Model) mergeDone(msg mergeDoneMsg) tea.Cmd {
 	return nil
 }
 
+// updateBranch runs the update in the background; its result arrives as an actionDoneMsg.
+func (m *Model) updateBranch(ref forge.ItemRef, style forge.UpdateStyle) tea.Cmd {
+	svc, ctx := m.svc, m.ctx
+	return func() tea.Msg {
+		err := svc.UpdateBranch(ctx, ref.Repo, ref.Number, style)
+		return actionDoneMsg{repo: ref.Repo, item: ref, verb: "Updated", suffix: " (" + string(style) + ")", err: err}
+	}
+}
+
 func (m *Model) actionDone(msg actionDoneMsg) tea.Cmd {
 	switch {
 	case errors.Is(msg.err, errEmptyComment):
@@ -313,7 +335,7 @@ func (m *Model) actionDone(msg actionDoneMsg) tea.Cmd {
 		m.setError(msg.err)
 		return nil
 	}
-	m.setInfo(fmt.Sprintf("%s #%d", msg.verb, msg.item.Number))
+	m.setInfo(fmt.Sprintf("%s #%d%s", msg.verb, msg.item.Number, msg.suffix))
 	if m.onStar() {
 		if msg.item.Kind == forge.ItemChangeRequest && msg.closed {
 			delete(m.star.marked, starTarget{msg.repo, msg.item.Number})

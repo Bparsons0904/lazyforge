@@ -109,30 +109,66 @@ func (s *Service) Recheck(ctx context.Context, ts []Target) []Checked {
 	for i, t := range ts {
 		wg.Go(func() {
 			out[i].Target = t
-			var cr domain.ChangeRequest
-			out[i].Err = s.do(ctx, fmt.Sprintf("recheck %s#%d", t.Repo, t.CR.Number), func(ctx context.Context) (err error) {
-				cr, err = s.f.GetChangeRequest(ctx, t.Repo, t.CR.Number)
-				return err
-			})
-			if out[i].Err != nil {
+			cr, err := s.refresh(ctx, fmt.Sprintf("recheck %s#%d", t.Repo, t.CR.Number), t.Repo, t.CR.Number)
+			if err != nil {
+				out[i].Err = err
 				return
 			}
-			cr = s.fillRenovate(cr)
 			out[i].Target.CR = cr
-			if cr.State != domain.StateOpen {
-				s.dropCR(t.Repo, cr.Number)
-				return
-			}
-			update(s, Key{Kind: KindChangeRequests, Repo: t.Repo}, func(crs []domain.ChangeRequest) []domain.ChangeRequest {
-				if j := slices.IndexFunc(crs, func(c domain.ChangeRequest) bool { return c.Number == cr.Number }); j >= 0 {
-					crs[j] = cr
-				}
-				return crs
-			})
 		})
 	}
 	wg.Wait()
 	return out
+}
+
+// refresh fetches change request n under the semaphore, then drops it from the cached open list or replaces its entry.
+// what labels the fetch in the error, so callers name the step that failed.
+func (s *Service) refresh(ctx context.Context, what string, r domain.RepoRef, n int) (domain.ChangeRequest, error) {
+	var cr domain.ChangeRequest
+	err := s.do(ctx, what, func(ctx context.Context) (err error) {
+		cr, err = s.f.GetChangeRequest(ctx, r, n)
+		return err
+	})
+	if err != nil {
+		return domain.ChangeRequest{}, err
+	}
+	cr = s.fillRenovate(cr)
+	if cr.State != domain.StateOpen {
+		s.dropCR(r, cr.Number)
+		return cr, nil
+	}
+	update(s, Key{Kind: KindChangeRequests, Repo: r}, func(crs []domain.ChangeRequest) []domain.ChangeRequest {
+		if j := slices.IndexFunc(crs, func(c domain.ChangeRequest) bool { return c.Number == cr.Number }); j >= 0 {
+			crs[j] = cr
+		}
+		return crs
+	})
+	return cr, nil
+}
+
+// UpdateStyles returns the styles UpdateBranch accepts, merge first; nil when the forge can't update branches.
+func (s *Service) UpdateStyles() []forge.UpdateStyle {
+	b, ok := s.f.(forge.BranchUpdater)
+	if !ok {
+		return nil
+	}
+	return b.UpdateStyles()
+}
+
+// UpdateBranch brings change request n up to date with its target branch, then refreshes it in the cached list.
+// It wraps forge.ErrUnsupported when the forge can't update branches, and makes no forge call in that case.
+func (s *Service) UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style forge.UpdateStyle) error {
+	what := fmt.Sprintf("update %s#%d", r, n)
+	b, ok := s.f.(forge.BranchUpdater)
+	if !ok {
+		return fmt.Errorf("%s: %w", what, forge.ErrUnsupported)
+	}
+	if err := s.do(ctx, what, func(ctx context.Context) error { return b.UpdateBranch(ctx, r, n, style) }); err != nil {
+		return err
+	}
+	// The update already happened, so a failed refresh is reported as its own error, not as a failed update.
+	_, err := s.refresh(ctx, fmt.Sprintf("refresh %s#%d after update", r, n), r, n)
+	return err
 }
 
 // Approve wraps forge.ErrUnsupported when the forge can't approve.

@@ -163,6 +163,7 @@ func newServer(t testing.TB) *server {
 	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/pulls", s.listPulls)
 	mux.HandleFunc("GET "+p+"/repos/{owner}/{repo}/pulls/{index}", s.getPull)
 	mux.HandleFunc("PUT "+p+"/repos/{owner}/{repo}/pulls/{index}/merge", s.mergePull)
+	mux.HandleFunc("PUT "+p+"/repos/{owner}/{repo}/pulls/{index}/update-branch", s.updateBranch)
 	mux.HandleFunc("PATCH "+p+"/repos/{owner}/{repo}/pulls/{index}", s.patchPull)
 	mux.HandleFunc("POST "+p+"/repos/{owner}/{repo}/pulls/{index}/reviews", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, obj{"state": "APPROVED"})
@@ -442,6 +443,17 @@ func (s *server) mergePull(w http.ResponseWriter, r *http.Request) {
 	}
 	pr["state"], pr["merged_at"] = "closed", time.Now().UTC().Format(time.RFC3339)
 	writeJSON(w, 200, obj{"sha": "0000000000000000000000000000000000000000", "merged": true, "message": "Pull Request successfully merged"})
+}
+
+// updateBranch answers 202 with GitHub's queued-update message; the head moves later, outside the response.
+func (s *server) updateBranch(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.findPull(r) == nil {
+		s.notFound(w)
+		return
+	}
+	writeJSON(w, 202, obj{"message": "Updating pull request branch.", "url": "https://github.com/" + r.PathValue("owner") + "/" + r.PathValue("repo") + "/pull/" + r.PathValue("index")})
 }
 
 func (s *server) patchPull(w http.ResponseWriter, r *http.Request) {

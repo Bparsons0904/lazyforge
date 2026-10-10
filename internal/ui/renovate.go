@@ -545,6 +545,7 @@ func (m *Model) syncStarKeys() {
 	_, isCR := item.(domain.ChangeRequest)
 	_, isIssue := item.(domain.Issue)
 	k.Merge.SetEnabled(m.starCanMerge())
+	k.UpdateBranch.SetEnabled(isOpenCR(item) && can(forge.ActUpdateBranch) && len(m.svc.UpdateStyles()) > 0)
 	k.Mark.SetEnabled(isCR && (s.focus == starPRs || s.focus == starCI) && can(forge.ActMerge))
 	k.Approve.SetEnabled(isCR && can(forge.ActApprove))
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
