@@ -176,7 +176,7 @@ func (m *Model) selectRepo(cached bool) tea.Cmd {
 	m.stopScan()
 	ctx, cancel := context.WithCancel(m.ctx)
 	m.selCtx, m.cancel = ctx, cancel
-	m.boxes = boxes{repo: r.RepoRef, repoRow: r, showRuns: m.svc.Can(forge.ActRuns, r).OK, showRepo: m.svc.Can(forge.ActReadme, r).OK, showBranches: m.svc.Can(forge.ActBranches, r).OK, showFiles: m.svc.Can(forge.ActFiles, r).OK}
+	m.boxes = boxes{repo: r.RepoRef, repoRow: r, showRuns: m.svc.Can(forge.ActRuns, r).OK, showLogs: m.svc.Can(forge.ActLogs, r).OK, showRepo: m.svc.Can(forge.ActReadme, r).OK, showBranches: m.svc.Can(forge.ActBranches, r).OK, showFiles: m.svc.Can(forge.ActFiles, r).OK}
 	m.boxes.loaded[boxRepo] = true
 	// The cursors must be reset before loadBoxes, which reads them to pick the branch and the entry it fetches for.
 	m.details.branchCur = 0

@@ -54,6 +54,7 @@ type boxes struct {
 	repo         domain.RepoRef
 	repoRow      domain.Repo
 	showRuns     bool
+	showLogs     bool
 	showRepo     bool
 	showBranches bool
 	showFiles    bool

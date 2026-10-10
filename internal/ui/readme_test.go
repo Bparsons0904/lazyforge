@@ -38,6 +38,7 @@ func newModel(t *testing.T, f forge.Forge) Model {
 	t.Helper()
 	m := New(context.Background(), core.New(f, core.Options{}))
 	m.tick = func() tea.Cmd { return func() tea.Msg { return tickScheduled{} } }
+	m.poll = func() tea.Cmd { return func() tea.Msg { return pollScheduled{} } }
 	return sizedWith(t, m, 120, 40)
 }
 
