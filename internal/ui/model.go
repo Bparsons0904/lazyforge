@@ -292,13 +292,35 @@ func (m *Model) focusBox(i int) bool {
 	return true
 }
 
+// moveInBoxes moves the focused box's cursor by delta (1 or -1). At the box's edge it carries on into the next non-empty box in that direction, landing on its nearest row, and stops at the first or last box.
+func (m *Model) moveInBoxes(delta int) {
+	b := &m.boxes
+	if i := b.cursor[b.focus] + delta; i >= 0 && i < b.len(b.focus) {
+		b.setCursor(i)
+		return
+	}
+	ks := b.kinds()
+	for j := slices.Index(ks, b.focus) + delta; j >= 0 && j < len(ks); j += delta {
+		n := b.len(ks[j])
+		if n == 0 || !m.focusBox(int(ks[j])) {
+			continue
+		}
+		if delta < 0 {
+			b.cursor[ks[j]] = n - 1
+		} else {
+			b.cursor[ks[j]] = 0
+		}
+		return
+	}
+}
+
 func (m *Model) boxesKey(msg tea.KeyPressMsg, gg bool) {
 	k, b := m.keys, &m.boxes
 	switch {
 	case key.Matches(msg, k.Down):
-		b.setCursor(b.cursor[b.focus] + 1)
+		m.moveInBoxes(1)
 	case key.Matches(msg, k.Up):
-		b.setCursor(b.cursor[b.focus] - 1)
+		m.moveInBoxes(-1)
 	case gg:
 		b.setCursor(0)
 	case key.Matches(msg, k.Bottom):

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/core/renovate"
+
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -568,4 +570,34 @@ func TestStarMemberDetailsRenderMarkdown(t *testing.T) {
 			t.Errorf("raw markdown %q in ★ details:\n%s", bad, v)
 		}
 	}
+}
+
+// Seam: j and k carry across ★ box edges, skip an empty box, and stop at the first and last box.
+func TestStarCursorCarriesAcrossBoxes(t *testing.T) {
+	m := sized(t, 80, 24)
+	m = press(t, m, "l")
+	m.star.view = renovate.View{
+		ByRepo: make([]renovate.RepoSummary, 2),
+		Groups: make([]renovate.Group, 1),
+		PRs:    make([]renovate.Member, 0),
+		CI:     make([]renovate.Member, 2),
+	}
+	at := func(box starBox, row int) {
+		t.Helper()
+		if m.star.focus != box || m.star.cursor[box] != row {
+			t.Fatalf("at [%d] row %d, want [%d] row %d", m.star.focus+1, m.star.cursor[m.star.focus], box+1, row)
+		}
+	}
+	m = press(t, m, "k")
+	at(starByRepo, 0)
+	m = press(t, m, "j", "j")
+	at(starGroups, 0)
+	m = press(t, m, "j")
+	at(starCI, 0)
+	m = press(t, m, "k")
+	at(starGroups, 0)
+	m = press(t, m, "k")
+	at(starByRepo, 1)
+	m = press(t, m, "5", "j", "j")
+	at(starCI, 1)
 }

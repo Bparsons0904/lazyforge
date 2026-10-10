@@ -187,13 +187,21 @@ func TestNavigation(t *testing.T) {
 	if got := lines(m)[0]; !strings.Contains(got, want) {
 		t.Errorf("header %q lacks %q", got, want)
 	}
-	m = press(t, m, "j", "j", "j", "j", "j")
-	if m.boxes.cursor[boxCRs] != 2 {
-		t.Fatalf("j x5: cursor %d, want 2", m.boxes.cursor[boxCRs])
+	m = press(t, m, "j", "j")
+	if m.boxes.focus != boxCRs || m.boxes.cursor[boxCRs] != 2 {
+		t.Fatalf("j x2: focus %v cursor %d, want the last PR", m.boxes.focus, m.boxes.cursor[boxCRs])
 	}
-	m = press(t, m, "k", "k", "k", "k")
-	if m.boxes.cursor[boxCRs] != 0 {
-		t.Fatalf("k x4: cursor %d, want 0", m.boxes.cursor[boxCRs])
+	m = press(t, m, "j")
+	if m.boxes.focus != boxIssues || m.boxes.cursor[boxIssues] != 0 {
+		t.Fatalf("j past the last PR: focus %v cursor %d, want the first issue", m.boxes.focus, m.boxes.cursor[boxIssues])
+	}
+	m = press(t, m, "k")
+	if m.boxes.focus != boxCRs || m.boxes.cursor[boxCRs] != 2 {
+		t.Fatalf("k above the first issue: focus %v cursor %d, want the last PR", m.boxes.focus, m.boxes.cursor[boxCRs])
+	}
+	m = press(t, m, "k", "k", "k")
+	if m.boxes.focus != boxCRs || m.boxes.cursor[boxCRs] != 0 {
+		t.Fatalf("k above the first box: focus %v cursor %d, want to stay on the first PR", m.boxes.focus, m.boxes.cursor[boxCRs])
 	}
 	m = press(t, m, "2")
 	if m.boxes.focus != boxIssues {

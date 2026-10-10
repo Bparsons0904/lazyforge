@@ -107,7 +107,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 
 | Key | Action |
 |---|---|
-| `j` / `k` | Move. In the details pane: scroll, or move the cursor on the Branches or Files tab. |
+| `j` / `k` | Move. At the last row of a box, `j` carries on to the first row of the next box; at the first row, `k` goes to the last row of the previous box (empty boxes are skipped, and the first and last box stop). In the details pane: scroll, or move the cursor on the Branches or Files tab. |
 | `h` / `l` | Back / in. On the Files tab: `l` enters a directory or a file's preview, and `h` leaves the preview, then goes up a directory. On the Branches tab, `l` shows the cursor branch on the Files tab. |
 | `1`–`6` | Jump to a box (also works from the repo list) |
 | `tab` / `shift-tab` | Next / previous box |
