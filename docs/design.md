@@ -82,6 +82,8 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 | `[5]` Releases | Releases and tags | Overview |
 | `[6]` Repo | The repo itself | README · Files · Branches |
 
+A run's Overview lists its jobs, each with a status icon, and puts the cursor on the first failed job, or the first running one if none failed. `j`/`k` pick a job and `l` opens its log on the Logs tab, which only appears on hosts that can serve logs. The Logs tab shows the picked job's output (the last 256 KiB), opening at the end; `[`/`]` go back to the Overview to pick another job. While a run is running or pending, the run, its jobs and the open log refresh every few seconds, and a log you are reading at its end keeps following it. Job lists show jobs, not the steps inside them, because the forges don't expose steps.
+
 The Branches tab lists the repo's branches, the default branch first and then by most recent commit. Each row shows the name, the tip's subject and age, a `default` marker, and `#N` when an open PR comes from that branch. The selected branch's recent commits show below the list. `j`/`k` move the cursor, `l` or `enter` shows the branch on the Files tab, and `o` opens the branch in the browser. The tab is read-only, with no ahead/behind counts.
 
 The Files tab browses the repo's tree at the default branch, or at the branch picked on the Branches tab until the repo changes or another branch is picked. A pick starts at the repo root. The breadcrumb ends in `<branch>:<path>`, for example `develop:src/ui`, on every branch, the default branch included. The tree is in two columns. The left column is the current directory, directories first and then by name. The right column previews the cursor entry: a directory's names, or a text file's contents. `j`/`k` move the cursor, `l` opens a directory or, on a file, moves into its preview, and `h` goes back out, to the list and then up a directory. `o` opens the cursor entry on the shown branch in the browser. Files over 256 KiB and binary files show a note instead of a preview, and submodules and symlinks show as entries with no preview. The tab is read-only.
@@ -179,4 +181,4 @@ Answered by the PM on 2026-10-02 (#13):
 - Forgejo/Gitea and GitHub adapters (the GitHub adapter ships with the public release, the PM's call in #83)
 - Install script, release binaries, and the startup update check
 
-After v1: the Files tab with diffs (optionally rendered through `delta`), the Logs tab, box `[4]`, the Repo box's Files tab, then the GitLab adapter.
+After v1: the Files tab with diffs (optionally rendered through `delta`), box `[4]`, the Repo box's Files tab, then the GitLab adapter.

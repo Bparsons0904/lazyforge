@@ -39,6 +39,7 @@ type Model struct {
 	help   help.Model
 	now    func() time.Time
 	tick   func() tea.Cmd  // overridable so tests skip the five-minute wait
+	poll   func() tea.Cmd  // overridable so tests skip the wait between looks at a running run
 	selCtx context.Context // bounds the selected repo's fetches; cancel ends them
 	cancel context.CancelFunc
 
@@ -62,7 +63,7 @@ type Model struct {
 
 // New returns the root model for one session over svc; ctx bounds every fetch the UI makes.
 func New(ctx context.Context, svc *core.Service) Model {
-	m := Model{ctx: ctx, svc: svc, info: svc.Info(), keys: defaultKeys(), help: newHelp(), now: time.Now, tick: tickEvery}
+	m := Model{ctx: ctx, svc: svc, info: svc.Info(), keys: defaultKeys(), help: newHelp(), now: time.Now, tick: tickEvery, poll: pollAfter}
 	m.repos.noStar = svc.HidesRenovate()
 	m.openURL = func(u string) error { return openBrowser(ctx, u) }
 	m.keys.setHosted(false) // only an App hosting the session handles S and the hosts key
@@ -129,6 +130,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.loadFailed(msg.key, msg.err) {
 			m.boxes.readme = readmeState{ok: true, r: msg.readme}
 		}
+	case jobsLoadedMsg:
+		m.jobsLoaded(msg)
+	case jobLogLoadedMsg:
+		m.jobLogLoaded(msg)
+	case runPollMsg:
+		cmd = m.pollRun()
 	case branchesLoadedMsg:
 		cmd = m.branchesLoaded(msg)
 	case commitsLoadedMsg:
@@ -177,6 +184,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.filesActive() {
 		m.details.filesFocus = false
 	}
+	m.details.logs = m.boxes.showLogs
+	cmd = tea.Batch(cmd, m.followRun())
 	m.syncDetails()
 	m.syncKeys()
 	return m, tea.Batch(cmd, m.syncImages())
@@ -378,6 +387,9 @@ func (m *Model) detailsKey(msg tea.KeyPressMsg, gg bool) tea.Cmd {
 		if cmd, ok := m.branchesKey(msg, gg); ok {
 			return cmd
 		}
+	}
+	if m.jobsActive() && m.jobsKey(msg) {
+		return nil
 	}
 	if m.scrollKey(msg, gg) {
 		return nil

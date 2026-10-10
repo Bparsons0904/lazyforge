@@ -32,6 +32,12 @@ type details struct {
 	filesCur   int
 	filesOff   int
 	filesFocus bool
+	run        runState
+	polling    bool // a runPollMsg is in flight, so only one chain of polls ever runs
+	logs       bool // the host can read job logs, so a Run has a Logs tab
+	// text and size are what the viewport last rendered, so an unchanged pane isn't rendered again.
+	text   string
+	rw, rh int
 }
 
 // branchesTab is the Branches tab's index in tabs for a Repo.
@@ -80,9 +86,17 @@ func tabs(item any) []string {
 	return []string{"Overview"}
 }
 
+func (d details) tabs(item any) []string {
+	t := tabs(item)
+	if _, ok := item.(domain.Run); ok && d.logs {
+		t = append(t, "Logs")
+	}
+	return t
+}
+
 // cycleTab moves delta tabs along, wrapping at either end.
 func (d *details) cycleTab(item any, delta int) {
-	n := len(tabs(item))
+	n := len(d.tabs(item))
 	d.tab = ((d.tab+delta)%n + n) % n
 }
 
@@ -91,17 +105,29 @@ func contentWidth(w int) int { return max(w-4, 1) }
 
 func (d *details) sync(item any, b boxes, highlight bool, w, h int, now time.Time) {
 	cw := contentWidth(w)
-	n := len(tabs(item))
+	n := len(d.tabs(item))
 	// The Repo text depends on d.tab, so clamp before choosing it.
 	d.tab = min(d.tab, n-1)
 	d.branchHL = highlight
 	var text string
-	if _, ok := item.(domain.Repo); ok {
+	wasShown, atBottom := d.shown, d.vp.AtBottom()
+	switch it := item.(type) {
+	case domain.Repo:
 		text = d.repoText(b, cw, max(h-2, 0), now)
-	} else {
+	case domain.Run:
+		text = d.runText(it, b, cw, now, highlight)
+	default:
 		text = overview(item, b.repo, now, func(r domain.RepoRef, body string) string { return d.markdown(r, body, cw) })
 	}
-	d.syncText(fmt.Sprintf("%v %s", b.repo, itemID(item)), text, n, w, h)
+	id := fmt.Sprintf("%v %s", b.repo, itemID(item))
+	if d.tab == logsTab && d.logs {
+		id += fmt.Sprintf(" job %d", d.run.logJob)
+	}
+	d.syncText(id, text, n, w, h)
+	// A log opens at its end, where a failure is, and follows the end while the reader is there.
+	if _, ok := item.(domain.Run); ok && d.tab == logsTab && d.logs && (d.shown != wasShown || atBottom) {
+		d.vp.GotoBottom()
+	}
 }
 
 // repoText is the Repo box's text for the active tab; ch is the pane's text height.
@@ -194,7 +220,10 @@ func (d *details) syncText(id, text string, tabCount, w, h int) {
 	cw, ch := contentWidth(w), max(h-2, 0)
 	d.vp.SetWidth(cw)
 	d.vp.SetHeight(ch)
-	d.vp.SetContent(lipgloss.NewStyle().Width(cw).Render(text))
+	if text != d.text || cw != d.rw || ch != d.rh {
+		d.text, d.rw, d.rh = text, cw, ch
+		d.vp.SetContent(lipgloss.NewStyle().Width(cw).Render(text))
+	}
 	if id = fmt.Sprintf("%s %d", id, d.tab); id != d.shown {
 		d.vp.GotoTop()
 		d.shown = id
@@ -202,7 +231,7 @@ func (d *details) syncText(id, text string, tabCount, w, h int) {
 }
 
 func (d details) view(item any, w, h int, active bool) string {
-	names := tabs(item)
+	names := d.tabs(item)
 	parts := make([]string, len(names))
 	for i, t := range names {
 		if i == d.tab {

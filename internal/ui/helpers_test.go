@@ -28,6 +28,7 @@ func seededWith(t *testing.T, f *forgetest.Fake) Model {
 	t.Helper()
 	m := New(context.Background(), core.New(f, core.Options{}))
 	m.tick = func() tea.Cmd { return func() tea.Msg { return tickScheduled{} } }
+	m.poll = func() tea.Cmd { return func() tea.Msg { return pollScheduled{} } }
 	return m
 }
 
@@ -71,6 +72,9 @@ func boot(t *testing.T, m Model) Model {
 
 // tickScheduled stands in for the five-minute refresh tick, so no test command sleeps.
 type tickScheduled struct{}
+
+// pollScheduled stands in for the run poll, so no test command sleeps.
+type pollScheduled struct{}
 
 // execTimeout is generous so a slow load under -race fails the test instead of being skipped.
 const execTimeout = 5 * time.Second
