@@ -123,6 +123,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.size = &msg
 	case tea.KeyPressMsg:
 		return a, a.handleKey(msg)
+	case tea.PasteMsg:
+		if a.screen == screenSettings && a.settings.mode == modeInput {
+			a.settings.input, _ = a.settings.input.Update(msg)
+			return a, nil
+		}
 	case stampedMsg:
 		if msg.gen != a.gen {
 			return a, nil
@@ -346,7 +351,7 @@ func (a *App) openSession(ctx context.Context, name string, f forge.Forge) strin
 		RequireGreenCI:   func(r domain.RepoRef) bool { return live.Load().Hosts[name].RequiresGreenCI(r.String()) },
 		RenovateUser:     live.Load().Hosts[name].RenovateUser,
 		HideRenovate:     !live.Load().Hosts[name].ShowsRenovate(),
-		RenovateWorkflow: renovateWorkflow(live.Load().Hosts[name].RenovateWorkflow),
+		RenovateWorkflow: func() core.RenovateWorkflow { return renovateWorkflow(live.Load().Hosts[name].RenovateWorkflow) },
 	})
 	a.host, a.session, a.endSession = name, New(sctx, svc), cancel
 	a.session.keys.setHosted(true)

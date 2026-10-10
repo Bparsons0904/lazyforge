@@ -64,6 +64,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 - **Updates:** turn the startup update check on or off.
 - **Splash screen:** turn the startup splash on or off.
 - **Images:** show images inline in the details pane, on by default.
+- **Renovate:** per host, the Renovate bot username and the workflow that `N` runs (blank hides `N`). Enter on a row edits it in place: enter saves, esc cancels, and a workflow that isn't `owner/repo/file` is refused with the format hint. A workflow change applies at once; a new bot username applies the next time you connect to that host.
 - **Merging:** "only merge when CI is green" per host, with a per-repo override.
 - The host picker has a **+ Add host** entry, which opens the same flow.
 - Settings are saved to the config file right away. There's no separate save step.

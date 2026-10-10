@@ -91,7 +91,7 @@ Use `lazyforge -help` for all flags, `-version` to print the build version, or `
 
 ### Run Renovate now (optional)
 
-If Renovate runs as a workflow on your forge, set `renovate_workflow = "owner/repo/file.yml"` on the host (or fill in the Renovate step of onboarding or host edit). `N` then starts that workflow on its repo's default branch. You need write access to that repo, and on GitHub a token that can write Actions. Leave it unset to hide `N`.
+If Renovate runs as a workflow on your forge, set `renovate_workflow = "owner/repo/file.yml"` on the host (or set it in Settings under Renovate, or in the Renovate step of onboarding or host edit). `N` then starts that workflow on its repo's default branch. You need write access to that repo, and on GitHub a token that can write Actions. Leave it unset to hide `N`.
 
 A run for all repos sends no inputs, so any `workflow_dispatch` workflow works for that. A run for one repo sends an input named `repo` with the value `owner/name`, so the workflow has to declare it and pass it to Renovate as `RENOVATE_AUTODISCOVER_FILTER`. GitHub rejects inputs a workflow doesn't declare, so without this the one-repo choice fails with the forge's message.
 

@@ -186,6 +186,8 @@ func newOnboarding(ctx context.Context, connect func(context.Context, config.Hos
 	return o
 }
 
+const workflowFormatMsg = "Use owner/repo/file, for example deadstyle/forgejo/renovate.yml"
+
 func newInput(placeholder string) textinput.Model {
 	in := textinput.New()
 	s := in.Styles()
@@ -333,7 +335,7 @@ func (o onboarding) submit() (onboarding, tea.Cmd) {
 	case stepRenovate:
 		if w := strings.TrimSpace(o.workflow.Value()); w != "" {
 			if _, _, _, err := config.SplitWorkflow(w); err != nil {
-				o.err = "Use owner/repo/file, for example deadstyle/forgejo/renovate.yml"
+				o.err = workflowFormatMsg
 				return o, nil
 			}
 		}
@@ -633,7 +635,8 @@ func (o onboarding) view(w, h int) string {
 		title = "Renovate"
 		lines = []string{
 			"Renovate bot username, used to find its PRs. Leave it blank to skip.", "", o.renovate.View(), "",
-			"Workflow that runs Renovate, as owner/repo/file. Leave it blank to hide N (run Renovate now).", o.workflow.View(),
+			"Workflow that runs Renovate, as owner/repo/file. N (run Renovate now) starts it; leave it blank to hide N.",
+			"For a one-repo run it needs an optional repo input (README: Run Renovate now).", o.workflow.View(),
 		}
 	case stepName:
 		title = "Name"

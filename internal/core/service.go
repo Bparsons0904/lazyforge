@@ -50,7 +50,7 @@ type Options struct {
 	RequireGreenCI   func(domain.RepoRef) bool // nil means off
 	RenovateUser     string                    // "" detects Renovate PRs by branch only
 	HideRenovate     bool
-	RenovateWorkflow RenovateWorkflow // zero means none is configured
+	RenovateWorkflow func() RenovateWorkflow // nil or a zero result means none is configured; read on every use
 }
 
 type entry struct {
@@ -66,7 +66,7 @@ type Service struct {
 	greenOnly     func(domain.RepoRef) bool
 	renovUser     string
 	hideStar      bool
-	renovWorkflow RenovateWorkflow
+	renovWorkflow func() RenovateWorkflow
 
 	mu     sync.Mutex
 	cache  map[Key]entry

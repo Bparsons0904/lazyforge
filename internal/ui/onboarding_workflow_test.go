@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/config"
@@ -21,6 +22,17 @@ func TestOnboardWorkflowFieldTakesTabFocus(t *testing.T) {
 	}
 	if o.workflow.Value() != "y" {
 		t.Errorf("workflow %q, want typing after tab", o.workflow.Value())
+	}
+}
+
+func TestOnboardRenovateStepExplainsTheRepoInput(t *testing.T) {
+	e := newObEnv()
+	o, _ := obKeys(obType(e.toSignIn(t), "tok"), "enter", "enter")
+	out := strip(o.view(100, 30))
+	for _, want := range []string{"optional repo input", "README: Run Renovate now", "N (run Renovate now)"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("Renovate step lacks %q:\n%s", want, out)
+		}
 	}
 }
 

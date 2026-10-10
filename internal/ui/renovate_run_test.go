@@ -25,11 +25,11 @@ func confirm(t *testing.T, m Model, k string) Model {
 var (
 	wfRepo    = domain.RepoRef{Owner: "deadstyle", Name: "forgejo"}
 	filesRepo = domain.RepoRef{Owner: "deadstyle", Name: "files"}
-	wfOpts    = core.Options{RenovateWorkflow: core.RenovateWorkflow{Repo: wfRepo, File: "renovate.yml"}}
+	wfOpts    = core.Options{RenovateWorkflow: func() core.RenovateWorkflow { return core.RenovateWorkflow{Repo: wfRepo, File: "renovate.yml"} }}
 )
 
 // starOpts points the Renovate workflow at infra, the repo starRunFake holds Renovate PRs on.
-var starOpts = core.Options{RenovateWorkflow: core.RenovateWorkflow{Repo: infra, File: "renovate.yml"}}
+var starOpts = core.Options{RenovateWorkflow: func() core.RenovateWorkflow { return core.RenovateWorkflow{Repo: infra, File: "renovate.yml"} }}
 
 // wfFake holds wfRepo at access on default branch main, and filesRepo with write access; each has one PR so
 // the boxes have a row for l to open details on.

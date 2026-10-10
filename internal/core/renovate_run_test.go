@@ -28,7 +28,7 @@ func workflowFake(access domain.Access, branch string) *forgetest.Fake {
 // loadedRenovate returns a Service configured with renovateCfg whose repo list is cached.
 func loadedRenovate(t *testing.T, f forge.Forge) *core.Service {
 	t.Helper()
-	s := core.New(f, core.Options{RenovateWorkflow: renovateCfg})
+	s := core.New(f, core.Options{RenovateWorkflow: func() core.RenovateWorkflow { return renovateCfg }})
 	if _, err := s.Repos(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestCanRunRenovateWithoutConfigIsOff(t *testing.T) {
 
 func TestCanRunRenovateNeedsRepoListLoaded(t *testing.T) {
 	f := workflowFake(domain.AccessWrite, "main")
-	s := core.New(f, core.Options{RenovateWorkflow: renovateCfg})
+	s := core.New(f, core.Options{RenovateWorkflow: func() core.RenovateWorkflow { return renovateCfg }})
 	if got := s.CanRunRenovate(); got.OK {
 		t.Errorf("CanRunRenovate() = %+v, want not OK before the repo list loads", got)
 	}
@@ -152,7 +152,7 @@ func TestRunRenovateAllReposSendsNoInputs(t *testing.T) {
 func TestRunRenovateMatchesWorkflowRepoCaseInsensitively(t *testing.T) {
 	f := workflowFake(domain.AccessWrite, "main")
 	cfg := core.RenovateWorkflow{Repo: domain.RepoRef{Owner: "Deadstyle", Name: "ForgeJO"}, File: "renovate.yml"}
-	s := core.New(f, core.Options{RenovateWorkflow: cfg})
+	s := core.New(f, core.Options{RenovateWorkflow: func() core.RenovateWorkflow { return cfg }})
 	if _, err := s.Repos(context.Background()); err != nil {
 		t.Fatal(err)
 	}

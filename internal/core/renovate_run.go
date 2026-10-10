@@ -19,15 +19,16 @@ type RenovateWorkflow struct {
 // CanRunRenovate reports whether RunRenovate can work: a workflow is configured, the forge can dispatch it,
 // and the cached repo list holds its repo with write access. It does no I/O.
 func (s *Service) CanRunRenovate() forge.Availability {
-	if s.renovWorkflow == (RenovateWorkflow{}) {
+	w := s.workflow()
+	if w == (RenovateWorkflow{}) {
 		return forge.Availability{Reason: "no renovate_workflow is set for this host"}
 	}
 	if _, ok := s.f.(forge.WorkflowDispatcher); !ok {
 		return forge.Availability{Reason: fmt.Sprintf("%s doesn't support this", s.f.Info().Kind)}
 	}
-	repo, ok := s.cachedWorkflowRepo()
+	repo, ok := s.cachedWorkflowRepo(w.Repo)
 	if !ok {
-		return forge.Availability{Reason: fmt.Sprintf("%s isn't in the repo list", s.renovWorkflow.Repo)}
+		return forge.Availability{Reason: fmt.Sprintf("%s isn't in the repo list", w.Repo)}
 	}
 	return s.workflowAvailability(repo)
 }
@@ -41,29 +42,36 @@ func (s *Service) RunRenovate(ctx context.Context, only domain.RepoRef) error {
 		what = "run Renovate for " + only.String()
 		inputs = map[string]string{"repo": only.String()}
 	}
+	w := s.workflow()
 	d, ok := s.f.(forge.WorkflowDispatcher)
-	if !ok || s.renovWorkflow == (RenovateWorkflow{}) {
+	if !ok || w == (RenovateWorkflow{}) {
 		return fmt.Errorf("%s: %w", what, forge.ErrUnsupported)
 	}
-	repo, ok := s.cachedWorkflowRepo()
+	repo, ok := s.cachedWorkflowRepo(w.Repo)
 	if !ok {
-		return fmt.Errorf("%s: %s is not in the repo list: %w", what, s.renovWorkflow.Repo, forge.ErrNotFound)
+		return fmt.Errorf("%s: %s is not in the repo list: %w", what, w.Repo, forge.ErrNotFound)
 	}
 	if a := s.workflowAvailability(repo); !a.OK {
 		return fmt.Errorf("%s: %s", what, a.Reason)
 	}
 	return s.do(ctx, what, func(ctx context.Context) error {
-		return d.DispatchWorkflow(ctx, repo.RepoRef, s.renovWorkflow.File, repo.DefaultBranch, inputs)
+		return d.DispatchWorkflow(ctx, repo.RepoRef, w.File, repo.DefaultBranch, inputs)
 	})
 }
 
+func (s *Service) workflow() RenovateWorkflow {
+	if s.renovWorkflow == nil {
+		return RenovateWorkflow{}
+	}
+	return s.renovWorkflow()
+}
+
 // cachedWorkflowRepo matches owner and name without case.
-func (s *Service) cachedWorkflowRepo() (domain.Repo, bool) {
+func (s *Service) cachedWorkflowRepo(want domain.RepoRef) (domain.Repo, bool) {
 	repos, _, ok := s.PeekRepos()
 	if !ok {
 		return domain.Repo{}, false
 	}
-	want := s.renovWorkflow.Repo
 	i := slices.IndexFunc(repos, func(r domain.Repo) bool {
 		return strings.EqualFold(r.Owner, want.Owner) && strings.EqualFold(r.Name, want.Name)
 	})
