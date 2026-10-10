@@ -74,6 +74,7 @@ func defaultEditor(goos string) string {
 // syncKeys enables each action key only where it applies, which also hides it from the hints and help.
 func (m *Model) syncKeys() {
 	k := &m.keys
+	k.RunRenovate.SetEnabled(m.svc.CanRunRenovate().OK)
 	if m.onStar() && m.level != levelRepos {
 		m.syncStarKeys()
 		return

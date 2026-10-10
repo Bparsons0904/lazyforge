@@ -72,7 +72,7 @@ Run `lazyforge` without `-demo`. With no config file, first-run onboarding walks
 
 1. Choosing Forgejo, Gitea or GitHub and entering your server address (pre-filled with `https://github.com` for GitHub).
 2. Pasting an access token or supplying a command that prints one, then testing the connection.
-3. Setting the Renovate bot username (leave blank to skip) and a short host name.
+3. Setting the Renovate bot username (leave blank to skip), an optional Renovate workflow as `owner/repo/file` (leave blank to hide `N`, which runs Renovate now), and a short host name.
 
 On Forgejo or Gitea, create a token at your server's `/user/settings/applications` page with `read:user`, `write:repository` and `write:issue`, as shown in onboarding. These cover sign-in, repositories, PRs, CI, issues and the actions above.
 

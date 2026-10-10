@@ -27,24 +27,26 @@ const (
 
 // dialog confirms a merge, a close or an update; a close and an update have one target in item and no running or done phase.
 type dialog struct {
-	isClose   bool
-	isUpdate  bool
-	phase     dialogPhase
-	targets   []core.Target // merge only
-	strategy  string
-	greenOnly func(domain.RepoRef) bool
-	coverage  string   // warning line; "" for none
-	skipped   []string // "owner/name #n: reason"
-	star      bool
-	prefix    bool
-	renovUser string // host's renovate_user, for spotting author-detected Renovate PRs
-	results   []core.MergeResult
-	item      forge.ItemRef       // close and update
-	label     string              // close and update: "#n title"
-	ci        string              // close and update: the CR's CI icon
-	styles    []forge.UpdateStyle // update only, in the order the forge lists them
-	cursor    int                 // update only: index into styles
-	target    string              // update only: the branch the update brings in
+	isClose    bool
+	isUpdate   bool
+	isRenovate bool
+	runRepo    domain.RepoRef // Run Renovate only: the repo in context, zero for a host-wide run
+	phase      dialogPhase
+	targets    []core.Target // merge only
+	strategy   string
+	greenOnly  func(domain.RepoRef) bool
+	coverage   string   // warning line; "" for none
+	skipped    []string // "owner/name #n: reason"
+	star       bool
+	prefix     bool
+	renovUser  string // host's renovate_user, for spotting author-detected Renovate PRs
+	results    []core.MergeResult
+	item       forge.ItemRef       // close and update
+	label      string              // close and update: "#n title"
+	ci         string              // close and update: the CR's CI icon
+	styles     []forge.UpdateStyle // update only, in the order the forge lists them
+	cursor     int                 // update only: index into styles
+	target     string              // update only: the branch the update brings in
 }
 
 type mergeOpts struct {
@@ -119,6 +121,8 @@ func (m *Model) dialogKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.dialog = nil
 		case d.isUpdate:
 			return m.updateKey(msg)
+		case d.isRenovate:
+			return m.renovateRunKey(msg)
 		case key.Matches(msg, k.Confirm) && d.isClose:
 			m.dialog = nil
 			return m.closeItem(d.item)
@@ -162,6 +166,8 @@ func (m *Model) updateKey(msg tea.KeyPressMsg) tea.Cmd {
 
 func (d dialog) title(term string) string {
 	switch {
+	case d.isRenovate:
+		return "Run Renovate"
 	case d.isClose:
 		return fmt.Sprintf("Close #%d", d.item.Number)
 	case d.isUpdate:
@@ -175,6 +181,9 @@ func (d dialog) title(term string) string {
 }
 
 func (d dialog) lines() []string {
+	if d.isRenovate {
+		return d.renovateLines()
+	}
 	if d.isUpdate {
 		return d.updateLines()
 	}
@@ -219,15 +228,32 @@ func (d dialog) lines() []string {
 }
 
 func (d dialog) updateLines() []string {
-	out := []string{style.Text.Render(d.label) + d.ci, style.Faint.Render("Update with the latest " + d.target + ":")}
+	opts := make([]string, len(d.styles))
 	for i, s := range d.styles {
-		if i == d.cursor {
-			out = append(out, style.Text.Render("› "+string(s)))
+		opts[i] = string(s)
+	}
+	head := []string{style.Text.Render(d.label) + d.ci, style.Faint.Render("Update with the latest " + d.target + ":")}
+	return append(head, cursorList(opts, d.cursor)...)
+}
+
+func cursorList(opts []string, cursor int) []string {
+	out := make([]string, 0, len(opts))
+	for i, o := range opts {
+		if i == cursor {
+			out = append(out, style.Text.Render("› "+o))
 		} else {
-			out = append(out, style.Faint.Render("  "+string(s)))
+			out = append(out, style.Faint.Render("  "+o))
 		}
 	}
 	return out
+}
+
+// renovateLines asks for a host-wide run, or lets the user pick between the repo in context and all repos.
+func (d dialog) renovateLines() []string {
+	if d.runRepo == (domain.RepoRef{}) {
+		return []string{style.Text.Render("Start a Renovate run on all repos?")}
+	}
+	return cursorList([]string{"this repo (" + d.runRepo.String() + ")", "all repos"}, d.cursor)
 }
 
 func outcome(r core.MergeResult) string {
@@ -251,7 +277,7 @@ func (d dialog) hints(k keyMap) []key.Binding {
 	case phaseDone:
 		return []key.Binding{hint(k.Close, "esc/enter", "close")}
 	}
-	if d.isUpdate && len(d.styles) > 1 {
+	if (d.isRenovate && d.runRepo != (domain.RepoRef{})) || (d.isUpdate && len(d.styles) > 1) {
 		return []key.Binding{hint(k.Down, "j/k", "choose"), k.Confirm, hint(k.Close, "esc", "cancel")}
 	}
 	return []key.Binding{k.Confirm, hint(k.Close, "esc", "cancel")}

@@ -24,6 +24,7 @@ const (
 	ActBranches
 	ActFiles
 	ActUpdateBranch
+	ActDispatchWorkflow
 )
 
 // Availability says whether an action is allowed and, if not, why.
@@ -42,7 +43,7 @@ func Can(f Forge, a Action, r domain.Repo) Availability {
 	}
 	need := domain.AccessRead
 	switch a {
-	case ActMerge, ActApprove, ActClose, ActEditIssue, ActLabels, ActUpdateBranch:
+	case ActMerge, ActApprove, ActClose, ActEditIssue, ActLabels, ActUpdateBranch, ActDispatchWorkflow:
 		need = domain.AccessWrite
 	}
 	if r.Access < need {
@@ -76,6 +77,8 @@ func hasCapability(f Forge, a Action) bool {
 		_, ok = f.(TreeReader)
 	case ActUpdateBranch:
 		_, ok = f.(BranchUpdater)
+	case ActDispatchWorkflow:
+		_, ok = f.(WorkflowDispatcher)
 	default:
 		ok = true
 	}

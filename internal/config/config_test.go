@@ -3,6 +3,7 @@ package config_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -48,6 +49,9 @@ func TestLoadExampleRoundTrip(t *testing.T) {
 	}
 	if r := h.Repos["deadstyle/lazyforge"]; r.RequireGreenCI == nil || *r.RequireGreenCI {
 		t.Fatalf("repo override wrong: %+v", r)
+	}
+	if h.RenovateWorkflow != "deadstyle/forgejo/renovate.yml" {
+		t.Fatalf("renovate_workflow = %q, want deadstyle/forgejo/renovate.yml", h.RenovateWorkflow)
 	}
 
 	out := filepath.Join(t.TempDir(), "sub", "config.toml")
@@ -209,6 +213,39 @@ func TestLoadRunsValidate(t *testing.T) {
 	_, err := config.Load(p)
 	if err == nil || !strings.Contains(err.Error(), "hosts.homelab.url") {
 		t.Fatalf("err = %v, want hosts.homelab.url", err)
+	}
+}
+
+func TestSplitWorkflow(t *testing.T) {
+	owner, repo, file, err := config.SplitWorkflow("deadstyle/forgejo/renovate.yml")
+	if err != nil || owner != "deadstyle" || repo != "forgejo" || file != "renovate.yml" {
+		t.Fatalf("got (%q, %q, %q, %v), want deadstyle, forgejo, renovate.yml, nil", owner, repo, file, err)
+	}
+	for _, in := range []string{
+		"", "deadstyle/forgejo", "deadstyle//renovate.yml", "/forgejo/renovate.yml", "deadstyle/forgejo/", "a/b/c/d.yml",
+		"deadstyle/ forgejo/renovate.yml", "dead style/forgejo/renovate.yml", "deadstyle/forgejo/renovate .yml",
+		" deadstyle/forgejo/renovate.yml", "deadstyle/forgejo/renovate.yml ", "deadstyle/forgejo/renovate\tyml",
+	} {
+		_, _, _, err := config.SplitWorkflow(in)
+		want := fmt.Sprintf("%q must be owner/repo/file, for example deadstyle/forgejo/renovate.yml", in)
+		if err == nil || err.Error() != want {
+			t.Errorf("SplitWorkflow(%q) err = %v, want %s", in, err, want)
+		}
+	}
+}
+
+func TestLoadRenovateWorkflow(t *testing.T) {
+	bad := writeFile(t, "[hosts.x]\ntype = \"forgejo\"\nurl = \"u\"\ntoken_cmd = \"t\"\nrenovate_workflow = \"deadstyle/forgejo\"\n", 0o600)
+	if _, err := config.Load(bad); err == nil || !strings.Contains(err.Error(), "hosts.x.renovate_workflow:") {
+		t.Fatalf("err = %v, want hosts.x.renovate_workflow:", err)
+	}
+	unset := writeFile(t, "[hosts.x]\ntype = \"forgejo\"\nurl = \"u\"\ntoken_cmd = \"t\"\n", 0o600)
+	c, err := config.Load(unset)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Hosts["x"].RenovateWorkflow; got != "" {
+		t.Fatalf("RenovateWorkflow = %q, want empty", got)
 	}
 }
 

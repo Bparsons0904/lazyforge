@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"slices"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/BurntSushi/toml"
 )
@@ -40,14 +42,15 @@ type Images struct {
 // Host is one configured forge. Type uses the same strings as forge.Kind,
 // but config must not import forge.
 type Host struct {
-	Type           string                  `toml:"type"` // "forgejo" | "gitea" | "github" | "gitlab"
-	URL            string                  `toml:"url,omitempty"`
-	TokenCmd       string                  `toml:"token_cmd,omitempty"`
-	Token          string                  `toml:"token,omitempty"`
-	RenovateUser   string                  `toml:"renovate_user,omitempty"`
-	Renovate       *bool                   `toml:"renovate,omitempty"` // nil = on when renovate_user is set
-	RequireGreenCI bool                    `toml:"require_green_ci,omitempty"`
-	Repos          map[string]RepoSettings `toml:"repos,omitempty"` // key "owner/name"
+	Type             string                  `toml:"type"` // "forgejo" | "gitea" | "github" | "gitlab"
+	URL              string                  `toml:"url,omitempty"`
+	TokenCmd         string                  `toml:"token_cmd,omitempty"`
+	Token            string                  `toml:"token,omitempty"`
+	RenovateUser     string                  `toml:"renovate_user,omitempty"`
+	RenovateWorkflow string                  `toml:"renovate_workflow,omitempty"` // "owner/repo/file.yml"; "" hides N
+	Renovate         *bool                   `toml:"renovate,omitempty"`          // nil = on when renovate_user is set
+	RequireGreenCI   bool                    `toml:"require_green_ci,omitempty"`
+	Repos            map[string]RepoSettings `toml:"repos,omitempty"` // key "owner/name"
 }
 
 // RepoSettings overrides host settings for one repo.
@@ -149,8 +152,23 @@ func (c Config) Validate() error {
 		if (h.Token == "") == (h.TokenCmd == "") {
 			errs = append(errs, fmt.Errorf("%s.token: set exactly one of token or token_cmd", p))
 		}
+		if h.RenovateWorkflow != "" {
+			if _, _, _, err := SplitWorkflow(h.RenovateWorkflow); err != nil {
+				errs = append(errs, fmt.Errorf("%s.renovate_workflow: %w", p, err))
+			}
+		}
 	}
 	return errors.Join(errs...)
+}
+
+// SplitWorkflow rejects anything but three non-empty parts with no whitespace, so a typo fails at load
+// instead of silently hiding N.
+func SplitWorkflow(s string) (owner, repo, file string, err error) {
+	parts := strings.Split(s, "/")
+	if len(parts) != 3 || slices.Contains(parts, "") || strings.ContainsFunc(s, unicode.IsSpace) {
+		return "", "", "", fmt.Errorf("%q must be owner/repo/file, for example deadstyle/forgejo/renovate.yml", s)
+	}
+	return parts[0], parts[1], parts[2], nil
 }
 
 func sortedHosts(c Config) []string {

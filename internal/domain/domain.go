@@ -27,6 +27,7 @@ type Repo struct {
 	LastActivity        time.Time
 	Access              Access
 	MergeStyle          string // the repo's default merge style; "" when the forge doesn't report one
+	DefaultBranch       string // "" when the forge doesn't report one
 }
 
 // State is the lifecycle state of an issue or change request.

@@ -8,7 +8,7 @@ import (
 type keyMap struct {
 	Up, Down, Left, Right, NextBox, PrevBox, PrevTab, NextTab,
 	Top, Bottom, HalfDown, HalfUp, Jump, Refresh, Help, Quit, Interrupt, Close,
-	Merge, UpdateBranch, Approve, CloseItem, Comment, Labels, Open, Rerun, Mark, Confirm, Settings, Enter key.Binding
+	Merge, UpdateBranch, Approve, CloseItem, Comment, Labels, Open, Rerun, RunRenovate, Mark, Confirm, Settings, Enter key.Binding
 }
 
 // defaultKeys gives help text only to the first binding of each pair, so the overlay lists the pair once.
@@ -40,6 +40,7 @@ func defaultKeys() keyMap {
 		Comment:      key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "comment")),
 		Open:         key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
 		Rerun:        key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "run page")),
+		RunRenovate:  key.NewBinding(key.WithKeys("N"), key.WithHelp("N", "run Renovate")),
 		Mark:         key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "mark")),
 		Confirm:      key.NewBinding(key.WithKeys("y", "enter"), key.WithHelp("y/enter", "confirm")),
 		Settings:     key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "settings")),
@@ -54,7 +55,7 @@ func (k keyMap) shortHelp(l level) []key.Binding {
 	case levelDetails:
 		return append([]key.Binding{hint(k.Down, "j/k", "scroll"), hint(k.NextTab, "[ ]", "tabs"), hint(k.Left, "h", "back")}, k.actions()...)
 	default:
-		bs := []key.Binding{hint(k.Down, "j/k", "repo"), hint(k.Right, "l", "enter"), k.Jump, k.Open, k.Help}
+		bs := []key.Binding{hint(k.Down, "j/k", "repo"), hint(k.Right, "l", "enter"), k.Jump, k.Open, k.RunRenovate, k.Help}
 		if k.hosted() {
 			bs = append(bs, hint(k.Left, "h", "hosts"), k.Settings)
 		}
@@ -72,7 +73,7 @@ func (k keyMap) fullHelp() [][]key.Binding {
 }
 
 func (k keyMap) actions() []key.Binding {
-	return []key.Binding{k.Merge, k.Mark, k.Approve, k.CloseItem, k.Comment, k.Open, k.Rerun, k.Labels, k.UpdateBranch}
+	return []key.Binding{k.Merge, k.Mark, k.Approve, k.CloseItem, k.Comment, k.Open, k.Rerun, k.RunRenovate, k.Labels, k.UpdateBranch}
 }
 
 // gPrefix runs the gg prefix: the first g is consumed (swallowed), a g right after it reports gg,

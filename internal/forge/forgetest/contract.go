@@ -225,6 +225,19 @@ func RunContract(t *testing.T, newForge func(t *testing.T) (forge.Forge, Fixture
 				}
 			}
 		}},
+		{"DispatchWorkflow on Repo succeeds", func(t *testing.T, f forge.Forge, fx Fixture) {
+			wd := workflowDispatcher(t, f)
+			if err := wd.DispatchWorkflow(ctx, fx.Repo, "renovate.yml", "main", map[string]string{"repo": "a/b"}); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"DispatchWorkflow in a missing repo is ErrNotFound", func(t *testing.T, f forge.Forge, fx Fixture) {
+			wd := workflowDispatcher(t, f)
+			missing := domain.RepoRef{Owner: fx.Repo.Owner, Name: "no-such-repo"}
+			if err := wd.DispatchWorkflow(ctx, missing, "renovate.yml", "main", nil); !errors.Is(err, forge.ErrNotFound) {
+				t.Errorf("got %v, want ErrNotFound", err)
+			}
+		}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -249,6 +262,16 @@ func branchUpdater(t *testing.T, f forge.Forge) forge.BranchUpdater {
 		t.Skip("forge is not a forge.BranchUpdater")
 	}
 	return bu
+}
+
+// workflowDispatcher returns f's WorkflowDispatcher, or skips the case for a forge without the capability.
+func workflowDispatcher(t *testing.T, f forge.Forge) forge.WorkflowDispatcher {
+	t.Helper()
+	wd, ok := f.(forge.WorkflowDispatcher)
+	if !ok {
+		t.Skip("forge is not a forge.WorkflowDispatcher")
+	}
+	return wd
 }
 
 // assetReader returns f's AssetReader and its host URL, or skips the case for a forge without the capability.

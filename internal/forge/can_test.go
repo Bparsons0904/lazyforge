@@ -102,6 +102,12 @@ func (withUpdater) UpdateBranch(context.Context, domain.RepoRef, int, forge.Upda
 	return nil
 }
 
+type withDispatcher struct{ base }
+
+func (withDispatcher) DispatchWorkflow(context.Context, domain.RepoRef, string, string, map[string]string) error {
+	return nil
+}
+
 type full struct {
 	withApprover
 	withRuns
@@ -110,13 +116,14 @@ type full struct {
 	withBranches
 	withTree
 	withUpdater
+	withDispatcher
 	base
 }
 
 var allActions = []forge.Action{
 	forge.ActMerge, forge.ActApprove, forge.ActClose, forge.ActComment,
 	forge.ActEditIssue, forge.ActRuns, forge.ActLogs, forge.ActBranches, forge.ActFiles,
-	forge.ActUpdateBranch,
+	forge.ActUpdateBranch, forge.ActDispatchWorkflow,
 }
 
 func repoWith(a domain.Access) domain.Repo {
@@ -150,6 +157,7 @@ func TestCanCapability(t *testing.T) {
 		{"branches without BranchReader", withRuns{base{kind: forge.KindGitea}}, forge.ActBranches},
 		{"files without TreeReader", withRuns{base{kind: forge.KindGitea}}, forge.ActFiles},
 		{"update branch without BranchUpdater", withRuns{base{kind: forge.KindGitea}}, forge.ActUpdateBranch},
+		{"dispatch without WorkflowDispatcher", withRuns{base{kind: forge.KindGitea}}, forge.ActDispatchWorkflow},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -171,6 +179,33 @@ func TestCanCapability(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestCanDispatchNeedsWriteAccess(t *testing.T) {
+	got := forge.Can(newFull(nil), forge.ActDispatchWorkflow, repoWith(domain.AccessRead))
+	if want := "you don't have write access to owner/name"; got.OK || got.Reason != want {
+		t.Errorf("read-only dispatch: got %+v, want {false, %q}", got, want)
+	}
+}
+
+func TestCanDispatchWithoutCapabilitySaysKind(t *testing.T) {
+	got := forge.Can(withRuns{base{kind: forge.KindGitea}}, forge.ActDispatchWorkflow, repoWith(domain.AccessWrite))
+	if want := "gitea doesn't support this"; got.OK || got.Reason != want {
+		t.Errorf("got %+v, want {false, %q}", got, want)
+	}
+}
+
+func TestCanDispatchGateRefusalIsReason(t *testing.T) {
+	f := newFull(func(a forge.Action) error {
+		if a == forge.ActDispatchWorkflow {
+			return errors.New("server disables Actions")
+		}
+		return nil
+	})
+	got := forge.Can(f, forge.ActDispatchWorkflow, repoWith(domain.AccessAdmin))
+	if got.OK || got.Reason != "server disables Actions" {
+		t.Errorf("gated dispatch: got %+v, want {false, \"server disables Actions\"}", got)
+	}
 }
 
 func TestCanGate(t *testing.T) {

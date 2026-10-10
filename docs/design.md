@@ -54,7 +54,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
    - a classic token with `repo`: repos, PRs, CI status, merging, approving and closing PRs, issues, comments, labels and Renovate dashboard ticks
    - a fine-grained token with Contents, Pull requests and Issues read/write, plus Actions, Checks and Commit statuses read
 5. **Connection test:** shows "Signed in as *name* · *N* repositories". On failure it says why (bad token, missing permission, server unreachable) and stays on the step until it's fixed.
-6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip.
+6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip. Below it, an optional field takes the workflow that runs Renovate, as `owner/repo/file`; Tab moves between the two fields. Leave it blank to hide `N`.
 7. **Name and save:** a short name for the host (suggested from the URL). Saving goes straight into the repo list.
 
 ## Settings
@@ -116,6 +116,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 | `space` | Mark a PR for bulk actions, or tick a Renovate dashboard entry |
 | `m` | Merge: the marked PRs, the current PR, or every PR in an update group (`[2]` of ★ Renovate) |
 | `u` | Update the current PR with the latest target branch: a dialog asks whether to merge it in or rebase onto it (GitHub offers merge only). Needs repository write access. |
+| `N` | Run Renovate now: a dialog asks whether to run it for this repo or for all repos. Needs a `renovate_workflow` for the host and write access to its repo. |
 | `a` | Approve |
 | `x` | Close a PR or issue |
 | `c` | Comment (opens `$EDITOR`) |
@@ -143,6 +144,7 @@ Updating a PR (`u`) asks how to bring in the latest target branch: merge or reba
 - **Package, versions and bump type:** parsed from the table in the Renovate PR body. If parsing fails, the PR still shows with its plain title.
 - **Grouping by dependency:** the key is ecosystem + package + target version, so `actions/checkout` v3 → v7 and v4 → v7 share a row (the row shows the starting versions). PRs whose body can't be parsed stay out of groups but still appear in `[3]`.
 - **Batched PRs:** a PR that carries several packages (such as "Go non-major") gets its own row in Updates by dependency and always merges whole. Merging one package never merges others as a side effect.
+- **Running Renovate now (`N`):** starts the workflow named by the host's `renovate_workflow` on its default branch. A run for one repo passes that repo to the workflow as its `repo` input; a run for all repos passes no input. The status bar confirms the start, or the forge's reason when it refuses.
 - **Ticking dashboard entries:** done by editing the Dependency Dashboard issue body, changing `- [ ]` to `- [x]`. Renovate acts on the change during its next run.
 
 ## Install and updates

@@ -149,6 +149,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.mergeDone(msg)
 	case actionDoneMsg:
 		cmd = m.actionDone(msg)
+	case renovateRunMsg:
+		m.renovateRunDone(msg)
 	case labelsLoadedMsg:
 		if m.labels == msg.picker {
 			m.labels.load(msg)
@@ -212,6 +214,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		m.svc.ClearImages()
 		m.details.img.forgetFailed()
 		return m.refresh()
+	case key.Matches(msg, k.RunRenovate):
+		m.dialog = renovateRunDialog(m.renovateScope())
+		return nil
 	}
 	if m.level != levelRepos {
 		if cmd, ok := m.actionKey(msg); ok {

@@ -30,6 +30,7 @@ type repo struct {
 	HTMLURL           string    `json:"html_url"`
 	UpdatedAt         time.Time `json:"updated_at"`
 	DefaultMergeStyle string    `json:"default_merge_style"`
+	DefaultBranch     string    `json:"default_branch"`
 	Permissions       struct {
 		Admin bool `json:"admin"`
 		Push  bool `json:"push"`
@@ -122,12 +123,13 @@ func (f *Forge) ListRepos(ctx context.Context) ([]domain.Repo, error) {
 			access = domain.AccessRead
 		}
 		out[i] = domain.Repo{
-			RepoRef:      domain.RepoRef{Owner: r.Owner.Login, Name: r.Name},
-			Description:  r.Description,
-			WebURL:       r.HTMLURL,
-			LastActivity: r.UpdatedAt,
-			Access:       access,
-			MergeStyle:   r.DefaultMergeStyle,
+			RepoRef:       domain.RepoRef{Owner: r.Owner.Login, Name: r.Name},
+			Description:   r.Description,
+			WebURL:        r.HTMLURL,
+			LastActivity:  r.UpdatedAt,
+			Access:        access,
+			MergeStyle:    r.DefaultMergeStyle,
+			DefaultBranch: r.DefaultBranch,
 		}
 	}
 	slices.SortStableFunc(out, func(a, b domain.Repo) int { return b.LastActivity.Compare(a.LastActivity) })

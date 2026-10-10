@@ -45,6 +45,7 @@ type Repo struct {
     LastActivity        time.Time
     Access              Access // none, read, write, admin
     MergeStyle          string // the repo's default merge style; "" when unknown
+    DefaultBranch       string // "" when the forge doesn't report one
 }
 
 type ChangeRequest struct { // PR on Gitea/Forgejo/GitHub, MR on GitLab
@@ -124,13 +125,14 @@ type Labeler interface {
 }
 type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error) }
 type BranchUpdater interface { UpdateStyles() []UpdateStyle; UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style UpdateStyle) error } // UpdateStyles: merge first; ErrUnsupported for a style it omits
+type WorkflowDispatcher interface { DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error } // workflow is the file name; ErrNotFound when the repo or workflow is missing
 ```
 
 `forge.Can(f, action, repo)` answers whether the UI should enable an action. It checks the capability interface, then `f.Gate`, then `repo.Access`, and the first failure supplies the user-facing `Reason`. `forgetest.Fake` and `forgetest.RunContract` give core and every adapter a shared fake and behavior suite.
 
 ## API mapping (first pass)
 
-The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The README row is unverified on every forge: it was written from the API docs for #104 and has not yet run against a live server. The branch rows (Branches, Branch commits) are unverified on every forge too: they were written from the API docs for #105 and have not yet run against a live server. The file rows (Files (list), File contents) are unverified on every forge as well: they were written from the API docs for #106 and have not yet run against a live server. The Update branch row is unverified on every forge: it was written from the API docs and the Forgejo swagger for #118 and has not yet run against a live server. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
+The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1, #3, #6). The GitHub rows for repos, change requests, merge, approve, PR CI state, issues, edit issue, comment and releases are verified against github.com (#84, [ADR 0017](adr/0017-github-adapter.md)), and its runs, jobs, job log and labels rows too (#85); its re-run row is unverified (no `Rerunner`, ADR 0006) and its changed-files row is unused. The README row is unverified on every forge: it was written from the API docs for #104 and has not yet run against a live server. The branch rows (Branches, Branch commits) are unverified on every forge too: they were written from the API docs for #105 and have not yet run against a live server. The file rows (Files (list), File contents) are unverified on every forge as well: they were written from the API docs for #106 and have not yet run against a live server. The Dispatch workflow row is unverified on every forge: it was written from the API docs for #120 and has not yet run against a live server. The Update branch row is unverified on every forge: it was written from the API docs and the Forgejo swagger for #118 and has not yet run against a live server. The GitLab column is unverified, and each row needs checking against current API docs before that adapter is built.
 
 | Operation | Gitea / Forgejo | GitHub | GitLab |
 |---|---|---|---|
@@ -138,6 +140,7 @@ The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1
 | List change requests | `GET /repos/{o}/{r}/pulls?state=open` | `GET /repos/{o}/{r}/pulls?state=open` (closed with `merged_at` set is merged) | `GET /projects/:id/merge_requests?state=opened` |
 | Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` with `Do` (sent explicitly from the repo's `default_merge_style`, because an empty `Do` means `merge`) and `head_commit_id`; a stale head is 409 `head out of date` | `PUT /repos/{o}/{r}/pulls/{n}/merge` with `sha` and `merge_method` (first allowed of merge, squash, rebase from `GET /repos/{o}/{r}`); a stale head is 409 | `PUT /projects/:id/merge_requests/:iid/merge` |
 | Update branch | `POST /repos/{o}/{r}/pulls/{n}/update?style=merge\|rebase`; a conflict is 409, no permission 403 | `PUT /repos/{o}/{r}/pulls/{n}/update-branch` (merge only; 202, finishes asynchronously); a conflict or nothing to update is 422 | `PUT /projects/:id/merge_requests/:iid/rebase` (rebase only) |
+| Dispatch workflow | `POST /repos/{o}/{r}/actions/workflows/{file}/dispatches` with `ref` and `inputs`; 204 | `POST /repos/{o}/{r}/actions/workflows/{file}/dispatches` with `ref` and `inputs`; 204 | `POST /projects/:id/pipeline` with `ref` and `variables` |
 | Approve | `POST …/pulls/{n}/reviews` (`event: APPROVED`) | `POST …/pulls/{n}/reviews` (`event: APPROVE`) | `POST /projects/:id/merge_requests/:iid/approve` |
 | Changed files | `GET …/pulls/{n}/files` | `GET …/pulls/{n}/files` | `GET /projects/:id/merge_requests/:iid/diffs` |
 | PR CI state | `GET …/commits/{ref}/status` | `GET …/commits/{sha}/check-runs` (paginated) + `GET …/commits/{sha}/status`, folded; a status `total_count: 0` counts as none | MR head pipeline |
@@ -187,6 +190,7 @@ url = "https://git.bobparsons.dev"
 token_cmd = "infisical secrets get FORGEJO_TOKEN --plain"
 renovate_user = "renovate-bot"
 renovate = true # pin the ★ Renovate row; default is on when renovate_user is set
+renovate_workflow = "deadstyle/forgejo/renovate.yml" # run by N; owner/repo/file
 require_green_ci = true
 
 [hosts.homelab.repos."deadstyle/lazyforge"]
@@ -213,6 +217,7 @@ See [ADR 0007](adr/0007-core-cache-and-concurrency.md).
 - `core.Service` wraps the session's one `Forge` and holds an in-memory cache keyed by `core.Key{Kind, Repo, Number}`. Entries never expire on their own, except for the image cache below.
 - Images have a separate 16-entry LRU of decoded images and failures, cleared by `r` and not by the five-minute timer. This is the one exception to "entries never expire" ([ADR 0016](adr/0016-inline-images.md)).
 - Each read has a `Peek…` form (cached value and fetch time, no I/O) and a fetching form that calls the forge and stores the result. A failed fetch keeps the old entry.
+- `CanRunRenovate` does no I/O: it reads the cached repo list for the `renovate_workflow` repo, so `N` stays off until that list has loaded. `RunRenovate` makes the dispatch call and leaves the cache alone.
 - A semaphore (4 by default) bounds forge calls across all methods. Waiting for a slot honors `ctx`.
 - The UI renders from `Peek…` immediately, then issues the fetching call in a `tea.Cmd`. `r` and a five-minute background timer in the UI trigger refetches ([design.md](design.md#decided)); the UI also owns cancellation and drops stale results.
 - `core.Coverage` tracks per-repo scan outcomes for host-wide scans such as ★ Renovate. `Service.RenovateScan` fetches one repo's open PRs and issues through the cache and returns its Renovate PRs and parsed dashboards, and the UI builds the view with the pure `internal/core/renovate` package ([ADR 0013](adr/0013-renovate-view.md)).

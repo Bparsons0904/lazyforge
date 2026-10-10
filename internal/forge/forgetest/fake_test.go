@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -441,6 +442,7 @@ func TestContextCancelled(t *testing.T) {
 		"ListReleases":       func() error { _, err := f.ListReleases(ctx, repoRef); return err },
 		"Approve":            func() error { return f.Approve(ctx, repoRef, openCR) },
 		"UpdateBranch":       func() error { return f.UpdateBranch(ctx, repoRef, openCR, forge.UpdateMerge) },
+		"DispatchWorkflow":   func() error { return f.DispatchWorkflow(ctx, repoRef, "renovate.yml", "main", nil) },
 		"ListRuns":           func() error { _, err := f.ListRuns(ctx, repoRef, forge.RunFilter{}); return err },
 		"ListJobs":           func() error { _, err := f.ListJobs(ctx, repoRef, runID); return err },
 		"JobLog":             func() error { _, err := f.JobLog(ctx, repoRef, jobID); return err },
@@ -476,6 +478,46 @@ func TestFailNext(t *testing.T) {
 	if len(f.Mutations()) != 0 {
 		t.Errorf("failed merge recorded mutations: %+v", f.Mutations())
 	}
+}
+
+func TestDispatchWorkflow(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("records the dispatch with a copy of its inputs", func(t *testing.T) {
+		f := seeded()
+		inputs := map[string]string{"repo": "owner/files"}
+		if err := f.DispatchWorkflow(ctx, repoRef, "renovate.yml", "main", inputs); err != nil {
+			t.Fatal(err)
+		}
+		inputs["repo"] = "changed"
+		want := forgetest.Mutation{Op: "dispatch-workflow", Item: forge.ItemRef{Repo: repoRef}, Workflow: "renovate.yml", Ref: "main", Inputs: map[string]string{"repo": "owner/files"}}
+		if got := f.Mutations(); len(got) != 1 || !reflect.DeepEqual(got[0], want) {
+			t.Errorf("mutations = %+v, want one %+v", got, want)
+		}
+	})
+
+	t.Run("unknown repo is ErrNotFound and records nothing", func(t *testing.T) {
+		f := seeded()
+		missing := domain.RepoRef{Owner: "owner", Name: "gone"}
+		if err := f.DispatchWorkflow(ctx, missing, "renovate.yml", "main", nil); !errors.Is(err, forge.ErrNotFound) {
+			t.Fatalf("err = %v, want ErrNotFound", err)
+		}
+		if got := f.Mutations(); len(got) != 0 {
+			t.Errorf("mutations = %+v, want none", got)
+		}
+	})
+
+	t.Run("FailNext returns its error and records nothing", func(t *testing.T) {
+		f := seeded()
+		boom := errors.New("boom")
+		f.FailNext(boom)
+		if err := f.DispatchWorkflow(ctx, repoRef, "renovate.yml", "main", nil); !errors.Is(err, boom) {
+			t.Fatalf("err = %v, want boom", err)
+		}
+		if got := f.Mutations(); len(got) != 0 {
+			t.Errorf("mutations = %+v, want none", got)
+		}
+	})
 }
 
 func TestRunsJobsLogs(t *testing.T) {

@@ -16,15 +16,16 @@ import (
 )
 
 var (
-	_ forge.Forge         = (*Fake)(nil)
-	_ forge.Approver      = (*Fake)(nil)
-	_ forge.RunLister     = (*Fake)(nil)
-	_ forge.LogReader     = (*Fake)(nil)
-	_ forge.AssetReader   = (*Fake)(nil)
-	_ forge.ReadmeReader  = (*Fake)(nil)
-	_ forge.BranchReader  = (*Fake)(nil)
-	_ forge.TreeReader    = (*Fake)(nil)
-	_ forge.BranchUpdater = (*Fake)(nil)
+	_ forge.Forge              = (*Fake)(nil)
+	_ forge.Approver           = (*Fake)(nil)
+	_ forge.RunLister          = (*Fake)(nil)
+	_ forge.LogReader          = (*Fake)(nil)
+	_ forge.AssetReader        = (*Fake)(nil)
+	_ forge.ReadmeReader       = (*Fake)(nil)
+	_ forge.BranchReader       = (*Fake)(nil)
+	_ forge.TreeReader         = (*Fake)(nil)
+	_ forge.BranchUpdater      = (*Fake)(nil)
+	_ forge.WorkflowDispatcher = (*Fake)(nil)
 )
 
 type branchKey struct {
@@ -38,13 +39,15 @@ type pathKey struct {
 	path string
 }
 
-// Mutation records one state-changing call; Op is merge, approve, close, comment, edit-issue-body or update-branch.
+// Mutation records one state-changing call; Op is merge, approve, close, comment, edit-issue-body, update-branch or dispatch-workflow.
 type Mutation struct {
-	Op    string
-	Item  forge.ItemRef
-	Body  string
-	Opts  forge.MergeOpts
-	Style forge.UpdateStyle
+	Op            string
+	Item          forge.ItemRef
+	Body          string
+	Opts          forge.MergeOpts
+	Style         forge.UpdateStyle
+	Workflow, Ref string
+	Inputs        map[string]string
 }
 
 // Fake is an in-memory forge for tests; seed it, then use it as a forge.Forge.
@@ -529,6 +532,19 @@ func (f *Fake) UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style 
 	cr.HeadSHA = fmt.Sprintf("updated-%d", f.nextID)
 	cr.CI = domain.CIPending
 	f.record(Mutation{Op: "update-branch", Item: forge.ItemRef{Repo: r, Kind: forge.ItemChangeRequest, Number: n}, Style: style})
+	return nil
+}
+
+// DispatchWorkflow records Inputs as a copy of inputs.
+func (f *Fake) DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error {
+	defer f.mu.Unlock()
+	if err := f.begin(ctx); err != nil {
+		return err
+	}
+	if err := f.repoErr(r); err != nil {
+		return err
+	}
+	f.record(Mutation{Op: "dispatch-workflow", Item: forge.ItemRef{Repo: r}, Workflow: workflow, Ref: ref, Inputs: maps.Clone(inputs)})
 	return nil
 }
 

@@ -45,11 +45,12 @@ type Key struct {
 
 // Options configures a Service.
 type Options struct {
-	MaxConcurrent  int                       // 0 means 4
-	Now            func() time.Time          // nil means time.Now
-	RequireGreenCI func(domain.RepoRef) bool // nil means off
-	RenovateUser   string                    // "" detects Renovate PRs by branch only
-	HideRenovate   bool                      // the repo list omits the ★ Renovate row
+	MaxConcurrent    int                       // 0 means 4
+	Now              func() time.Time          // nil means time.Now
+	RequireGreenCI   func(domain.RepoRef) bool // nil means off
+	RenovateUser     string                    // "" detects Renovate PRs by branch only
+	HideRenovate     bool
+	RenovateWorkflow RenovateWorkflow // zero means none is configured
 }
 
 type entry struct {
@@ -59,12 +60,13 @@ type entry struct {
 
 // Service caches reads from one forge and bounds its concurrent calls; it is safe for concurrent use.
 type Service struct {
-	f         forge.Forge
-	now       func() time.Time
-	sem       chan struct{}
-	greenOnly func(domain.RepoRef) bool
-	renovUser string
-	hideStar  bool
+	f             forge.Forge
+	now           func() time.Time
+	sem           chan struct{}
+	greenOnly     func(domain.RepoRef) bool
+	renovUser     string
+	hideStar      bool
+	renovWorkflow RenovateWorkflow
 
 	mu     sync.Mutex
 	cache  map[Key]entry
@@ -80,14 +82,15 @@ func New(f forge.Forge, opts Options) *Service {
 		opts.Now = time.Now
 	}
 	return &Service{
-		f:         f,
-		now:       opts.Now,
-		sem:       make(chan struct{}, opts.MaxConcurrent),
-		greenOnly: opts.RequireGreenCI,
-		renovUser: opts.RenovateUser,
-		hideStar:  opts.HideRenovate,
-		cache:     map[Key]entry{},
-		images:    newImageCache(),
+		f:             f,
+		now:           opts.Now,
+		sem:           make(chan struct{}, opts.MaxConcurrent),
+		greenOnly:     opts.RequireGreenCI,
+		renovUser:     opts.RenovateUser,
+		hideStar:      opts.HideRenovate,
+		renovWorkflow: opts.RenovateWorkflow,
+		cache:         map[Key]entry{},
+		images:        newImageCache(),
 	}
 }
 

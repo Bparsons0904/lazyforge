@@ -144,7 +144,7 @@ type onboarding struct {
 	err     string
 	note    string
 
-	addr, token, tokenCmd, renovate, name textinput.Model
+	addr, token, tokenCmd, renovate, workflow, name textinput.Model
 
 	tested   config.Host
 	f        forge.Forge
@@ -152,6 +152,7 @@ type onboarding struct {
 	signedIn string
 
 	renovateDone, renovateTouched bool
+	workflowFocus                 bool // typing goes to workflow rather than renovate at stepRenovate
 }
 
 func newOnboarding(ctx context.Context, connect func(context.Context, config.Host) (forge.Forge, error),
@@ -160,9 +161,10 @@ func newOnboarding(ctx context.Context, connect func(context.Context, config.Hos
 	o := onboarding{
 		ctx: ctx, connect: connect, probe: probe, start: s, kind: forge.KindForgejo,
 		addr: newInput("git.example.com"), token: newInput("token"), tokenCmd: newInput("pass show forgejo/token"),
-		renovate: newInput("renovate-bot"), name: newInput("name"),
+		renovate: newInput("renovate-bot"), workflow: newInput("deadstyle/forgejo/renovate.yml"), name: newInput("name"),
 	}
 	o.token.EchoMode = textinput.EchoPassword
+	o.workflow.Blur()
 	switch {
 	case s.welcome:
 		o.first = stepWelcome
@@ -174,6 +176,7 @@ func newOnboarding(ctx context.Context, connect func(context.Context, config.Hos
 		o.token.SetValue(s.host.Token)
 		o.tokenCmd.SetValue(s.host.TokenCmd)
 		o.renovate.SetValue(s.host.RenovateUser)
+		o.workflow.SetValue(s.host.RenovateWorkflow)
 		o.name.SetValue(s.edit)
 		o.renovateDone = true
 	default:
@@ -213,7 +216,7 @@ func (o onboarding) update(msg tea.Msg, k keyMap) (onboarding, tea.Cmd) {
 }
 
 func (o *onboarding) resize(width int) {
-	for _, in := range []*textinput.Model{&o.addr, &o.token, &o.tokenCmd, &o.renovate, &o.name} {
+	for _, in := range []*textinput.Model{&o.addr, &o.token, &o.tokenCmd, &o.renovate, &o.workflow, &o.name} {
 		in.SetWidth(max(width-8, 10))
 	}
 }
@@ -266,6 +269,9 @@ func (o onboarding) key(msg tea.KeyPressMsg, k keyMap) (onboarding, tea.Cmd) {
 	case o.step == stepSignIn && key.Matches(msg, k.NextBox):
 		o.cmdMode, o.err = !o.cmdMode, ""
 		return o, nil
+	case o.step == stepRenovate && key.Matches(msg, k.NextBox):
+		cmd := o.setWorkflowFocus(!o.workflowFocus)
+		return o, cmd
 	}
 	return o.updateInput(msg)
 }
@@ -281,14 +287,15 @@ func (o onboarding) enter(s onboardStep) (onboarding, tea.Cmd) {
 		}
 		return o.test()
 	case stepRenovate:
+		focus := o.setWorkflowFocus(false)
 		if o.renovateDone {
-			return o, nil
+			return o, focus
 		}
 		ctx, svc := o.begin(), o.svc
-		return o, func() tea.Msg {
+		return o, tea.Batch(focus, func() tea.Msg {
 			user, err := svc.SuggestRenovateUser(ctx)
 			return renovateSuggestedMsg{user: user, err: err}
-		}
+		})
 	case stepName:
 		if o.name.Value() == "" {
 			o.name.SetValue(suggestName(o.url, o.taken))
@@ -324,6 +331,12 @@ func (o onboarding) submit() (onboarding, tea.Cmd) {
 		}
 		return o.enter(stepTest)
 	case stepRenovate:
+		if w := strings.TrimSpace(o.workflow.Value()); w != "" {
+			if _, _, _, err := config.SplitWorkflow(w); err != nil {
+				o.err = "Use owner/repo/file, for example deadstyle/forgejo/renovate.yml"
+				return o, nil
+			}
+		}
 		return o.enter(stepName)
 	}
 	name := strings.TrimSpace(o.name.Value())
@@ -338,6 +351,7 @@ func (o onboarding) submit() (onboarding, tea.Cmd) {
 		o.err, o.busy = "", true
 		done := onboardDoneMsg{name: name, replaces: o.start.edit, host: o.draft(), f: o.f}
 		done.host.RenovateUser = strings.TrimSpace(o.renovate.Value())
+		done.host.RenovateWorkflow = strings.TrimSpace(o.workflow.Value())
 		return o, func() tea.Msg { return done }
 	}
 	return o, nil
@@ -433,7 +447,7 @@ func (o onboarding) updateInput(msg tea.Msg) (onboarding, tea.Cmd) {
 	*in, cmd = in.Update(msg)
 	if in.Value() != before {
 		o.err = ""
-		o.renovateTouched = o.renovateTouched || o.step == stepRenovate
+		o.renovateTouched = o.renovateTouched || in == &o.renovate
 		if o.step == stepURL && o.busy {
 			o.stop()
 		}
@@ -448,6 +462,9 @@ func (o *onboarding) input() *textinput.Model {
 	case stepSignIn:
 		return o.secret()
 	case stepRenovate:
+		if o.workflowFocus {
+			return &o.workflow
+		}
 		return &o.renovate
 	case stepName:
 		return &o.name
@@ -460,6 +477,17 @@ func (o *onboarding) secret() *textinput.Model {
 		return &o.tokenCmd
 	}
 	return &o.token
+}
+
+// setWorkflowFocus moves typing between the username and workflow inputs; the returned command starts the focused cursor.
+func (o *onboarding) setWorkflowFocus(on bool) tea.Cmd {
+	o.workflowFocus = on
+	if on {
+		o.renovate.Blur()
+		return o.workflow.Focus()
+	}
+	o.workflow.Blur()
+	return o.renovate.Focus()
 }
 
 // begin cancels any in-flight step work and returns the context for the next.
@@ -603,7 +631,10 @@ func (o onboarding) view(w, h int) string {
 		}
 	case stepRenovate:
 		title = "Renovate"
-		lines = []string{"Renovate bot username, used to find its PRs. Leave it blank to skip.", "", o.renovate.View()}
+		lines = []string{
+			"Renovate bot username, used to find its PRs. Leave it blank to skip.", "", o.renovate.View(), "",
+			"Workflow that runs Renovate, as owner/repo/file. Leave it blank to hide N (run Renovate now).", o.workflow.View(),
+		}
 	case stepName:
 		title = "Name"
 		lines = []string{"A short name for this host", "", o.name.View()}
@@ -660,6 +691,8 @@ func (o onboarding) hints(k keyMap) []key.Binding {
 		if o.f == nil {
 			next = "retry"
 		}
+	case stepRenovate:
+		return []key.Binding{hint(k.Enter, "enter", next), hint(k.NextBox, "tab", "next field"), back}
 	case stepName:
 		next = "save"
 	}

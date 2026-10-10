@@ -30,6 +30,7 @@ type repo struct {
 	Name             string    `json:"name"`
 	Description      string    `json:"description"`
 	HTMLURL          string    `json:"html_url"`
+	DefaultBranch    string    `json:"default_branch"`
 	PushedAt         time.Time `json:"pushed_at"`
 	Archived         bool      `json:"archived"`
 	AllowMergeCommit bool      `json:"allow_merge_commit"` // null unless the token can push, and always null in /user/repos
@@ -115,11 +116,12 @@ func (f *Forge) ListRepos(ctx context.Context) ([]domain.Repo, error) {
 	out := make([]domain.Repo, len(rs))
 	for i, r := range rs {
 		out[i] = domain.Repo{
-			RepoRef:      domain.RepoRef{Owner: r.Owner.Login, Name: r.Name},
-			Description:  r.Description,
-			WebURL:       r.HTMLURL,
-			LastActivity: r.PushedAt,
-			Access:       access(r),
+			RepoRef:       domain.RepoRef{Owner: r.Owner.Login, Name: r.Name},
+			Description:   r.Description,
+			WebURL:        r.HTMLURL,
+			LastActivity:  r.PushedAt,
+			Access:        access(r),
+			DefaultBranch: r.DefaultBranch,
 		}
 	}
 	slices.SortStableFunc(out, func(a, b domain.Repo) int { return b.LastActivity.Compare(a.LastActivity) })
