@@ -231,7 +231,7 @@ func TestBranchesOpenCursorBranchInBrowser(t *testing.T) {
 	}
 }
 
-func TestBranchesOpenIsDisabledOutsideBranchesTab(t *testing.T) {
+func TestRepoPageOpensOutsideBranchesTab(t *testing.T) {
 	var opened []string
 	open := func(m Model) Model {
 		m.openURL = func(u string) error {
@@ -244,10 +244,9 @@ func TestBranchesOpenIsDisabledOutsideBranchesTab(t *testing.T) {
 
 	press(t, open(repoBox(t, f)), "o")
 	press(t, open(readmeTab(t, f)), "o")
-	press(t, open(press(t, readmeTab(t, f), "]")), "o")
 
-	if len(opened) != 0 {
-		t.Errorf("o outside the Branches tab opened %v, want nothing", opened)
+	if want := "https://f.test/home/homelab https://f.test/home/homelab"; strings.Join(opened, " ") != want {
+		t.Errorf("o on the Repo box and README tab opened %v, want the repo page twice", opened)
 	}
 }
 

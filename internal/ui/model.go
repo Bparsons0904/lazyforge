@@ -217,6 +217,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		if cmd, ok := m.actionKey(msg); ok {
 			return cmd
 		}
+	} else if repo, ok := m.repos.selected(); ok && key.Matches(msg, k.Open) {
+		cmd, _ := m.itemActionKey(msg, forge.ItemRef{Repo: repo.RepoRef}, repo)
+		return cmd
 	}
 	switch {
 	case m.level == levelBoxes && m.onStar():

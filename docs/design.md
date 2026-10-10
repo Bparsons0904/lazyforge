@@ -120,7 +120,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 | `c` | Comment (opens `$EDITOR`) |
 | `L` | Edit labels on the selected PR or issue (requires repository write access) |
 | `R` | Re-run a workflow: opens the run's page in the browser until the forge offers a re-run API |
-| `o` | Open in browser |
+| `o` | Open in browser: the selected item, or the repo's page on the repo list, the Repo box and ★ By repo rows |
 | `r` | Refresh |
 | `S` | Settings |
 | `?` | Help |

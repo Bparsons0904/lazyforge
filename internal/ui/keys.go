@@ -53,7 +53,7 @@ func (k keyMap) shortHelp(l level) []key.Binding {
 	case levelDetails:
 		return append([]key.Binding{hint(k.Down, "j/k", "scroll"), hint(k.NextTab, "[ ]", "tabs"), hint(k.Left, "h", "back")}, k.actions()...)
 	default:
-		bs := []key.Binding{hint(k.Down, "j/k", "repo"), hint(k.Right, "l", "enter"), k.Jump, k.Help}
+		bs := []key.Binding{hint(k.Down, "j/k", "repo"), hint(k.Right, "l", "enter"), k.Jump, k.Open, k.Help}
 		if k.hosted() {
 			bs = append(bs, hint(k.Left, "h", "hosts"), k.Settings)
 		}

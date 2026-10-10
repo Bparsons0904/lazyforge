@@ -550,8 +550,18 @@ func (m *Model) syncStarKeys() {
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
 	k.Comment.SetEnabled((isCR || isIssue) && can(forge.ActComment))
 	k.Labels.SetEnabled((isCR || isIssue) && can(forge.ActLabels))
-	k.Open.SetEnabled(webURL(item) != "")
+	k.Open.SetEnabled(webURL(m.starOpenTarget(item)) != "")
 	k.Rerun.SetEnabled(false)
+}
+
+// starOpenTarget swaps a By repo row, which has no item, for its repo so o opens the repo's page.
+func (m Model) starOpenTarget(item any) any {
+	if r, ok := m.star.selected().(renovate.RepoSummary); ok {
+		if repo, ok := m.repos.byRef(r.Repo); ok {
+			return repo
+		}
+	}
+	return item
 }
 
 func (m Model) starCanMerge() bool {

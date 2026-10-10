@@ -407,7 +407,7 @@ func TestHelpOverlay(t *testing.T) {
 
 func TestStatusBarHintsPerLevel(t *testing.T) {
 	want := map[level][]string{
-		levelRepos:   {"REPOS", "j/k repo · l enter · 1-6 jump to box · ? help"},
+		levelRepos:   {"REPOS", "j/k repo · l enter · 1-6 jump to box · o open · ? help"},
 		levelBoxes:   {"BOXES", "j/k move · 1-6/tab box · l details · h back"},
 		levelDetails: {"DETAILS", "j/k scroll · [ ] tabs · h back"},
 	}

@@ -91,12 +91,18 @@ func (m *Model) syncKeys() {
 	k.CloseItem.SetEnabled((isCR || isIssue) && can(forge.ActClose))
 	k.Comment.SetEnabled((isCR || isIssue) && can(forge.ActComment))
 	k.Labels.SetEnabled((isCR || isIssue) && can(forge.ActLabels))
-	k.Open.SetEnabled(webURL(m.openTarget(item)) != "")
+	if m.level == levelRepos {
+		k.Open.SetEnabled(repo.WebURL != "")
+	} else {
+		k.Open.SetEnabled(webURL(m.openTarget(item)) != "")
+	}
 	k.Rerun.SetEnabled(isRun && webURL(item) != "")
 }
 
 func webURL(item any) string {
 	switch it := item.(type) {
+	case domain.Repo:
+		return it.WebURL
 	case domain.ChangeRequest:
 		return it.WebURL
 	case domain.Issue:
@@ -114,12 +120,19 @@ func webURL(item any) string {
 }
 
 // openTarget is what o opens: the cursor branch on the Branches tab, the cursor entry on the Files tab, otherwise item.
+// Those two tabs never fall back to the repo, so o with no cursor entry opens nothing rather than a page the user didn't point at.
 func (m Model) openTarget(item any) any {
 	if m.branchesActive() {
 		return m.boxes.branches.list[m.details.branchCur]
 	}
-	if e, ok := m.details.cursorEntry(m.boxes.files); ok && m.filesActive() {
-		return e
+	if m.filesActive() {
+		if e, ok := m.details.cursorEntry(m.boxes.files); ok {
+			return e
+		}
+		return nil
+	}
+	if _, isRepo := item.(domain.Repo); isRepo && m.level == levelDetails && m.details.tab == branchesTab {
+		return nil
 	}
 	return item
 }

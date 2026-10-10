@@ -323,7 +323,7 @@ func TestLoadReadmeReturnsKeyedMessage(t *testing.T) {
 }
 
 func TestActionKeysDoNothingOnRepoBox(t *testing.T) {
-	for _, k := range []string{"m", "a", "x", "c", "L", "R", "space", "o"} {
+	for _, k := range []string{"m", "a", "x", "c", "L", "R", "space"} {
 		m := repoBox(t, homelabFake(&domain.Readme{Name: "README.md", Body: sampleReadme}))
 		for _, at := range []string{"boxes", "details"} {
 			next, msgs := step(t, m, k)
