@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -36,6 +37,10 @@ func (m *Model) starActionKey(msg tea.KeyPressMsg) (cmd tea.Cmd, ok bool) {
 		s.marked = nil
 	case key.Matches(msg, k.Merge):
 		return m.starRecheck(), true
+	case key.Matches(msg, k.UpdateBranch) && s.focus == starGroups:
+		if g, ok := s.selected().(renovate.Group); ok {
+			m.dialog = updateGroupDialog(g.Label, m.openUpdatable(s.targets()), m.svc.UpdateStyles())
+		}
 	default:
 		return m.itemActionKey(msg, itemRef(repo, item), m.starOpenTarget(item))
 	}
@@ -139,4 +144,11 @@ func distinctRepos(ts []core.Target) map[domain.RepoRef]bool {
 		out[t.Repo] = true
 	}
 	return out
+}
+
+// openUpdatable keeps the open PRs of ts whose repo the user may update.
+func (m *Model) openUpdatable(ts []core.Target) []core.Target {
+	return slices.DeleteFunc(slices.Clone(ts), func(t core.Target) bool {
+		return t.CR.State != domain.StateOpen || !m.svc.Can(forge.ActUpdateBranch, m.star.repoOf(t.Repo)).OK
+	})
 }

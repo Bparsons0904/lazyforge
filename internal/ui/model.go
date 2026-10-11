@@ -156,6 +156,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.mergeDone(msg)
 	case actionDoneMsg:
 		cmd = m.actionDone(msg)
+	case batchUpdateDoneMsg:
+		m.batchUpdateDone(msg)
 	case renovateRunMsg:
 		m.renovateRunDone(msg)
 	case labelsLoadedMsg:

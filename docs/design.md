@@ -118,7 +118,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 | `ctrl-d` / `ctrl-u` | Half-page scroll in the details pane, or half-page move on the Branches or Files tab |
 | `space` | Mark a PR for bulk actions, or tick a Renovate dashboard entry |
 | `m` | Merge: the marked PRs, the current PR, or every PR in an update group (`[2]` of ★ Renovate) |
-| `u` | Update the current PR with the latest target branch: a dialog asks whether to merge it in or rebase onto it (GitHub offers merge only). Needs repository write access. |
+| `u` | Update the current PR with the latest target branch: a dialog asks whether to merge it in or rebase onto it (GitHub offers merge only). On a row in `[2]` Updates by dependency it updates every open PR in that group. Needs repository write access. |
 | `N` | Run Renovate now: a dialog asks whether to run it for this repo or for all repos. Needs a `renovate_workflow` for the host and write access to its repo. |
 | `a` | Approve |
 | `x` | Close a PR or issue |

@@ -47,6 +47,7 @@ type dialog struct {
 	styles     []forge.UpdateStyle // update only, in the order the forge lists them
 	cursor     int                 // update only: index into styles
 	target     string              // update only: the branch the update brings in
+	batch      []core.Target       // update only: the open PRs of a ★ group; item and label are unused
 }
 
 type mergeOpts struct {
@@ -94,6 +95,11 @@ func closeDialog(ref forge.ItemRef, item any) *dialog {
 		d.label = fmt.Sprintf("#%d %s", it.Number, it.Title)
 	}
 	return d
+}
+
+// updateGroupDialog asks which style brings every open PR of a ★ group up to date.
+func updateGroupDialog(label string, open []core.Target, styles []forge.UpdateStyle) *dialog {
+	return &dialog{isUpdate: true, batch: open, label: label, styles: styles, target: "target branch"}
 }
 
 // updateDialog asks which style brings cr up to date; the cursor starts on the first style the forge lists.
@@ -159,6 +165,9 @@ func (m *Model) updateKey(msg tea.KeyPressMsg) tea.Cmd {
 		}
 	case key.Matches(msg, k.Confirm) && len(d.styles) > 0:
 		m.dialog = nil
+		if d.batch != nil {
+			return m.updateBranches(d.batch, d.styles[d.cursor])
+		}
 		return m.updateBranch(d.item, d.styles[d.cursor])
 	}
 	return nil
@@ -170,6 +179,8 @@ func (d dialog) title(term string) string {
 		return "Run Renovate"
 	case d.isClose:
 		return fmt.Sprintf("Close #%d", d.item.Number)
+	case d.isUpdate && d.batch != nil:
+		return fmt.Sprintf("Update %d %ss", len(d.batch), term)
 	case d.isUpdate:
 		return fmt.Sprintf("Update #%d", d.item.Number)
 	case len(d.targets) == 1 && d.prefix:

@@ -84,9 +84,26 @@ func TestUpdateHintOnStarPRAndCIBoxes(t *testing.T) {
 	}
 }
 
-func TestUpdateHiddenOnStarGroupsByRepoAndDashboards(t *testing.T) {
+func TestUpdateOnStarGroupOpensBatchDialog(t *testing.T) {
+	m := press(t, rvSized(t, starUpdateFake(domain.AccessWrite), core.Options{}, 200, 40), "l", "2")
+	if len(m.star.view.Groups) == 0 {
+		t.Fatal("[2] has no rows")
+	}
+	if !m.keys.UpdateBranch.Enabled() {
+		t.Fatal("u disabled on a [2] group with open PRs and write access")
+	}
+	m = openUpdate(t, m)
+	if len(m.dialog.batch) == 0 || !strings.Contains(screen(m), "› merge") {
+		t.Errorf("group dialog lacks targets or styles:\n%s", screen(m))
+	}
+	if _, cmd := update(m, keyMsg("enter")); cmd == nil {
+		t.Error("confirming the group dialog started no update")
+	}
+}
+
+func TestUpdateHiddenOnStarByRepoAndDashboards(t *testing.T) {
 	f := starDashboardFake(domain.AccessWrite)
-	for _, box := range []string{"1", "2", "4"} {
+	for _, box := range []string{"1", "4"} {
 		m := press(t, rvSized(t, f, core.Options{}, 200, 40), "l", box)
 		if n := map[string]int{"1": len(m.star.view.ByRepo), "2": len(m.star.view.Groups), "4": len(m.star.view.Dashboards)}[box]; n == 0 {
 			t.Fatalf("[%s] has no rows, so the gating is not exercised", box)

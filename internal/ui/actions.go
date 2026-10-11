@@ -327,6 +327,38 @@ func (m *Model) updateBranch(ref forge.ItemRef, style forge.UpdateStyle) tea.Cmd
 	}
 }
 
+// batchUpdateDoneMsg reports an update run over a ★ group; failed holds "owner/name #n: reason" per PR.
+type batchUpdateDoneMsg struct {
+	repos  []domain.RepoRef
+	style  forge.UpdateStyle
+	total  int
+	failed []string
+}
+
+// updateBranches updates each PR in turn in the background and reports once at the end.
+func (m *Model) updateBranches(ts []core.Target, style forge.UpdateStyle) tea.Cmd {
+	svc, ctx := m.svc, m.ctx
+	return func() tea.Msg {
+		done := batchUpdateDoneMsg{style: style, total: len(ts)}
+		for _, t := range ts {
+			done.repos = append(done.repos, t.Repo)
+			if err := svc.UpdateBranch(ctx, t.Repo, t.CR.Number, style); err != nil {
+				done.failed = append(done.failed, fmt.Sprintf("%s #%d: %v", t.Repo, t.CR.Number, err))
+			}
+		}
+		return done
+	}
+}
+
+func (m *Model) batchUpdateDone(msg batchUpdateDoneMsg) {
+	if len(msg.failed) > 0 {
+		m.setError(fmt.Errorf("updated %d of %d (%s); %s", msg.total-len(msg.failed), msg.total, msg.style, strings.Join(msg.failed, "; ")))
+	} else {
+		m.setInfo(fmt.Sprintf("Updated %d (%s)", msg.total, msg.style))
+	}
+	m.reseed(msg.repos...)
+}
+
 func (m *Model) actionDone(msg actionDoneMsg) tea.Cmd {
 	switch {
 	case errors.Is(msg.err, errEmptyComment):
