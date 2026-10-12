@@ -57,22 +57,12 @@ func (f *Forge) OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error
 	if unsafePath(u.EscapedPath()) {
 		return nil, fmt.Errorf("open asset %s: dot or empty upload segment: %w", u.Host+u.Path, forge.ErrUnsupported)
 	}
-	target, op := u.String(), "GET "+u.Path
+	target := u.String()
 	if api, ok := uploadAPIURL(web, u); ok {
-		target, op = api, "GET "+strings.TrimPrefix(api, f.api)
+		target = api
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	resp, err := f.sendAccept(ctx, http.MethodGet, target, "", nil)
 	if err != nil {
-		return nil, fmt.Errorf("%s: build request", op)
-	}
-	if f.token != "" {
-		req.Header.Set("PRIVATE-TOKEN", f.token)
-	}
-	resp, err := f.hc.Do(req)
-	if err != nil {
-		return nil, doError(op, err)
-	}
-	if err := checkStatus(op, resp); err != nil {
 		return nil, err
 	}
 	return resp.Body, nil

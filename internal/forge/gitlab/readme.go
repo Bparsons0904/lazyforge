@@ -20,13 +20,10 @@ type fileBody struct {
 	Encoding string `json:"encoding"`
 }
 
-// GetReadme finds the root README by name on the default branch, because GitLab has no README endpoint.
+// GetReadme finds the root README by name, because GitLab has no README endpoint. It leaves the default branch to the
+// server (no tree ref, and HEAD for the file) rather than spend a GET on the project to learn it.
 func (f *Forge) GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme, error) {
-	ref, err := f.defaultBranch(ctx, r)
-	if err != nil {
-		return domain.Readme{}, fmt.Errorf("find README in %s: %w", r, err)
-	}
-	entries, err := list[treeItem](ctx, f, projectPath(r)+"/repository/tree", url.Values{"ref": {ref}})
+	entries, err := list[treeItem](ctx, f, projectPath(r)+"/repository/tree", nil)
 	if err != nil {
 		return domain.Readme{}, fmt.Errorf("find README in %s: %w", r, err)
 	}
@@ -44,7 +41,7 @@ func (f *Forge) GetReadme(ctx context.Context, r domain.RepoRef) (domain.Readme,
 		return domain.Readme{}, fmt.Errorf("README in %s: %w", r, forge.ErrNotFound)
 	}
 	var file fileBody
-	q := url.Values{"ref": {ref}}
+	q := url.Values{"ref": {"HEAD"}}
 	if err := f.callQuery(ctx, http.MethodGet, filePath(r, best), q, nil, &file); err != nil {
 		return domain.Readme{}, fmt.Errorf("read %s in %s: %w", best, r, err)
 	}

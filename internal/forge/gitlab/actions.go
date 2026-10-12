@@ -96,16 +96,8 @@ func (f *Forge) ListJobs(ctx context.Context, r domain.RepoRef, runID int64) ([]
 
 // JobLog returns the raw trace, ANSI and section markers included; the caller closes it.
 func (f *Forge) JobLog(ctx context.Context, r domain.RepoRef, jobID int64) (io.ReadCloser, error) {
-	req, op, err := f.request(ctx, http.MethodGet, f.url(projectPath(r)+"/jobs/"+strconv.FormatInt(jobID, 10)+"/trace", nil), nil)
+	resp, err := f.sendAccept(ctx, http.MethodGet, f.url(projectPath(r)+"/jobs/"+strconv.FormatInt(jobID, 10)+"/trace", nil), "text/plain", nil)
 	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "text/plain")
-	resp, err := f.hc.Do(req)
-	if err != nil {
-		return nil, doError(op, err)
-	}
-	if err := checkStatus(op, resp); err != nil {
 		return nil, err
 	}
 	return resp.Body, nil

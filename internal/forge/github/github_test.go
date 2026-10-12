@@ -42,7 +42,7 @@ func TestContract(t *testing.T) {
 
 func TestNewReadsUserAndGHESVersion(t *testing.T) {
 	f, s := newForge(t)
-	want := forge.HostInfo{Kind: forge.KindGitHub, URL: s.URL, Version: "3.17.4", User: "Bparsons0904", ChangeRequestTerm: "PR"}
+	want := forge.HostInfo{Kind: forge.KindGitHub, URL: s.URL, Version: "3.17.4", User: "Bparsons0904", ChangeRequestTerm: "PR", RunsTerm: "Actions"}
 	if got := f.Info(); got != want {
 		t.Fatalf("info %+v, want %+v", got, want)
 	}

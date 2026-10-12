@@ -64,6 +64,7 @@ type forgeHelp struct {
 	altScopes []scope
 	rejected  string
 	cantList  string
+	readOnly  string // for forge.ErrReadOnly; "" where the adapter never returns it
 }
 
 var giteaHelp = forgeHelp{
@@ -104,7 +105,8 @@ var gitlabHelp = forgeHelp{
 		{"", "issues, comments, labels, Renovate ticks and runs"},
 	},
 	rejected: "The token was rejected. Check it's valid, not expired, and has the api scope.",
-	cantList: "Signed in, but the token can't list repositories: it needs the api scope (read_api is not enough).",
+	cantList: "Signed in, but the token can't list projects: it needs the api scope.",
+	readOnly: "Signed in, but the token is read-only: lazyforge needs the api scope.",
 }
 
 func helpFor(k forge.Kind) forgeHelp {
@@ -464,6 +466,8 @@ func signInError(err error, listing bool, help forgeHelp) string {
 	var oe *net.OpError
 	var ue *url.Error
 	switch {
+	case errors.Is(err, forge.ErrReadOnly) && help.readOnly != "":
+		return help.readOnly
 	case errors.Is(err, forge.ErrUnauthorized) && listing:
 		return help.cantList
 	case errors.Is(err, forge.ErrUnauthorized):

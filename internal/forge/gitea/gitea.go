@@ -59,7 +59,7 @@ func New(ctx context.Context, baseURL, token string, hc *http.Client) (*Forge, e
 	if err := f.call(ctx, http.MethodGet, "/user", nil, &u); err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", f.base, err)
 	}
-	f.info = forge.HostInfo{Kind: kindOf(version), URL: f.base, Version: version, User: u.Login, ChangeRequestTerm: "PR"}
+	f.info = forge.HostInfo{Kind: kindOf(version), URL: f.base, Version: version, User: u.Login, ChangeRequestTerm: "PR", RunsTerm: "Actions"}
 	return f, nil
 }
 

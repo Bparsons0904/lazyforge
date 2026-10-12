@@ -32,14 +32,14 @@ func TestSeamPipelineState(t *testing.T) {
 }
 
 func TestSeamPipelineFor(t *testing.T) {
-	pipes := []pipeline{{ID: 9, SHA: "b"}, {ID: 8, SHA: "a"}, {ID: 7, SHA: "a"}}
-	if p := pipelineFor(pipes, "a"); p == nil || p.ID != 8 {
+	pipes := []pipeline{{ID: 9, SHA: "b", Ref: "feat"}, {ID: 8, SHA: "a", Ref: "feat"}, {ID: 7, SHA: "a", Ref: "feat"}}
+	if p := pipelineFor(pipes, mergeRequest{IID: 1, SHA: "a", SourceBranch: "feat"}); p == nil || p.ID != 8 {
 		t.Errorf("got %v, want the newest pipeline for a (8)", p)
 	}
-	if p := pipelineFor(pipes, "c"); p != nil {
+	if p := pipelineFor(pipes, mergeRequest{IID: 1, SHA: "c", SourceBranch: "feat"}); p != nil {
 		t.Errorf("got %v for an unmatched sha, want nil", p)
 	}
-	if p := pipelineFor([]pipeline{{ID: 1}}, ""); p != nil {
+	if p := pipelineFor([]pipeline{{ID: 1}}, mergeRequest{}); p != nil {
 		t.Errorf("got %v for an empty sha, want nil", p)
 	}
 }
@@ -112,7 +112,14 @@ func TestSeamStatusError(t *testing.T) {
 		{merge, 401, forge.ErrRefused, forge.ErrUnauthorized},
 		{approve, 401, forge.ErrRefused, forge.ErrUnauthorized},
 		{get, 401, forge.ErrUnauthorized, nil},
-		{get, 403, forge.ErrUnauthorized, nil},
+		{get, 403, forge.ErrUnauthorized, forge.ErrRefused},
+		{"HEAD /projects/g%2Fr/repository/files/a.txt", 403, forge.ErrUnauthorized, forge.ErrRefused},
+		{merge, 403, forge.ErrRefused, forge.ErrUnauthorized},
+		{approve, 403, forge.ErrRefused, forge.ErrUnauthorized},
+		{"PUT /projects/g%2Fr/merge_requests/1/rebase", 403, forge.ErrRefused, forge.ErrUnauthorized},
+		{"POST /projects/g%2Fr/merge_requests/1/notes", 403, forge.ErrRefused, forge.ErrUnauthorized},
+		{"DELETE /projects/g%2Fr/issues/1", 403, forge.ErrRefused, forge.ErrUnauthorized},
+		{"PUT /projects/g%2Fr/issues/1", 403, forge.ErrRefused, forge.ErrUnauthorized},
 		{get, 404, forge.ErrNotFound, nil},
 		{get, 429, forge.ErrRateLimited, forge.ErrUnauthorized},
 		{merge, 409, forge.ErrHeadChanged, nil},

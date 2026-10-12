@@ -88,7 +88,7 @@ func TestNew(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := f.Info()
-	want := forge.HostInfo{Kind: forge.KindForgejo, URL: srv.URL, Version: "16.0.5+gitea-1.22.0", User: "deadstyle", ChangeRequestTerm: "PR"}
+	want := forge.HostInfo{Kind: forge.KindForgejo, URL: srv.URL, Version: "16.0.5+gitea-1.22.0", User: "deadstyle", ChangeRequestTerm: "PR", RunsTerm: "Actions"}
 	if got != want {
 		t.Errorf("Info() = %+v, want %+v", got, want)
 	}

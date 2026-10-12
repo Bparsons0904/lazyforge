@@ -166,10 +166,10 @@ func boxTitle(k boxKind, info forge.HostInfo) string {
 	case boxReleases:
 		return "Releases"
 	default:
-		if info.Kind == forge.KindGitLab {
-			return "Pipelines"
+		if info.RunsTerm == "" {
+			return "Actions"
 		}
-		return "Actions"
+		return info.RunsTerm
 	}
 }
 

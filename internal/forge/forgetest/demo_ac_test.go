@@ -16,7 +16,7 @@ var demoNow = time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
 func demoRef(name string) domain.RepoRef { return domain.RepoRef{Owner: "home", Name: name} }
 
 func TestNewDemoHost(t *testing.T) {
-	want := forge.HostInfo{Kind: forge.KindForgejo, URL: "https://forge.home.arpa", Version: "16.0.5+gitea-1.22.0", User: "you", ChangeRequestTerm: "PR"}
+	want := forge.HostInfo{Kind: forge.KindForgejo, URL: "https://forge.home.arpa", Version: "16.0.5+gitea-1.22.0", User: "you", ChangeRequestTerm: "PR", RunsTerm: "Actions"}
 	if got := forgetest.NewDemo(demoNow).Info(); got != want {
 		t.Errorf("Info = %+v, want %+v", got, want)
 	}

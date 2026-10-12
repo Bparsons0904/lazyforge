@@ -219,7 +219,7 @@ func gitlabRenovate(t *testing.T) (*core.Service, *forgetest.Fake) {
 	return s, f
 }
 
-func TestRunRenovateOnGitLabSendsAutodiscoverFilter(t *testing.T) {
+func TestRunRenovateOnGitLabSendsTheLogicalRepoInput(t *testing.T) {
 	s, f := gitlabRenovate(t)
 	if err := s.RunRenovate(context.Background(), gitlabAppRepo); err != nil {
 		t.Fatalf("RunRenovate: %v", err)
@@ -232,8 +232,8 @@ func TestRunRenovateOnGitLabSendsAutodiscoverFilter(t *testing.T) {
 	if m.Op != "dispatch-workflow" || m.Item.Repo != gitlabRunnerRepo || m.Workflow != "" || m.Ref != "trunk" {
 		t.Errorf("mutation = %+v, want dispatch-workflow on group/sub/runner with no workflow at trunk", m)
 	}
-	if len(m.Inputs) != 1 || m.Inputs["RENOVATE_AUTODISCOVER_FILTER"] != "group/app" {
-		t.Errorf("Inputs = %v, want map[RENOVATE_AUTODISCOVER_FILTER:group/app]", m.Inputs)
+	if len(m.Inputs) != 1 || m.Inputs["repo"] != "group/app" {
+		t.Errorf("Inputs = %v, want map[repo:group/app]; the adapter maps it to its own variable", m.Inputs)
 	}
 }
 
@@ -255,8 +255,8 @@ func TestCanRunRenovateOnGitLabWithoutFileIsOK(t *testing.T) {
 	}
 }
 
-func TestRunRenovateKeepsRepoInputOnOtherForges(t *testing.T) {
-	for _, kind := range []forge.Kind{forge.KindForgejo, forge.KindGitea, forge.KindGitHub} {
+func TestRunRenovateSendsTheRepoInputOnEveryForge(t *testing.T) {
+	for _, kind := range []forge.Kind{forge.KindForgejo, forge.KindGitea, forge.KindGitHub, forge.KindGitLab} {
 		t.Run(string(kind), func(t *testing.T) {
 			f := forgetest.NewFake(forge.HostInfo{Kind: kind, User: "bob"})
 			f.AddRepo(domain.Repo{RepoRef: workflowRepo, Access: domain.AccessWrite, DefaultBranch: "main"})

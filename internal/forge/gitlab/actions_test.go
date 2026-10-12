@@ -51,6 +51,9 @@ func newStub(t *testing.T, handle func(w http.ResponseWriter, r *http.Request, p
 		case "/user":
 			_, _ = io.WriteString(w, `{"username":"tester"}`)
 			return
+		case "/personal_access_tokens/self":
+			_, _ = io.WriteString(w, `{"scopes":["api"]}`)
+			return
 		case "/metadata":
 			_, _ = io.WriteString(w, `{"version":"17.0.0"}`)
 			return

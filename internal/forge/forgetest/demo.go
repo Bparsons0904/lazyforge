@@ -223,7 +223,7 @@ func seedBranches(f *Fake, ref domain.RepoRef, base string, now time.Time, bs []
 // NewDemo returns a Fake seeded to look like docs/mockup.html, with every timestamp relative to now.
 func NewDemo(now time.Time) *Fake {
 	f := NewFake(forge.HostInfo{
-		Kind: forge.KindForgejo, URL: demoURL, Version: "16.0.5+gitea-1.22.0", User: "you", ChangeRequestTerm: "PR",
+		Kind: forge.KindForgejo, URL: demoURL, Version: "16.0.5+gitea-1.22.0", User: "you", ChangeRequestTerm: "PR", RunsTerm: "Actions",
 	})
 	for _, r := range demoRepos {
 		ref := domain.RepoRef{Owner: "home", Name: r.name}

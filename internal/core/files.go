@@ -27,7 +27,7 @@ func (s *Service) Tree(ctx context.Context, r domain.RepoRef, ref, dir string) (
 	what := "list " + r.String() + " " + strconv.Quote(dir) + refSuffix(ref)
 	return fetch(ctx, s, Key{Kind: KindTree, Repo: r, Ref: ref, Path: dir}, what,
 		func(ctx context.Context) ([]domain.TreeEntry, error) {
-			es, err := tr.ListTree(ctx, r, ref, dir)
+			es, err := tr.ListTree(ctx, r, s.defaultRef(r, ref), dir)
 			if errors.Is(err, forge.ErrNotFound) {
 				return nil, nil
 			}
@@ -39,6 +39,18 @@ func (s *Service) Tree(ctx context.Context, r domain.RepoRef, ref, dir string) (
 // PeekTree returns the cached entries of dir on ref without I/O.
 func (s *Service) PeekTree(r domain.RepoRef, ref, dir string) ([]domain.TreeEntry, time.Time, bool) {
 	return peek[domain.TreeEntry](s, Key{Kind: KindTree, Repo: r, Ref: ref, Path: dir})
+}
+
+// defaultRef names the cached default branch for an empty ref, which spares an adapter that needs a ref its own
+// lookup. The cache keys keep the caller's ref, so it is only for the forge call.
+func (s *Service) defaultRef(r domain.RepoRef, ref string) string {
+	if ref != "" {
+		return ref
+	}
+	if repo, ok := s.cachedRepo(r); ok {
+		return repo.DefaultBranch
+	}
+	return ""
 }
 
 func refSuffix(ref string) string {
@@ -74,7 +86,7 @@ func (s *Service) Preview(ctx context.Context, r domain.RepoRef, ref string, e d
 			if e.Size > MaxPreviewSize {
 				return []domain.FilePreview{{TooLarge: true}}, nil
 			}
-			b, err := tr.ReadFile(ctx, r, ref, e.Path)
+			b, err := tr.ReadFile(ctx, r, s.defaultRef(r, ref), e.Path)
 			if errors.Is(err, forge.ErrTooLarge) {
 				return []domain.FilePreview{{TooLarge: true}}, nil
 			}

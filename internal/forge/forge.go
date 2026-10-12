@@ -27,6 +27,7 @@ type HostInfo struct {
 	URL, Version      string
 	User              string
 	ChangeRequestTerm string // "PR" or "MR"
+	RunsTerm          string // "Actions" or "Pipelines"
 }
 
 // ItemKind says whether an ItemRef targets an issue or a change request.
@@ -66,6 +67,7 @@ var (
 	ErrHeadChanged  = errors.New("head changed since confirmation")
 	ErrRefused      = errors.New("refused by the forge") // the forge declined: conflicts, branch protection, required checks
 	ErrTooLarge     = errors.New("file too large")       // TreeReader.ReadFile: the file is over MaxReadSize
+	ErrReadOnly     = errors.New("token is read-only")   // at connect: the token has no write scope
 )
 
 // MaxReadSize is the largest file, in bytes, TreeReader.ReadFile must return; over it, an adapter may return ErrTooLarge without downloading.
@@ -169,6 +171,6 @@ type BranchUpdater interface {
 
 // WorkflowDispatcher is optional: callers detect it with a type assertion.
 type WorkflowDispatcher interface {
-	// DispatchWorkflow starts workflow, a file in r's workflows directory, on ref with inputs (nil for none), or on GitLab r's pipeline with inputs as CI variables; ErrNotFound when r or workflow is missing.
+	// DispatchWorkflow starts workflow, a file in r's workflows directory, on ref with inputs (nil for none), or on GitLab r's pipeline with inputs as CI variables (the repo input becomes RENOVATE_AUTODISCOVER_FILTER); ErrNotFound when r or workflow is missing.
 	DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error
 }

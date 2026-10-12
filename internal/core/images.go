@@ -140,7 +140,12 @@ func (s *Service) resolveImage(repo domain.RepoRef, raw string) (*url.URL, forge
 	if ref.User != nil {
 		return nil, nil, fmt.Errorf("image URL carries credentials: %w", forge.ErrUnsupported)
 	}
-	page, err := url.Parse(strings.TrimRight(s.f.Info().URL, "/") + "/" + url.PathEscape(repo.Owner) + "/" + url.PathEscape(repo.Name) + "/")
+	// A subgroup owner such as grp/sub is several path segments, so its slashes must stay unescaped.
+	owner := strings.Split(repo.Owner, "/")
+	for i, seg := range owner {
+		owner[i] = url.PathEscape(seg)
+	}
+	page, err := url.Parse(strings.TrimRight(s.f.Info().URL, "/") + "/" + strings.Join(owner, "/") + "/" + url.PathEscape(repo.Name) + "/")
 	if err != nil {
 		return nil, nil, errors.New("forge URL is malformed")
 	}

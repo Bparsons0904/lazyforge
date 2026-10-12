@@ -153,9 +153,14 @@ func TestGetReadmeDecodesFixture(t *testing.T) {
 		t.Errorf("GetReadme() = %+v, want %+v", got, want)
 	}
 	for _, c := range api.requests() {
-		if strings.HasPrefix(c.Path, repoTree) || strings.HasPrefix(c.Path, repoFiles) {
-			if c.Method != http.MethodGet || c.Query.Get("ref") != "main" {
-				t.Errorf("%s %s ref = %q, want GET with ref=main (GitLab requires a ref; the default branch is main)", c.Method, c.Path, c.Query.Get("ref"))
+		switch {
+		case strings.HasPrefix(c.Path, repoTree):
+			if _, has := c.Query["ref"]; c.Method != http.MethodGet || has {
+				t.Errorf("%s %s query %v, want a GET with no ref so the server picks the default branch", c.Method, c.Path, c.Query)
+			}
+		case strings.HasPrefix(c.Path, repoFiles):
+			if c.Method != http.MethodGet || c.Query.Get("ref") != "HEAD" {
+				t.Errorf("%s %s ref = %q, want GET with ref=HEAD", c.Method, c.Path, c.Query.Get("ref"))
 			}
 		}
 	}

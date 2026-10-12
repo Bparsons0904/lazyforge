@@ -11,9 +11,13 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 )
+
+const ciLookupLimit = 4 // concurrent head_pipeline GETs in ListChangeRequests
 
 type user struct {
 	Username string `json:"username"`
@@ -41,6 +45,7 @@ type project struct {
 type pipeline struct {
 	ID     int64  `json:"id"`
 	SHA    string `json:"sha"`
+	Ref    string `json:"ref"`
 	Status string `json:"status"`
 }
 
@@ -183,9 +188,9 @@ func mergeStyle(p project) string {
 
 func squashes(option string) bool { return option == "always" || option == "default_on" }
 
-// ListChangeRequests takes CI from one page of the project's newest pipelines, matched on the MR's head SHA.
-// An open MR with no match costs one GET for its head_pipeline (a merged-results pipeline has another SHA); a merged
-// or closed one gets CINone. A pipelines listing that is refused or missing, as with CI/CD disabled, counts as empty.
+// ListChangeRequests takes CI from one page of the project's newest pipelines, matched on the MR's head SHA and ref.
+// An open MR with no match costs one GET for its head_pipeline (a fork's or a merged-results pipeline isn't listed);
+// a merged or closed one gets CINone. A pipelines listing that is refused or missing (CI/CD disabled) means CINone.
 func (f *Forge) ListChangeRequests(ctx context.Context, r domain.RepoRef, flt forge.Filter) ([]domain.ChangeRequest, error) {
 	state := map[domain.State]string{domain.StateOpen: "opened", domain.StateMerged: "merged", domain.StateClosed: "closed"}[flt.State]
 	q := url.Values{"state": {state}, "order_by": {"updated_at"}, "sort": {"desc"}}
@@ -195,34 +200,49 @@ func (f *Forge) ListChangeRequests(ctx context.Context, r domain.RepoRef, flt fo
 	}
 	var pipes []pipeline
 	pq := url.Values{"per_page": {pageSize}, "order_by": {"id"}, "sort": {"desc"}}
-	if err := f.callQuery(ctx, http.MethodGet, projectPath(r)+"/pipelines", pq, nil, &pipes); err != nil && !errors.Is(err, forge.ErrUnauthorized) && !errors.Is(err, forge.ErrNotFound) {
+	err = f.callQuery(ctx, http.MethodGet, projectPath(r)+"/pipelines", pq, nil, &pipes)
+	if err != nil && !errors.Is(err, forge.ErrUnauthorized) && !errors.Is(err, forge.ErrNotFound) {
 		return nil, err
 	}
+	listed := err == nil
 	out := make([]domain.ChangeRequest, len(mrs))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(ciLookupLimit)
 	for i, mr := range mrs {
-		p := pipelineFor(pipes, mr.SHA)
-		if p == nil && mr.State == "opened" {
-			full, err := f.getMR(ctx, r, mr.IID)
-			if err != nil {
-				return nil, err
-			}
-			p = full.HeadPipeline
-		}
+		p := pipelineFor(pipes, mr)
 		out[i] = changeRequest(mr, p)
+		if p != nil || !listed || mr.State != "opened" {
+			continue
+		}
+		g.Go(func() error {
+			full, err := f.getMR(gctx, r, mr.IID)
+			if err != nil {
+				return err
+			}
+			out[i] = changeRequest(mr, full.HeadPipeline)
+			return nil
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
 
-// pipelineFor returns the newest pipeline for sha from a list sorted newest first, or nil.
-func pipelineFor(pipes []pipeline, sha string) *pipeline {
-	if sha == "" {
+// pipelineFor applies GitLab's own precedence: the newest pipeline on the MR's ref, else the newest on its source
+// branch, both at the MR's head SHA. pipes must be sorted newest first.
+func pipelineFor(pipes []pipeline, mr mergeRequest) *pipeline {
+	if mr.SHA == "" {
 		return nil
 	}
-	i := slices.IndexFunc(pipes, func(p pipeline) bool { return p.SHA == sha })
-	if i < 0 {
-		return nil
+	mrRef := "refs/merge-requests/" + strconv.Itoa(mr.IID) + "/head"
+	for _, ref := range []string{mrRef, mr.SourceBranch} {
+		i := slices.IndexFunc(pipes, func(p pipeline) bool { return p.SHA == mr.SHA && p.Ref == ref })
+		if i >= 0 {
+			return &pipes[i]
+		}
 	}
-	return &pipes[i]
+	return nil
 }
 
 // GetChangeRequest returns ErrNotFound for a number that isn't an MR.
@@ -291,7 +311,8 @@ func pipelineState(status string) domain.CIState {
 }
 
 // Merge reads the project for its squash option; GitLab has no per-call method, so a Method other than
-// the project's own is ErrUnsupported.
+// the project's own is ErrUnsupported. Squash is sent only when the project forces it, so under default_on and
+// default_off the MR's own squash choice stands.
 func (f *Forge) Merge(ctx context.Context, r domain.RepoRef, n int, opts forge.MergeOpts) error {
 	if opts.HeadSHA == "" {
 		return errors.New("merge: head SHA is required")
@@ -303,7 +324,13 @@ func (f *Forge) Merge(ctx context.Context, r domain.RepoRef, n int, opts forge.M
 	if opts.Method != "" && opts.Method != mergeStyle(p) {
 		return fmt.Errorf("merge with %q: the project merges with %q: %w", opts.Method, mergeStyle(p), forge.ErrUnsupported)
 	}
-	body := map[string]any{"sha": opts.HeadSHA, "squash": squashes(p.SquashOption)}
+	body := map[string]any{"sha": opts.HeadSHA}
+	switch p.SquashOption {
+	case "always":
+		body["squash"] = true
+	case "never":
+		body["squash"] = false
+	}
 	return f.call(ctx, http.MethodPut, mrPath(r, n)+"/merge", body, nil)
 }
 

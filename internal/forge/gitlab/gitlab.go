@@ -58,7 +58,7 @@ var retryWait = func(ctx context.Context, d time.Duration) error {
 }
 
 // New takes webURL as the web root, not the API base, and reads the token's user up front,
-// so a bad token fails here with ErrUnauthorized.
+// so a bad token fails here with ErrUnauthorized and a personal access token without the api scope with ErrReadOnly.
 func New(ctx context.Context, webURL, token string, hc *http.Client) (*Forge, error) {
 	f, err := newForge(webURL, token, hc)
 	if err != nil {
@@ -68,11 +68,17 @@ func New(ctx context.Context, webURL, token string, hc *http.Client) (*Forge, er
 	if err := f.call(ctx, http.MethodGet, "/user", nil, &u); err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", f.web, err)
 	}
+	// Any error, or no scopes (a granular token), connects: a token this check can't judge meets its limits on a write.
+	var self tokenSelf
+	if err := f.call(ctx, http.MethodGet, "/personal_access_tokens/self", nil, &self); err == nil &&
+		len(self.Scopes) > 0 && !slices.Contains(self.Scopes, "api") {
+		return nil, fmt.Errorf("connect to %s: %w: lazyforge needs the api scope", f.web, forge.ErrReadOnly)
+	}
 	var m metadata
 	if err := f.call(ctx, http.MethodGet, "/metadata", nil, &m); err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", f.web, err)
 	}
-	f.info = forge.HostInfo{Kind: forge.KindGitLab, URL: f.web, Version: m.Version, User: u.Username, ChangeRequestTerm: "MR"}
+	f.info = forge.HostInfo{Kind: forge.KindGitLab, URL: f.web, Version: m.Version, User: u.Username, ChangeRequestTerm: "MR", RunsTerm: "Pipelines"}
 	return f, nil
 }
 
@@ -83,7 +89,7 @@ func Probe(ctx context.Context, webURL string, hc *http.Client) (forge.Kind, err
 	if err != nil {
 		return "", err
 	}
-	req, op, err := f.request(ctx, http.MethodGet, f.url("/metadata", nil), nil)
+	req, op, err := f.request(ctx, http.MethodGet, f.url("/metadata", nil), nil, "application/json")
 	if err != nil {
 		return "", err
 	}
@@ -109,6 +115,10 @@ func Probe(ctx context.Context, webURL string, hc *http.Client) (forge.Kind, err
 
 type metadata struct {
 	Version string `json:"version"`
+}
+
+type tokenSelf struct {
+	Scopes []string `json:"scopes"`
 }
 
 func newForge(webURL, token string, hc *http.Client) (*Forge, error) {
@@ -160,9 +170,13 @@ func (f *Forge) url(path string, q url.Values) string {
 	return u
 }
 
-// send returns the response only on a 2xx status; the caller closes its body.
-// A 429 is retried once after Retry-After (capped at a minute); a second 429 is ErrRateLimited.
 func (f *Forge) send(ctx context.Context, method, rawURL string, body any) (*http.Response, error) {
+	return f.sendAccept(ctx, method, rawURL, "application/json", body)
+}
+
+// sendAccept returns the response only on a 2xx status; the caller closes its body. An empty accept sends no
+// Accept header. A 429 is retried once after Retry-After (capped at a minute); a second 429 is ErrRateLimited.
+func (f *Forge) sendAccept(ctx context.Context, method, rawURL, accept string, body any) (*http.Response, error) {
 	var payload []byte
 	if body != nil {
 		b, err := json.Marshal(body)
@@ -172,7 +186,7 @@ func (f *Forge) send(ctx context.Context, method, rawURL string, body any) (*htt
 		payload = b
 	}
 	for attempt := 0; ; attempt++ {
-		req, op, err := f.request(ctx, method, rawURL, payload)
+		req, op, err := f.request(ctx, method, rawURL, payload, accept)
 		if err != nil {
 			return nil, err
 		}
@@ -214,8 +228,15 @@ func doError(op string, err error) error {
 	return fmt.Errorf("%s: %w", op, err)
 }
 
-func (f *Forge) request(ctx context.Context, method, rawURL string, payload []byte) (*http.Request, string, error) {
-	op := method + " " + strings.TrimPrefix(strings.SplitN(rawURL, "?", 2)[0], f.api)
+// request names op by the path under the API root, or under the web root for a web URL, so no host reaches an error.
+func (f *Forge) request(ctx context.Context, method, rawURL string, payload []byte, accept string) (*http.Request, string, error) {
+	path := strings.SplitN(rawURL, "?", 2)[0]
+	if p, ok := strings.CutPrefix(path, f.api); ok {
+		path = p
+	} else {
+		path = strings.TrimPrefix(path, f.web)
+	}
+	op := method + " " + path
 	var rd io.Reader
 	if payload != nil {
 		rd = bytes.NewReader(payload)
@@ -227,7 +248,9 @@ func (f *Forge) request(ctx context.Context, method, rawURL string, payload []by
 	if f.token != "" {
 		req.Header.Set("PRIVATE-TOKEN", f.token)
 	}
-	req.Header.Set("Accept", "application/json")
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -270,19 +293,23 @@ func errorMessage(raw json.RawMessage) string {
 	return strings.Join(parts, "; ")
 }
 
+// statusError reads the method from op's prefix. GitLab's message is kept on every sentinel, because it is often
+// the only thing that says why, such as which protection blocked a push.
 func statusError(op string, code int, msg string) error {
 	action := strings.HasSuffix(op, "/merge") || strings.HasSuffix(op, "/approve")
+	method, _, _ := strings.Cut(op, " ")
+	read := method == http.MethodGet || method == http.MethodHead
 	var sentinel error
 	switch {
 	// GitLab answers "you may not merge or approve this" with 401, which is not a bad token.
 	case code == http.StatusUnauthorized && action:
-		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
-	// A 403 on rebase is branch protection or no push access, which the status bar should explain.
-	case code == http.StatusForbidden && strings.HasSuffix(op, "/rebase"):
-		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
+		sentinel = forge.ErrRefused
+	// A 403 on a write is branch protection or a role too low for it; a 403 on a read is still a bad token.
+	case code == http.StatusForbidden && !read:
+		sentinel = forge.ErrRefused
 	// A 400 on pipeline creation carries why GitLab will not run it, such as rules that exclude API triggers.
 	case code == http.StatusBadRequest && strings.HasSuffix(op, "/pipeline"):
-		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
+		sentinel = forge.ErrRefused
 	case code == http.StatusUnauthorized, code == http.StatusForbidden:
 		sentinel = forge.ErrUnauthorized
 	case code == http.StatusNotFound:
@@ -293,11 +320,14 @@ func statusError(op string, code int, msg string) error {
 		sentinel = forge.ErrHeadChanged
 	case code == http.StatusMethodNotAllowed, code == http.StatusNotAcceptable,
 		code == http.StatusConflict, code == http.StatusUnprocessableEntity:
-		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
+		sentinel = forge.ErrRefused
 	default:
 		return fmt.Errorf("%s: %d: %s", op, code, msg)
 	}
-	return fmt.Errorf("%s: %w", op, sentinel)
+	if msg == "" {
+		return fmt.Errorf("%s: %w", op, sentinel)
+	}
+	return fmt.Errorf("%s: %w: %s", op, sentinel, msg)
 }
 
 // call discards the body when out is nil.

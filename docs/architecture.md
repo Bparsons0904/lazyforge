@@ -83,7 +83,7 @@ A core interface that every adapter implements, plus optional interfaces for fea
 
 ```go
 type Forge interface {
-    Info() HostInfo // kind, URL, version, user, "PR" vs "MR"
+    Info() HostInfo // kind, URL, version, user, "PR" vs "MR", "Actions" vs "Pipelines"
 
     ListRepos(ctx context.Context) ([]domain.Repo, error)
 
@@ -126,7 +126,7 @@ type Labeler interface {
 type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error) }
 type AssetResolver interface { ResolveAsset(repo domain.RepoRef, ref *url.URL) (u *url.URL, ok bool) } // no I/O; ok=false leaves ref to core's resolution against the repo page
 type BranchUpdater interface { UpdateStyles() []UpdateStyle; UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style UpdateStyle) error } // UpdateStyles: merge first; ErrUnsupported for a style it omits
-type WorkflowDispatcher interface { DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error } // workflow is the file name (ignored on GitLab, which runs the project's pipeline); ErrNotFound when the repo or workflow is missing
+type WorkflowDispatcher interface { DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error } // workflow is the file name (ignored on GitLab, which runs the project's pipeline and sends the repo input as RENOVATE_AUTODISCOVER_FILTER, other inputs as is); ErrNotFound when the repo or workflow is missing
 ```
 
 `forge.Can(f, action, repo)` answers whether the UI should enable an action. It checks the capability interface, then `f.Gate`, then `repo.Access`, and the first failure supplies the user-facing `Reason`. `forgetest.Fake` and `forgetest.RunContract` give core and every adapter a shared fake and behavior suite.
@@ -139,12 +139,12 @@ The Gitea / Forgejo column is verified against Forgejo `16.0.5+gitea-1.22.0` (#1
 |---|---|---|---|
 | List repos by activity | `GET /user/repos` (owned, collaborator and team repos; sorted by `updated_at` client-side) | `GET /user/repos?affiliation=owner,collaborator,organization_member&sort=pushed` (sorted by `pushed_at` client-side; `allow_*` merge flags are null here) | `GET /projects?membership=true&archived=false&order_by=last_activity_at&sort=desc`; when `permissions` is null, `GET /projects?membership=true&min_access_level=30&simple=true` marks write (unverified) |
 | List change requests | `GET /repos/{o}/{r}/pulls?state=open` | `GET /repos/{o}/{r}/pulls?state=open` (closed with `merged_at` set is merged) | `GET /projects/:id/merge_requests?state=opened`, with `:id` the encoded full path (`group%2Fsub%2Frepo`) (unverified) |
-| Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` with `Do` (sent explicitly from the repo's `default_merge_style`, because an empty `Do` means `merge`) and `head_commit_id`; a stale head is 409 `head out of date` | `PUT /repos/{o}/{r}/pulls/{n}/merge` with `sha` and `merge_method` (first allowed of merge, squash, rebase from `GET /repos/{o}/{r}`); a stale head is 409 | `PUT /projects/:id/merge_requests/:iid/merge` with `sha` and `squash` (from `squash_option` in `GET /projects/:id`; the method is the project's); a stale head is 409, no permission 401 (unverified) |
+| Merge | `POST /repos/{o}/{r}/pulls/{n}/merge` with `Do` (sent explicitly from the repo's `default_merge_style`, because an empty `Do` means `merge`) and `head_commit_id`; a stale head is 409 `head out of date` | `PUT /repos/{o}/{r}/pulls/{n}/merge` with `sha` and `merge_method` (first allowed of merge, squash, rebase from `GET /repos/{o}/{r}`); a stale head is 409 | `PUT /projects/:id/merge_requests/:iid/merge` with `sha`, and `squash` only when `squash_option` in `GET /projects/:id` is `always` (true) or `never` (false); the method is the project's; a stale head is 409, no permission 401 (unverified) |
 | Update branch | `POST /repos/{o}/{r}/pulls/{n}/update?style=merge\|rebase`; a conflict is 409, no permission 403 | `PUT /repos/{o}/{r}/pulls/{n}/update-branch` (merge only; 202, finishes asynchronously); a conflict or nothing to update is 422 | `PUT /projects/:id/merge_requests/:iid/rebase` (rebase only; 202, finishes asynchronously; 403 and 409 are refusals with GitLab's `message`) |
 | Dispatch workflow | `POST /repos/{o}/{r}/actions/workflows/{file}/dispatches` with `ref` and `inputs`; 204 | `POST /repos/{o}/{r}/actions/workflows/{file}/dispatches` with `ref` and `inputs`; 204 | `POST /projects/:id/pipeline` with `ref` and `variables` (each input an `env_var`); 400 is `ErrRefused` with GitLab's message |
 | Approve | `POST …/pulls/{n}/reviews` (`event: APPROVED`) | `POST …/pulls/{n}/reviews` (`event: APPROVE`) | `POST /projects/:id/merge_requests/:iid/approve` (unverified) |
 | Changed files | `GET …/pulls/{n}/files` | `GET …/pulls/{n}/files` | `GET /projects/:id/merge_requests/:iid/diffs` |
-| PR CI state | `GET …/commits/{ref}/status` | `GET …/commits/{sha}/check-runs` (paginated) + `GET …/commits/{sha}/status`, folded; a status `total_count: 0` counts as none | `GET /projects/:id/pipelines?order_by=id&sort=desc` (one page of 100) matched on the MR's `sha`, else `head_pipeline` from `GET …/merge_requests/:iid` (unverified) |
+| PR CI state | `GET …/commits/{ref}/status` | `GET …/commits/{sha}/check-runs` (paginated) + `GET …/commits/{sha}/status`, folded; a status `total_count: 0` counts as none | `GET /projects/:id/pipelines?order_by=id&sort=desc` (one page of 100) matched on the MR's `sha` and on `ref` (the MR's `refs/merge-requests/<iid>/head` first, then its source branch), else `head_pipeline` from `GET …/merge_requests/:iid` (unverified) |
 | Issues | `GET …/issues?type=issues` | `GET …/issues` (drop items with a `pull_request` key) | `GET /projects/:id/issues?issue_type=issue` (unverified) |
 | Edit issue body | `PATCH …/issues/{n}` | `PATCH …/issues/{n}` | `PUT /projects/:id/issues/:iid` with `description` (unverified) |
 | Comment | `POST …/issues/{n}/comments` | `POST …/issues/{n}/comments` | `GET` and `POST /projects/:id/issues/:iid/notes` or `…/merge_requests/:iid/notes` (`system` notes dropped) (unverified) |

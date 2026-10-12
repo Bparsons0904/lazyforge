@@ -72,20 +72,21 @@ func TestContract(t *testing.T) {
 
 func TestNewReadsUserAndVersion(t *testing.T) {
 	f, s := newForge(t)
-	want := forge.HostInfo{Kind: forge.KindGitLab, URL: s.URL, Version: "17.5.0-ee", User: "alice", ChangeRequestTerm: "MR"}
+	want := forge.HostInfo{Kind: forge.KindGitLab, URL: s.URL, Version: "17.5.0-ee", User: "alice", ChangeRequestTerm: "MR", RunsTerm: "Pipelines"}
 	if got := f.Info(); got != want {
 		t.Fatalf("info %+v, want %+v", got, want)
 	}
 }
 
-func TestNewAnswersUserThenMetadataWithToken(t *testing.T) {
+func TestNewAnswersUserThenTokenScopeThenMetadataWithToken(t *testing.T) {
 	s := newServer(t)
 	if _, err := gitlab.New(t.Context(), s.webURL(), testToken, s.Client()); err != nil {
 		t.Fatal(err)
 	}
 	reqs := s.requests()
-	if len(reqs) != 2 || !strings.HasSuffix(reqs[0].URI, "/api/v4/user") || !strings.HasSuffix(reqs[1].URI, "/api/v4/metadata") {
-		t.Fatalf("requests %+v, want GET /user then GET /metadata", reqs)
+	if len(reqs) != 3 || !strings.HasSuffix(reqs[0].URI, "/api/v4/user") ||
+		!strings.HasSuffix(reqs[1].URI, "/api/v4/personal_access_tokens/self") || !strings.HasSuffix(reqs[2].URI, "/api/v4/metadata") {
+		t.Fatalf("requests %+v, want GET /user, GET /personal_access_tokens/self, then GET /metadata", reqs)
 	}
 	for _, r := range reqs {
 		if r.Method != http.MethodGet || r.Token != testToken {
@@ -545,7 +546,7 @@ func TestListChangeRequestsFoldsMatchedPipeline(t *testing.T) {
 	for _, tt := range ciCases {
 		t.Run(tt.status, func(t *testing.T) {
 			f, s := newForge(t)
-			s.setPipelines([]obj{{"id": 300, "sha": openHead, "status": tt.status}})
+			s.setPipelines([]obj{{"id": 300, "sha": openHead, "ref": "renovate/example-lib-1.x", "status": tt.status}})
 			crs, err := f.ListChangeRequests(t.Context(), sub, forge.Filter{State: domain.StateOpen})
 			if err != nil {
 				t.Fatal(err)
@@ -617,12 +618,16 @@ func TestListChangeRequestsToleratesUnavailablePipelines(t *testing.T) {
 			if err != nil {
 				t.Fatalf("got %v, want the list to survive a %d on pipelines", err, status)
 			}
-			ci := map[int]domain.CIState{}
-			for _, c := range crs {
-				ci[c.Number] = c.CI
+			if len(crs) != 2 {
+				t.Fatalf("change requests %+v, want both MRs", crs)
 			}
-			if len(crs) != 2 || ci[draftMR] != domain.CIFail {
-				t.Errorf("change requests %+v, want both MRs with #8's CI from its head_pipeline fallback", crs)
+			for _, c := range crs {
+				if c.CI != domain.CINone {
+					t.Errorf("#%d CI %v, want CINone: the pipelines listing was unavailable", c.Number, c.CI)
+				}
+			}
+			if gets := s.requestsTo(http.MethodGet, "/merge_requests/"); len(gets) != 0 {
+				t.Errorf("per-MR GETs %+v, want none after a %d on the pipelines listing", gets, status)
 			}
 		})
 	}
@@ -666,14 +671,14 @@ func TestMergeSendsConfirmedHeadAndMerges(t *testing.T) {
 	}
 }
 
-func TestMergeSquashFollowsTheProjectSquashOption(t *testing.T) {
+func TestMergeSquashIsSentOnlyWhenTheProjectForcesIt(t *testing.T) {
 	tests := []struct {
 		option string
-		want   bool
+		want   any // nil means the key is absent, so the project's own default applies
 	}{
 		{"always", true},
-		{"default_on", true},
-		{"default_off", false},
+		{"default_on", nil},
+		{"default_off", nil},
 		{"never", false},
 	}
 	for _, tt := range tests {
@@ -687,8 +692,13 @@ func TestMergeSquashFollowsTheProjectSquashOption(t *testing.T) {
 			if len(reqs) != 1 {
 				t.Fatalf("%d merge requests, want 1", len(reqs))
 			}
-			if got, _ := jsonBody(t, reqs[0])["squash"].(bool); got != tt.want {
-				t.Errorf("squash %v, want %v", got, tt.want)
+			body := jsonBody(t, reqs[0])
+			got, has := body["squash"]
+			if has != (tt.want != nil) || (has && got != tt.want) {
+				t.Errorf("squash = %v (present %v), want %v", got, has, tt.want)
+			}
+			if body["sha"] != openHead {
+				t.Errorf("sha = %v, want %s", body["sha"], openHead)
 			}
 		})
 	}
@@ -762,7 +772,7 @@ func TestMergeErrorStatuses(t *testing.T) {
 		{"422", reply{Status: 422, Body: `{"message":"Branch cannot be merged"}`}, forge.ErrRefused, "Branch cannot be merged"},
 		{"object message", reply{Status: 422, Body: `{"message":{"base":["Source branch is invalid"]}}`}, forge.ErrRefused, "Source branch is invalid"},
 		{"409 sha mismatch", reply{Status: 409, Body: `{"message":"SHA does not match HEAD of source branch"}`}, forge.ErrHeadChanged, ""},
-		{"403", reply{Status: 403, Body: `{"message":"403 Forbidden"}`}, forge.ErrUnauthorized, ""},
+		{"403", reply{Status: 403, Body: `{"message":"403 Forbidden"}`}, forge.ErrRefused, "403 Forbidden"},
 		{"404", reply{Status: 404, Body: `{"message":"404 Not found"}`}, forge.ErrNotFound, ""},
 	}
 	for _, tt := range tests {

@@ -89,7 +89,7 @@ func TestSeamTokenOnlyOnOrigin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req, _, err := f.request(context.Background(), http.MethodGet, f.url("/first", nil), nil)
+	req, _, err := f.request(context.Background(), http.MethodGet, f.url("/first", nil), nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}

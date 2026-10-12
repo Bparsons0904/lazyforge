@@ -225,7 +225,7 @@ func (s *server) mrState(iid int) string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, m := range s.mrs {
-		if int(m["iid"].(float64)) == iid {
+		if iidOf(m) == iid {
 			return m["state"].(string)
 		}
 	}
@@ -445,7 +445,7 @@ func (s *server) collection(w http.ResponseWriter, r *http.Request, kind string,
 
 func (s *server) find(list []obj, iid int) obj {
 	for _, o := range list {
-		if int(o["iid"].(float64)) == iid {
+		if iidOf(o) == iid {
 			return o
 		}
 	}
@@ -596,4 +596,12 @@ func writeRaw(w http.ResponseWriter, status int, b []byte) {
 
 func writeFixture(t testing.TB, w http.ResponseWriter, status int, name string) {
 	writeRaw(w, status, readFixture(t, name))
+}
+
+// iidOf reads an iid seeded from JSON (float64) or from a Go literal (int).
+func iidOf(o obj) int {
+	if n, ok := o["iid"].(int); ok {
+		return n
+	}
+	return int(o["iid"].(float64))
 }

@@ -116,7 +116,7 @@ func TestOnboardGitLabSignIn(t *testing.T) {
 		want    string
 	}{
 		{"rejected", fmt.Errorf("connect: %w", forge.ErrUnauthorized), nil, "api"},
-		{"can't list", nil, forge.ErrUnauthorized, "read_api is not enough"},
+		{"can't list", nil, forge.ErrUnauthorized, "can't list projects: it needs the api scope"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			e := newObEnv()
@@ -159,5 +159,39 @@ func TestOnboardGitLabSignInFits80x24(t *testing.T) {
 		if w := lipgloss.Width(l); w > 80 {
 			t.Errorf("%d columns: %q", w, l)
 		}
+	}
+}
+
+func TestSignInErrorSaysAReadOnlyTokenIsReadOnly(t *testing.T) {
+	err := fmt.Errorf("connect to https://gitlab.com: %w: lazyforge needs the api scope", forge.ErrReadOnly)
+	const want = "Signed in, but the token is read-only: lazyforge needs the api scope."
+	for _, listing := range []bool{false, true} {
+		if got := signInError(err, listing, gitlabHelp); got != want {
+			t.Errorf("signInError(listing=%v) = %q, want %q", listing, got, want)
+		}
+	}
+	if strings.Contains(signInError(err, false, gitlabHelp), "rejected") {
+		t.Error("a read-only token must not read as a rejected one")
+	}
+}
+
+func TestGitLabCantListCopyNamesOnlyTheAPIScope(t *testing.T) {
+	const want = "Signed in, but the token can't list projects: it needs the api scope."
+	if gitlabHelp.cantList != want {
+		t.Errorf("gitlabHelp.cantList = %q, want %q", gitlabHelp.cantList, want)
+	}
+	if strings.Contains(gitlabHelp.cantList, "read_api") {
+		t.Errorf("gitlabHelp.cantList = %q must not mention read_api", gitlabHelp.cantList)
+	}
+}
+
+func TestOnboardGitLabShowsReadOnlyCopyWhenConnectIsReadOnly(t *testing.T) {
+	e := newObEnv()
+	e.probeKind, e.connectErr = forge.KindGitLab, fmt.Errorf("connect: %w", forge.ErrReadOnly)
+	o, _ := obKeys(e.toGitLab(t), "enter")
+	o, _ = obKeys(obType(o, "tok"), "enter")
+	flat := strings.Join(strings.Fields(strings.ReplaceAll(strip(o.view(80, 28)), "│", "")), " ")
+	if o.step != stepTest || !strings.Contains(flat, "Signed in, but the token is read-only: lazyforge needs the api scope.") {
+		t.Fatalf("step %d, view lacks the read-only message:\n%s", o.step, flat)
 	}
 }

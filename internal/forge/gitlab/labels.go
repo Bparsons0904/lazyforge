@@ -46,22 +46,22 @@ func (f *Forge) ItemLabels(ctx context.Context, item forge.ItemRef) ([]domain.La
 	if err := f.call(ctx, http.MethodGet, itemPath(item), nil, &it); err != nil {
 		return nil, err
 	}
-	return f.labelsByName(ctx, item.Repo, it.Labels)
+	if len(it.Labels) == 0 {
+		return labelsByName(nil, nil), nil
+	}
+	all, err := f.ListLabels(ctx, item.Repo)
+	if err != nil {
+		return nil, err
+	}
+	return labelsByName(it.Labels, all), nil
 }
 
 type itemLabels struct {
 	Labels []string `json:"labels"`
 }
 
-func (f *Forge) labelsByName(ctx context.Context, r domain.RepoRef, names []string) ([]domain.Label, error) {
+func labelsByName(names []string, all []domain.Label) []domain.Label {
 	out := make([]domain.Label, len(names))
-	if len(names) == 0 {
-		return out, nil
-	}
-	all, err := f.ListLabels(ctx, r)
-	if err != nil {
-		return nil, err
-	}
 	byName := make(map[string]domain.Label, len(all))
 	for _, l := range all {
 		byName[l.Name] = l
@@ -72,16 +72,17 @@ func (f *Forge) labelsByName(ctx context.Context, r domain.RepoRef, names []stri
 			out[i] = l
 		}
 	}
-	return out, nil
+	return out
 }
 
 // SetLabels replaces the whole set and returns the item's labels from the PUT response; nil or empty ids clears
 // it. GitLab takes names and creates any it doesn't know, so an ID missing from the project's labels is an error.
 func (f *Forge) SetLabels(ctx context.Context, item forge.ItemRef, ids []int64) ([]domain.Label, error) {
 	names := make([]string, 0, len(ids))
+	var all []domain.Label
 	if len(ids) > 0 {
-		all, err := f.ListLabels(ctx, item.Repo)
-		if err != nil {
+		var err error
+		if all, err = f.ListLabels(ctx, item.Repo); err != nil {
 			return nil, err
 		}
 		byID := make(map[int64]string, len(all))
@@ -100,5 +101,12 @@ func (f *Forge) SetLabels(ctx context.Context, item forge.ItemRef, ids []int64) 
 	if err := f.call(ctx, http.MethodPut, itemPath(item), map[string]string{"labels": strings.Join(names, ",")}, &it); err != nil {
 		return nil, err
 	}
-	return f.labelsByName(ctx, item.Repo, it.Labels)
+	// Labels a clear left in place still need their IDs.
+	if all == nil && len(it.Labels) > 0 {
+		var err error
+		if all, err = f.ListLabels(ctx, item.Repo); err != nil {
+			return nil, err
+		}
+	}
+	return labelsByName(it.Labels, all), nil
 }

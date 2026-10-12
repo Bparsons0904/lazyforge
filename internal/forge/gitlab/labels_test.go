@@ -231,7 +231,11 @@ func TestSetLabelsRefusedKeepsError(t *testing.T) {
 		}
 		labelsHandler(t, nil)(w, r, path, "")
 	})
-	if _, err := f.SetLabels(t.Context(), rtIssue, []int64{1}); !errors.Is(err, forge.ErrUnauthorized) {
-		t.Fatalf("err = %v, want ErrUnauthorized", err)
+	_, err := f.SetLabels(t.Context(), rtIssue, []int64{1})
+	if !errors.Is(err, forge.ErrRefused) || errors.Is(err, forge.ErrUnauthorized) {
+		t.Fatalf("err = %v, want ErrRefused and not ErrUnauthorized: a 403 on a PUT is a refusal, not a bad token", err)
+	}
+	if !strings.HasSuffix(err.Error(), "403 Forbidden") {
+		t.Errorf("err %q does not end with GitLab's message", err)
 	}
 }

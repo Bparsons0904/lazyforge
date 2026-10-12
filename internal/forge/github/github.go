@@ -72,7 +72,7 @@ func New(ctx context.Context, webURL, token string, hc *http.Client) (*Forge, er
 		}
 		version = m.InstalledVersion
 	}
-	f.info = forge.HostInfo{Kind: forge.KindGitHub, URL: f.web, Version: version, User: u.Login, ChangeRequestTerm: "PR"}
+	f.info = forge.HostInfo{Kind: forge.KindGitHub, URL: f.web, Version: version, User: u.Login, ChangeRequestTerm: "PR", RunsTerm: "Actions"}
 	return f, nil
 }
 
