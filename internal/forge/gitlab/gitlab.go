@@ -37,11 +37,12 @@ type Forge struct {
 }
 
 var (
-	_ forge.Forge     = (*Forge)(nil)
-	_ forge.Approver  = (*Forge)(nil)
-	_ forge.RunLister = (*Forge)(nil)
-	_ forge.LogReader = (*Forge)(nil)
-	_ forge.Labeler   = (*Forge)(nil)
+	_ forge.Forge              = (*Forge)(nil)
+	_ forge.Approver           = (*Forge)(nil)
+	_ forge.RunLister          = (*Forge)(nil)
+	_ forge.LogReader          = (*Forge)(nil)
+	_ forge.Labeler            = (*Forge)(nil)
+	_ forge.WorkflowDispatcher = (*Forge)(nil)
 )
 
 // retryWait is the pause before the single 429 retry; it returns ctx.Err() if ctx ends first.
@@ -278,6 +279,9 @@ func statusError(op string, code int, msg string) error {
 		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
 	// A 403 on rebase is branch protection or no push access, which the status bar should explain.
 	case code == http.StatusForbidden && strings.HasSuffix(op, "/rebase"):
+		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
+	// A 400 on pipeline creation carries why GitLab will not run it, such as rules that exclude API triggers.
+	case code == http.StatusBadRequest && strings.HasSuffix(op, "/pipeline"):
 		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
 	case code == http.StatusUnauthorized, code == http.StatusForbidden:
 		sentinel = forge.ErrUnauthorized

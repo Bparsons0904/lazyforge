@@ -6,6 +6,7 @@ import (
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/config"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 )
 
 func TestOnboardWorkflowFieldTakesTabFocus(t *testing.T) {
@@ -151,5 +152,84 @@ func TestOnboardEditClearedWorkflowSavesEmpty(t *testing.T) {
 	}
 	if done.f == nil || done.host.RenovateWorkflow != "" {
 		t.Errorf("saved workflow %q, want it cleared", done.host.RenovateWorkflow)
+	}
+}
+
+// gitlabRenovateStep walks an edit of a GitLab host to the Renovate step.
+func gitlabRenovateStep(t *testing.T) onboarding {
+	t.Helper()
+	e := newObEnv()
+	e.probeKind = forge.KindGitLab
+	o := e.start(onboardStart{edit: "home", host: config.Host{Type: "gitlab", URL: "https://gl.example", Token: "tok"}})
+	o, _ = obKeys(o, "enter", "enter", "enter")
+	if o.step != stepRenovate {
+		t.Fatalf("not on the Renovate step: %d err %q", o.step, o.err)
+	}
+	return o
+}
+
+func TestOnboardGitLabWorkflowRejectsANonPath(t *testing.T) {
+	o := gitlabRenovateStep(t)
+	o, _ = obKeys(o, "tab")
+	o = obType(o, "renovate-runner")
+	o, _ = obKeys(o, "enter")
+	if o.step != stepRenovate {
+		t.Fatalf("a non-path moved on: step %d", o.step)
+	}
+	if want := "Use a project path, for example group/renovate-runner"; o.err != want {
+		t.Errorf("err %q, want %q", o.err, want)
+	}
+}
+
+func TestOnboardGitLabWorkflowRejectsTheForgejoForm(t *testing.T) {
+	o := gitlabRenovateStep(t)
+	o, _ = obKeys(o, "tab")
+	o = obType(o, "deadstyle/forgejo/renovate.yml")
+	o, _ = obKeys(o, "enter")
+	if o.step != stepRenovate || o.err != "Use a project path, for example group/renovate-runner" {
+		t.Errorf("step %d err %q, want the Renovate step with the project-path hint", o.step, o.err)
+	}
+}
+
+func TestOnboardGitLabWorkflowAcceptsASubgroupPath(t *testing.T) {
+	o := gitlabRenovateStep(t)
+	o, _ = obKeys(o, "tab")
+	o = obType(o, "group/sub/renovate-runner")
+	o, out := obKeys(o, "enter", "enter")
+	if o.err != "" {
+		t.Fatalf("err %q, want none for a project path", o.err)
+	}
+	var done onboardDoneMsg
+	for _, m := range out {
+		if d, ok := m.(onboardDoneMsg); ok {
+			done = d
+		}
+	}
+	if done.f == nil || done.host.RenovateWorkflow != "group/sub/renovate-runner" {
+		t.Errorf("saved workflow %q, want group/sub/renovate-runner", done.host.RenovateWorkflow)
+	}
+}
+
+func TestOnboardGitLabRenovateStepDescribesTheProjectPath(t *testing.T) {
+	o := gitlabRenovateStep(t)
+	if got := o.workflow.Placeholder; got != "group/renovate-runner" {
+		t.Errorf("placeholder %q, want group/renovate-runner", got)
+	}
+	out := strings.ToLower(strip(o.view(100, 30)))
+	for _, want := range []string{"project", "pipeline"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("GitLab Renovate step lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "optional repo input") {
+		t.Errorf("GitLab Renovate step still describes a workflow file input:\n%s", out)
+	}
+}
+
+func TestOnboardForgejoRenovateStepKeepsItsPlaceholder(t *testing.T) {
+	e := newObEnv()
+	o, _ := obKeys(obType(e.toSignIn(t), "tok"), "enter", "enter")
+	if got := o.workflow.Placeholder; got != "deadstyle/forgejo/renovate.yml" {
+		t.Errorf("placeholder %q, want deadstyle/forgejo/renovate.yml", got)
 	}
 }

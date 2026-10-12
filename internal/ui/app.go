@@ -348,10 +348,12 @@ func (a *App) openSession(ctx context.Context, name string, f forge.Forge) strin
 	sctx, cancel := context.WithCancel(ctx)
 	live := a.live
 	svc := core.New(f, core.Options{
-		RequireGreenCI:   func(r domain.RepoRef) bool { return live.Load().Hosts[name].RequiresGreenCI(r.String()) },
-		RenovateUser:     live.Load().Hosts[name].RenovateUser,
-		HideRenovate:     !live.Load().Hosts[name].ShowsRenovate(),
-		RenovateWorkflow: func() core.RenovateWorkflow { return renovateWorkflow(live.Load().Hosts[name].RenovateWorkflow) },
+		RequireGreenCI: func(r domain.RepoRef) bool { return live.Load().Hosts[name].RequiresGreenCI(r.String()) },
+		RenovateUser:   live.Load().Hosts[name].RenovateUser,
+		HideRenovate:   !live.Load().Hosts[name].ShowsRenovate(),
+		RenovateWorkflow: func() core.RenovateWorkflow {
+			return renovateWorkflow(live.Load().Hosts[name].Type, live.Load().Hosts[name].RenovateWorkflow)
+		},
 	})
 	a.host, a.session, a.endSession = name, New(sctx, svc), cancel
 	a.session.keys.setHosted(true)
@@ -362,8 +364,8 @@ func (a *App) openSession(ctx context.Context, name string, f forge.Forge) strin
 }
 
 // renovateWorkflow parses a host's renovate_workflow; zero when it is unset or malformed, which hides N.
-func renovateWorkflow(s string) core.RenovateWorkflow {
-	owner, name, file, err := config.SplitWorkflow(s)
+func renovateWorkflow(hostType, s string) core.RenovateWorkflow {
+	owner, name, file, err := config.SplitWorkflow(hostType, s)
 	if err != nil {
 		return core.RenovateWorkflow{}
 	}

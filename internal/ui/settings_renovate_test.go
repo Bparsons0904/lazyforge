@@ -9,6 +9,7 @@ import (
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/config"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 )
 
 var backspace = tea.KeyPressMsg{Code: tea.KeyBackspace}
@@ -84,8 +85,8 @@ func TestSettingsMalformedWorkflowStaysInTheFieldWithTheHint(t *testing.T) {
 	if in.kind != intentNone {
 		t.Fatalf("intent %+v, want none for a malformed workflow", in)
 	}
-	if s.mode != modeInput || s.msg != workflowFormatMsg {
-		t.Fatalf("mode %v msg %q, want the field open with %q", s.mode, s.msg, workflowFormatMsg)
+	if s.mode != modeInput || s.msg != workflowFormatMsg(forge.KindForgejo) {
+		t.Fatalf("mode %v msg %q, want the field open with %q", s.mode, s.msg, workflowFormatMsg(forge.KindForgejo))
 	}
 }
 
@@ -225,5 +226,78 @@ func TestSettingsFieldTakesPaste(t *testing.T) {
 	a = appRun(t, a, tea.PasteMsg{Content: "deadstyle/forgejo/renovate.yml"})
 	if got := a.settings.input.Value(); got != "deadstyle/forgejo/renovate.yml" {
 		t.Fatalf("field holds %q after a paste", got)
+	}
+}
+
+// gitlabSettings returns the settings fixture with a GitLab host "gl" added.
+func gitlabSettings() settingsView {
+	v := settingsFixture()
+	v.cfg.Hosts["gl"] = config.Host{Type: "gitlab", URL: "https://gl"}
+	return v
+}
+
+func TestSettingsGitLabWorkflowSavesAProjectPath(t *testing.T) {
+	v := gitlabSettings()
+	s := editRow(t, v, rowHostWorkflow, "gl")
+	s, _ = typeInto(s, v, "group/sub/renovate-runner")
+	s, in := s.update(keyMsg("enter"), v, defaultKeys())
+	if in.kind != intentChange || in.cfg.Hosts["gl"].RenovateWorkflow != "group/sub/renovate-runner" {
+		t.Fatalf("intent %+v, want the project path saved on host gl", in)
+	}
+	if s.mode != modeList {
+		t.Fatalf("mode %v after saving, want the list", s.mode)
+	}
+}
+
+func TestSettingsGitLabRefusesTheForgejoFormWithAProjectPathHint(t *testing.T) {
+	v := gitlabSettings()
+	s := editRow(t, v, rowHostWorkflow, "gl")
+	s, _ = typeInto(s, v, "deadstyle/forgejo/renovate.yml")
+	s, in := s.update(keyMsg("enter"), v, defaultKeys())
+	if in.kind != intentNone {
+		t.Fatalf("intent %+v, want none: a workflow file is not a GitLab project path", in)
+	}
+	const want = "Use a project path, for example group/renovate-runner"
+	if s.mode != modeInput || s.msg != want {
+		t.Fatalf("mode %v msg %q, want the field open with %q", s.mode, s.msg, want)
+	}
+	if v.cfg.Hosts["gl"].RenovateWorkflow != "" {
+		t.Fatal("config changed by a refused value")
+	}
+}
+
+func TestSettingsGitLabClearingWorkflowStoresEmpty(t *testing.T) {
+	v := gitlabSettings()
+	h := v.cfg.Hosts["gl"]
+	h.RenovateWorkflow = "group/runner"
+	v.cfg.Hosts["gl"] = h
+	s := editRow(t, v, rowHostWorkflow, "gl")
+	for range len(h.RenovateWorkflow) {
+		s, _ = s.update(backspace, v, defaultKeys())
+	}
+	_, in := s.update(keyMsg("enter"), v, defaultKeys())
+	if in.kind != intentChange || in.cfg.Hosts["gl"].RenovateWorkflow != "" {
+		t.Fatalf("intent %+v, want the workflow cleared", in)
+	}
+}
+
+func TestSettingsForgejoStillRefusesAProjectPath(t *testing.T) {
+	v := gitlabSettings()
+	s := editRow(t, v, rowHostWorkflow, "a")
+	s, _ = typeInto(s, v, "group/renovate-runner")
+	s, in := s.update(keyMsg("enter"), v, defaultKeys())
+	const want = "Use owner/repo/file, for example deadstyle/forgejo/renovate.yml"
+	if in.kind != intentNone || s.mode != modeInput || s.msg != want {
+		t.Fatalf("intent %+v mode %v msg %q, want the field open with %q", in, s.mode, s.msg, want)
+	}
+}
+
+func TestSettingsWorkflowEditorPlaceholderFollowsTheHostType(t *testing.T) {
+	v := gitlabSettings()
+	for host, want := range map[string]string{"gl": "group/renovate-runner", "a": "deadstyle/forgejo/renovate.yml"} {
+		s := editRow(t, v, rowHostWorkflow, host)
+		if got := s.input.Placeholder; got != want {
+			t.Errorf("host %s placeholder %q, want %q", host, got, want)
+		}
 	}
 }

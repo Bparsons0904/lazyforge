@@ -217,20 +217,75 @@ func TestLoadRunsValidate(t *testing.T) {
 }
 
 func TestSplitWorkflow(t *testing.T) {
-	owner, repo, file, err := config.SplitWorkflow("deadstyle/forgejo/renovate.yml")
-	if err != nil || owner != "deadstyle" || repo != "forgejo" || file != "renovate.yml" {
-		t.Fatalf("got (%q, %q, %q, %v), want deadstyle, forgejo, renovate.yml, nil", owner, repo, file, err)
+	for _, hostType := range []string{"forgejo", "gitea", "github", ""} {
+		t.Run("owner/repo/file on "+hostType, func(t *testing.T) {
+			owner, repo, file, err := config.SplitWorkflow(hostType, "deadstyle/forgejo/renovate.yml")
+			if err != nil || owner != "deadstyle" || repo != "forgejo" || file != "renovate.yml" {
+				t.Fatalf("got (%q, %q, %q, %v), want deadstyle, forgejo, renovate.yml, nil", owner, repo, file, err)
+			}
+			for _, in := range []string{
+				"", "deadstyle/forgejo", "deadstyle//renovate.yml", "/forgejo/renovate.yml", "deadstyle/forgejo/", "a/b/c/d.yml",
+				"deadstyle/ forgejo/renovate.yml", "dead style/forgejo/renovate.yml", "deadstyle/forgejo/renovate .yml",
+				" deadstyle/forgejo/renovate.yml", "deadstyle/forgejo/renovate.yml ", "deadstyle/forgejo/renovate\tyml",
+			} {
+				_, _, _, err := config.SplitWorkflow(hostType, in)
+				want := fmt.Sprintf("%q must be owner/repo/file, for example deadstyle/forgejo/renovate.yml", in)
+				if err == nil || err.Error() != want {
+					t.Errorf("SplitWorkflow(%q, %q) err = %v, want %s", hostType, in, err, want)
+				}
+			}
+		})
 	}
+}
+
+func TestSplitWorkflowGitLabAcceptsProjectPaths(t *testing.T) {
+	tests := []struct{ in, owner, repo string }{
+		{"group/renovate-runner", "group", "renovate-runner"},
+		{"group/sub/renovate-runner", "group/sub", "renovate-runner"},
+		{"a/b/c/d/runner", "a/b/c/d", "runner"},
+		{"group/yml", "group", "yml"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			owner, repo, file, err := config.SplitWorkflow("gitlab", tt.in)
+			if err != nil || owner != tt.owner || repo != tt.repo || file != "" {
+				t.Fatalf("got (%q, %q, %q, %v), want (%q, %q, \"\", nil)", owner, repo, file, err, tt.owner, tt.repo)
+			}
+		})
+	}
+}
+
+func TestSplitWorkflowGitLabRefusesWhatIsNotAProjectPath(t *testing.T) {
 	for _, in := range []string{
-		"", "deadstyle/forgejo", "deadstyle//renovate.yml", "/forgejo/renovate.yml", "deadstyle/forgejo/", "a/b/c/d.yml",
-		"deadstyle/ forgejo/renovate.yml", "dead style/forgejo/renovate.yml", "deadstyle/forgejo/renovate .yml",
-		" deadstyle/forgejo/renovate.yml", "deadstyle/forgejo/renovate.yml ", "deadstyle/forgejo/renovate\tyml",
+		"", "renovate-runner", "group/", "/runner", "group//runner", "group/ runner", " group/runner",
+		"group/runner ", "group/run\tner", "group/runner/renovate.yml", "group/runner/renovate.yaml",
+		"group/runner/renovate.YAML", "group/runner/Renovate.YML", "group/renovate.yml",
 	} {
-		_, _, _, err := config.SplitWorkflow(in)
-		want := fmt.Sprintf("%q must be owner/repo/file, for example deadstyle/forgejo/renovate.yml", in)
+		_, _, _, err := config.SplitWorkflow("gitlab", in)
+		want := fmt.Sprintf("%q must be a project path, for example group/renovate-runner", in)
 		if err == nil || err.Error() != want {
-			t.Errorf("SplitWorkflow(%q) err = %v, want %s", in, err, want)
+			t.Errorf("SplitWorkflow(gitlab, %q) err = %v, want %s", in, err, want)
 		}
+	}
+}
+
+func TestLoadRenovateWorkflowOnGitLab(t *testing.T) {
+	const head = "[hosts.gl]\ntype = \"gitlab\"\ntoken_cmd = \"t\"\n"
+	good := writeFile(t, head+"renovate_workflow = \"group/sub/renovate-runner\"\n", 0o600)
+	c, err := config.Load(good)
+	if err != nil {
+		t.Fatalf("a project path on a gitlab host must load: %v", err)
+	}
+	if got := c.Hosts["gl"].RenovateWorkflow; got != "group/sub/renovate-runner" {
+		t.Errorf("RenovateWorkflow = %q, want group/sub/renovate-runner", got)
+	}
+	bad := writeFile(t, head+"renovate_workflow = \"deadstyle/forgejo/renovate.yml\"\n", 0o600)
+	if _, err := config.Load(bad); err == nil || !strings.Contains(err.Error(), "hosts.gl.renovate_workflow:") {
+		t.Fatalf("err = %v, want hosts.gl.renovate_workflow:", err)
+	}
+	unset := writeFile(t, head, 0o600)
+	if _, err := config.Load(unset); err != nil {
+		t.Fatalf("an unset renovate_workflow on gitlab must load: %v", err)
 	}
 }
 

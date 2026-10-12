@@ -208,7 +208,19 @@ func newOnboarding(ctx context.Context, connect func(context.Context, config.Hos
 	return o
 }
 
-const workflowFormatMsg = "Use owner/repo/file, for example deadstyle/forgejo/renovate.yml"
+func workflowFormatMsg(k forge.Kind) string {
+	if k == forge.KindGitLab {
+		return "Use a project path, for example group/renovate-runner"
+	}
+	return "Use owner/repo/file, for example deadstyle/forgejo/renovate.yml"
+}
+
+func workflowPlaceholder(k forge.Kind) string {
+	if k == forge.KindGitLab {
+		return "group/renovate-runner"
+	}
+	return "deadstyle/forgejo/renovate.yml"
+}
 
 func newInput(placeholder string) textinput.Model {
 	in := textinput.New()
@@ -312,6 +324,7 @@ func (o onboarding) enter(s onboardStep) (onboarding, tea.Cmd) {
 		return o.test()
 	case stepRenovate:
 		focus := o.setWorkflowFocus(false)
+		o.workflow.Placeholder = workflowPlaceholder(o.kind)
 		if o.renovateDone {
 			return o, focus
 		}
@@ -356,8 +369,8 @@ func (o onboarding) submit() (onboarding, tea.Cmd) {
 		return o.enter(stepTest)
 	case stepRenovate:
 		if w := strings.TrimSpace(o.workflow.Value()); w != "" {
-			if _, _, _, err := config.SplitWorkflow(w); err != nil {
-				o.err = workflowFormatMsg
+			if _, _, _, err := config.SplitWorkflow(string(o.kind), w); err != nil {
+				o.err = workflowFormatMsg(o.kind)
 				return o, nil
 			}
 		}
@@ -662,11 +675,19 @@ func (o onboarding) view(w, h int) string {
 		}
 	case stepRenovate:
 		title = "Renovate"
-		lines = []string{
-			"Renovate bot username, used to find its " + o.term() + "s. Leave it blank to skip.", "", o.renovate.View(), "",
+		workflowHelp := []string{
 			"Workflow that runs Renovate, as owner/repo/file. N (run Renovate now) starts it; leave it blank to hide N.",
-			"For a one-repo run it needs an optional repo input (README: Run Renovate now).", o.workflow.View(),
+			"For a one-repo run it needs an optional repo input (README: Run Renovate now).",
 		}
+		if o.kind == forge.KindGitLab {
+			workflowHelp = []string{
+				"The Renovate project's path. N (run Renovate now) runs its pipeline; leave it blank to hide N.",
+				"A one-repo run sets the CI variable RENOVATE_AUTODISCOVER_FILTER (README: Run Renovate now).",
+			}
+		}
+		lines = append([]string{
+			"Renovate bot username, used to find its " + o.term() + "s. Leave it blank to skip.", "", o.renovate.View(), "",
+		}, append(workflowHelp, o.workflow.View())...)
 	case stepName:
 		title = "Name"
 		lines = []string{"A short name for this host", "", o.name.View()}

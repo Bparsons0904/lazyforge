@@ -169,6 +169,6 @@ type BranchUpdater interface {
 
 // WorkflowDispatcher is optional: callers detect it with a type assertion.
 type WorkflowDispatcher interface {
-	// DispatchWorkflow starts workflow, a file in r's workflows directory, on ref with inputs (nil for none); ErrNotFound when r or workflow is missing.
+	// DispatchWorkflow starts workflow, a file in r's workflows directory, on ref with inputs (nil for none), or on GitLab r's pipeline with inputs as CI variables; ErrNotFound when r or workflow is missing.
 	DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error
 }

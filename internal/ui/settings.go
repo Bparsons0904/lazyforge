@@ -12,6 +12,7 @@ import (
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/config"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
 
@@ -262,7 +263,7 @@ func (s settings) activate(msg tea.KeyPressMsg, r settingsRow, v settingsView, k
 func (s settings) startEdit(r settingsRow, v settingsView) settings {
 	h := v.cfg.Hosts[r.host]
 	if r.kind == rowHostWorkflow {
-		s.input = newInput("deadstyle/forgejo/renovate.yml")
+		s.input = newInput(workflowPlaceholder(forge.Kind(h.Type)))
 		s.input.SetValue(h.RenovateWorkflow)
 	} else {
 		s.input = newInput("renovate-bot")
@@ -289,8 +290,8 @@ func (s settings) commit(r settingsRow, v settingsView) (settings, settingsInten
 	val := strings.TrimSpace(s.input.Value())
 	h := v.cfg.Hosts[r.host]
 	if r.kind == rowHostWorkflow {
-		if _, _, _, err := config.SplitWorkflow(val); val != "" && err != nil {
-			s.msg = workflowFormatMsg
+		if _, _, _, err := config.SplitWorkflow(h.Type, val); val != "" && err != nil {
+			s.msg = workflowFormatMsg(forge.Kind(h.Type))
 			return s, settingsIntent{}
 		}
 		h.RenovateWorkflow = val

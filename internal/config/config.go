@@ -47,7 +47,7 @@ type Host struct {
 	TokenCmd         string                  `toml:"token_cmd,omitempty"`
 	Token            string                  `toml:"token,omitempty"`
 	RenovateUser     string                  `toml:"renovate_user,omitempty"`
-	RenovateWorkflow string                  `toml:"renovate_workflow,omitempty"` // "owner/repo/file.yml"; "" hides N
+	RenovateWorkflow string                  `toml:"renovate_workflow,omitempty"` // "owner/repo/file.yml", a project path on GitLab; "" hides N
 	Renovate         *bool                   `toml:"renovate,omitempty"`          // nil = on when renovate_user is set
 	RequireGreenCI   bool                    `toml:"require_green_ci,omitempty"`
 	Repos            map[string]RepoSettings `toml:"repos,omitempty"` // key "owner/name"
@@ -153,7 +153,7 @@ func (c Config) Validate() error {
 			errs = append(errs, fmt.Errorf("%s.token: set exactly one of token or token_cmd", p))
 		}
 		if h.RenovateWorkflow != "" {
-			if _, _, _, err := SplitWorkflow(h.RenovateWorkflow); err != nil {
+			if _, _, _, err := SplitWorkflow(h.Type, h.RenovateWorkflow); err != nil {
 				errs = append(errs, fmt.Errorf("%s.renovate_workflow: %w", p, err))
 			}
 		}
@@ -161,14 +161,27 @@ func (c Config) Validate() error {
 	return errors.Join(errs...)
 }
 
-// SplitWorkflow rejects anything but three non-empty parts with no whitespace, so a typo fails at load
-// instead of silently hiding N.
-func SplitWorkflow(s string) (owner, repo, file string, err error) {
+// SplitWorkflow rejects anything but three non-empty parts with no whitespace (on GitLab, a project path
+// that names no file), so a typo fails at load instead of silently hiding N.
+func SplitWorkflow(hostType, s string) (owner, repo, file string, err error) {
+	if hostType == "gitlab" {
+		return splitProjectPath(s)
+	}
 	parts := strings.Split(s, "/")
 	if len(parts) != 3 || slices.Contains(parts, "") || strings.ContainsFunc(s, unicode.IsSpace) {
 		return "", "", "", fmt.Errorf("%q must be owner/repo/file, for example deadstyle/forgejo/renovate.yml", s)
 	}
 	return parts[0], parts[1], parts[2], nil
+}
+
+func splitProjectPath(s string) (owner, repo, file string, err error) {
+	parts := strings.Split(s, "/")
+	last := strings.ToLower(parts[len(parts)-1])
+	if len(parts) < 2 || slices.Contains(parts, "") || strings.ContainsFunc(s, unicode.IsSpace) ||
+		strings.HasSuffix(last, ".yml") || strings.HasSuffix(last, ".yaml") {
+		return "", "", "", fmt.Errorf("%q must be a project path, for example group/renovate-runner", s)
+	}
+	return strings.Join(parts[:len(parts)-1], "/"), parts[len(parts)-1], "", nil
 }
 
 func sortedHosts(c Config) []string {

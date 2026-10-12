@@ -199,3 +199,74 @@ func TestRunRenovateWithoutCapabilityMakesNoCall(t *testing.T) {
 		t.Errorf("%d mutations recorded, want none", n)
 	}
 }
+
+var (
+	gitlabRunnerRepo = domain.RepoRef{Owner: "group/sub", Name: "runner"}
+	gitlabAppRepo    = domain.RepoRef{Owner: "group", Name: "app"}
+)
+
+// gitlabRenovate returns a loaded Service on a GitLab-kind fake whose Renovate project is group/sub/runner;
+// a GitLab workflow has no file, so File stays empty.
+func gitlabRenovate(t *testing.T) (*core.Service, *forgetest.Fake) {
+	t.Helper()
+	f := forgetest.NewFake(forge.HostInfo{Kind: forge.KindGitLab, User: "bob"})
+	f.AddRepo(domain.Repo{RepoRef: gitlabRunnerRepo, Access: domain.AccessWrite, DefaultBranch: "trunk"})
+	cfg := core.RenovateWorkflow{Repo: gitlabRunnerRepo}
+	s := core.New(f, core.Options{RenovateWorkflow: func() core.RenovateWorkflow { return cfg }})
+	if _, err := s.Repos(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	return s, f
+}
+
+func TestRunRenovateOnGitLabSendsAutodiscoverFilter(t *testing.T) {
+	s, f := gitlabRenovate(t)
+	if err := s.RunRenovate(context.Background(), gitlabAppRepo); err != nil {
+		t.Fatalf("RunRenovate: %v", err)
+	}
+	ms := f.Mutations()
+	if len(ms) != 1 {
+		t.Fatalf("%d mutations recorded, want one", len(ms))
+	}
+	m := ms[0]
+	if m.Op != "dispatch-workflow" || m.Item.Repo != gitlabRunnerRepo || m.Workflow != "" || m.Ref != "trunk" {
+		t.Errorf("mutation = %+v, want dispatch-workflow on group/sub/runner with no workflow at trunk", m)
+	}
+	if len(m.Inputs) != 1 || m.Inputs["RENOVATE_AUTODISCOVER_FILTER"] != "group/app" {
+		t.Errorf("Inputs = %v, want map[RENOVATE_AUTODISCOVER_FILTER:group/app]", m.Inputs)
+	}
+}
+
+func TestRunRenovateOnGitLabAllReposSendsNoInputs(t *testing.T) {
+	s, f := gitlabRenovate(t)
+	if err := s.RunRenovate(context.Background(), domain.RepoRef{}); err != nil {
+		t.Fatalf("RunRenovate: %v", err)
+	}
+	ms := f.Mutations()
+	if len(ms) != 1 || len(ms[0].Inputs) != 0 {
+		t.Errorf("mutations = %+v, want one dispatch with no inputs, not an empty filter", ms)
+	}
+}
+
+func TestCanRunRenovateOnGitLabWithoutFileIsOK(t *testing.T) {
+	s, _ := gitlabRenovate(t)
+	if got := s.CanRunRenovate(); !got.OK {
+		t.Errorf("CanRunRenovate() = %+v, want OK: an empty File is not an unconfigured workflow", got)
+	}
+}
+
+func TestRunRenovateKeepsRepoInputOnOtherForges(t *testing.T) {
+	for _, kind := range []forge.Kind{forge.KindForgejo, forge.KindGitea, forge.KindGitHub} {
+		t.Run(string(kind), func(t *testing.T) {
+			f := forgetest.NewFake(forge.HostInfo{Kind: kind, User: "bob"})
+			f.AddRepo(domain.Repo{RepoRef: workflowRepo, Access: domain.AccessWrite, DefaultBranch: "main"})
+			if err := loadedRenovate(t, f).RunRenovate(context.Background(), filesRepo); err != nil {
+				t.Fatalf("RunRenovate: %v", err)
+			}
+			ms := f.Mutations()
+			if len(ms) != 1 || len(ms[0].Inputs) != 1 || ms[0].Inputs["repo"] != "deadstyle/files" {
+				t.Errorf("mutations = %+v, want one dispatch with map[repo:deadstyle/files]", ms)
+			}
+		})
+	}
+}

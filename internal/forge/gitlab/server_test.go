@@ -271,7 +271,7 @@ func (s *server) scripted(r *http.Request) (reply, bool) {
 var (
 	reProjects = regexp.MustCompile(`^/projects$`)
 	reProject  = regexp.MustCompile(`^/projects/([^/]+)$`)
-	reColl     = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues|pipelines|releases)$`)
+	reColl     = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues|pipelines|pipeline|releases)$`)
 	reItem     = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues)/(\d+)$`)
 	reMRAction = regexp.MustCompile(`^/projects/([^/]+)/merge_requests/(\d+)/(merge|approve|rebase)$`)
 	reUpload   = regexp.MustCompile(`^/projects/([^/]+)/uploads/([^/]+)/([^/]+)$`)
@@ -406,6 +406,10 @@ func (s *server) project(seg string) obj {
 func (s *server) notFound(w http.ResponseWriter) { writeFixture(s.t, w, 404, "error_404.json") }
 
 func (s *server) collection(w http.ResponseWriter, r *http.Request, kind string, _ []byte) {
+	if kind == "pipeline" && r.Method == http.MethodPost {
+		writeRaw(w, 201, readFixture(s.t, "pipeline_created.json"))
+		return
+	}
 	if r.Method != http.MethodGet {
 		s.notFound(w)
 		return

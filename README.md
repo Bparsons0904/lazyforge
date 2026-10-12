@@ -72,7 +72,7 @@ Run `lazyforge` without `-demo`. With no config file, first-run onboarding walks
 
 1. Choosing Forgejo, Gitea, GitHub or GitLab and entering your server address (pre-filled with `https://github.com` for GitHub and `https://gitlab.com` for GitLab).
 2. Pasting an access token or supplying a command that prints one, then testing the connection.
-3. Setting the Renovate bot username (leave blank to skip), an optional Renovate workflow as `owner/repo/file` (leave blank to hide `N`, which runs Renovate now), and a short host name.
+3. Setting the Renovate bot username (leave blank to skip), an optional Renovate workflow as `owner/repo/file`, or the Renovate project's path on GitLab (leave blank to hide `N`, which runs Renovate now), and a short host name.
 
 On Forgejo or Gitea, create a token at your server's `/user/settings/applications` page with `read:user`, `write:repository` and `write:issue`, as shown in onboarding. These cover sign-in, repositories, PRs, CI, issues and the actions above.
 
@@ -123,6 +123,8 @@ jobs:
 ```
 
 The snippet shows only the parts `N` relies on; keep your own container image, token and `RENOVATE_*` settings.
+
+On GitLab, set `renovate_workflow` to the path of the project that runs Renovate, for example `renovate_workflow = "group/renovate-runner"`. `N` then runs that project's pipeline on its default branch. You need Developer access or higher on that project, and a token with the `api` scope. A run for one repo sets the CI variable `RENOVATE_AUTODISCOVER_FILTER` to `group/project`, which Renovate reads from the environment, so the pipeline needs no change. The pipeline's rules must allow a pipeline started through the API (`$CI_PIPELINE_SOURCE == "api"`); otherwise GitLab refuses and lazyforge shows its message.
 
 ## Keys
 

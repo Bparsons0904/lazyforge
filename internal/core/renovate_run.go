@@ -11,6 +11,7 @@ import (
 )
 
 // RenovateWorkflow names the workflow that runs Renovate for the host: File in Repo's workflows directory.
+// On GitLab Repo is the Renovate project and File is empty.
 type RenovateWorkflow struct {
 	Repo domain.RepoRef
 	File string
@@ -34,13 +35,17 @@ func (s *Service) CanRunRenovate() forge.Availability {
 }
 
 // RunRenovate dispatches the Renovate workflow on its repo's default branch; a zero only runs it for every repo;
-// otherwise the dispatch sends only as the workflow's repo input. It makes no forge call when the run can't work.
+// otherwise the dispatch sends only as the workflow's repo input (CI variable RENOVATE_AUTODISCOVER_FILTER on GitLab). It makes no forge call when the run can't work.
 func (s *Service) RunRenovate(ctx context.Context, only domain.RepoRef) error {
 	what := "run Renovate for all repos"
 	var inputs map[string]string
 	if only != (domain.RepoRef{}) {
 		what = "run Renovate for " + only.String()
-		inputs = map[string]string{"repo": only.String()}
+		key := "repo"
+		if s.f.Info().Kind == forge.KindGitLab {
+			key = "RENOVATE_AUTODISCOVER_FILTER"
+		}
+		inputs = map[string]string{key: only.String()}
 	}
 	w := s.workflow()
 	d, ok := s.f.(forge.WorkflowDispatcher)

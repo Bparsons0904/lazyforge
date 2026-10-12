@@ -56,7 +56,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 
    On GitLab the page is `<url>/-/user_settings/personal_access_tokens`, and the token needs the one scope `api`: repos, MRs, pipelines, merging, approving and closing MRs, issues, comments, labels, Renovate dashboard ticks and running Renovate. `read_api` is not enough, and a failure names the `api` scope.
 5. **Connection test:** shows "Signed in as *name* · *N* repositories". On failure it says why (bad token, missing permission, server unreachable) and stays on the step until it's fixed.
-6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip. Below it, an optional field takes the workflow that runs Renovate, as `owner/repo/file`; Tab moves between the two fields. Leave it blank to hide `N`.
+6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip. Below it, an optional field takes the workflow that runs Renovate, as `owner/repo/file` (on GitLab, the Renovate project's path, such as `group/renovate-runner`); Tab moves between the two fields. Leave it blank to hide `N`.
 7. **Name and save:** a short name for the host (suggested from the URL). Saving goes straight into the repo list.
 
 ## Settings
@@ -66,7 +66,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 - **Updates:** turn the startup update check on or off.
 - **Splash screen:** turn the startup splash on or off.
 - **Images:** show images inline in the details pane, on by default.
-- **Renovate:** per host, the Renovate bot username and the workflow that `N` runs (blank hides `N`). Enter on a row edits it in place: enter saves, esc cancels, and a workflow that isn't `owner/repo/file` is refused with the format hint. A workflow change applies at once; a new bot username applies the next time you connect to that host.
+- **Renovate:** per host, the Renovate bot username and the workflow that `N` runs (blank hides `N`). Enter on a row edits it in place: enter saves, esc cancels, and a workflow that isn't `owner/repo/file` is refused with the format hint (on GitLab, a value that isn't a project path is refused with that hint). A workflow change applies at once; a new bot username applies the next time you connect to that host.
 - **Merging:** "only merge when CI is green" per host, with a per-repo override.
 - The host picker has a **+ Add host** entry, which opens the same flow.
 - Settings are saved to the config file right away. There's no separate save step.
@@ -121,7 +121,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 | `space` | Mark a PR for bulk actions, or tick a Renovate dashboard entry |
 | `m` | Merge: the marked PRs, the current PR, or every PR in an update group (`[2]` of ★ Renovate) |
 | `u` | Update the current PR with the latest target branch: a dialog asks whether to merge it in or rebase onto it (GitHub offers merge only, GitLab rebase only). On a row in `[2]` Updates by dependency it updates every open PR in that group. Needs repository write access. |
-| `N` | Run Renovate now: a dialog asks whether to run it for this repo or for all repos. Needs a `renovate_workflow` for the host and write access to its repo. |
+| `N` | Run Renovate now: a dialog asks whether to run it for this repo or for all repos. Needs a `renovate_workflow` for the host and write access to its repo. On GitLab it runs the Renovate project's pipeline. |
 | `a` | Approve |
 | `x` | Close a PR or issue |
 | `c` | Comment (opens `$EDITOR`) |
@@ -149,7 +149,7 @@ Updating a PR (`u`) asks how to bring in the latest target branch: merge or reba
 - **Package, versions and bump type:** parsed from the table in the Renovate PR body. If parsing fails, the PR still shows with its plain title.
 - **Grouping by dependency:** the key is ecosystem + package + target version, so `actions/checkout` v3 → v7 and v4 → v7 share a row (the row shows the starting versions). PRs whose body can't be parsed stay out of groups but still appear in `[3]`.
 - **Batched PRs:** a PR that carries several packages (such as "Go non-major") gets its own row in Updates by dependency and always merges whole. Merging one package never merges others as a side effect.
-- **Running Renovate now (`N`):** starts the workflow named by the host's `renovate_workflow` on its default branch. A run for one repo passes that repo to the workflow as its `repo` input; a run for all repos passes no input. The workflow must declare an optional `repo` input and pass it to Renovate as `RENOVATE_AUTODISCOVER_FILTER` for the one-repo choice to be limited to one repo (the README has a snippet). The status bar confirms the start, or the forge's reason when it refuses.
+- **Running Renovate now (`N`):** starts the workflow named by the host's `renovate_workflow` on its default branch. A run for one repo passes that repo to the workflow as its `repo` input; a run for all repos passes no input. The workflow must declare an optional `repo` input and pass it to Renovate as `RENOVATE_AUTODISCOVER_FILTER` for the one-repo choice to be limited to one repo (the README has a snippet). On GitLab, `renovate_workflow` is the Renovate project's path (subgroups allowed) and `N` starts that project's pipeline on its default branch; a run for one repo passes the repo as the CI variable `RENOVATE_AUTODISCOVER_FILTER`, so the pipeline needs no change, and a run for all repos passes none. The status bar confirms the start, or the forge's reason when it refuses.
 - **Ticking dashboard entries:** done by editing the Dependency Dashboard issue body, changing `- [ ]` to `- [x]`. Renovate acts on the change during its next run.
 
 ## Install and updates
