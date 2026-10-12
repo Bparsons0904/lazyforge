@@ -1,0 +1,28 @@
+[
+  {
+    "id": "7b5c3a1e9d8f6a4b2c0e1f3a5b7c9d1e3f5a7b9c",
+    "short_id": "7b5c3a1e",
+    "title": "Merge branch 'fix-typo' into 'main'",
+    "message": "Merge branch 'fix-typo' into 'main'\n\nSee merge request group/sub/repo!12\n",
+    "author_name": "Alice Example",
+    "author_email": "alice@example.com",
+    "authored_date": "2026-10-01T10:00:00.000+00:00",
+    "committer_name": "GitLab",
+    "committed_date": "2026-10-01T10:05:00.000+00:00",
+    "parent_ids": ["3c1a5b7d9e0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c"],
+    "web_url": "https://gitlab.example.com/group/sub/repo/-/commit/7b5c3a1e9d8f6a4b2c0e1f3a5b7c9d1e3f5a7b9c"
+  },
+  {
+    "id": "3c1a5b7d9e0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c",
+    "short_id": "3c1a5b7d",
+    "title": "Fix the typo in the intro",
+    "message": "Fix the typo in the intro\n",
+    "author_name": "Bob Example",
+    "author_email": "bob@example.com",
+    "authored_date": "2026-09-29T16:20:00.000+00:00",
+    "committer_name": "Bob Example",
+    "committed_date": "2026-09-29T16:20:00.000+00:00",
+    "parent_ids": [],
+    "web_url": "https://gitlab.example.com/group/sub/repo/-/commit/3c1a5b7d9e0f2a4c6e8b0d2f4a6c8e0b2d4f6a8c"
+  }
+]

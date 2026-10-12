@@ -1,0 +1,7 @@
+[
+  {"id": "a1d2c3b4e5f60718293a4b5c6d7e8f9012345678", "name": "cmd", "type": "tree", "path": "src/cmd", "mode": "040000"},
+  {"id": "b2e3d4c5f6071829a3b4c5d6e7f8091123456789", "name": "main.go", "type": "blob", "path": "src/main.go", "mode": "100644"},
+  {"id": "c3f4e5d6071829a3b4c5d6e7f809112234567890", "name": "run.sh", "type": "blob", "path": "src/run.sh", "mode": "100755"},
+  {"id": "d4051627384950a1b2c3d4e5f60718293a4b5c6d", "name": "vendored", "type": "commit", "path": "src/vendored", "mode": "160000"},
+  {"id": "e5162738495061b2c3d4e5f6071829a3b4c5d6e7", "name": "pinned", "type": "blob", "path": "src/pinned", "mode": "160000"}
+]

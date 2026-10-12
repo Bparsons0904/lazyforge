@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -157,6 +158,19 @@ func TestPreviewTooLargeByBodyLength(t *testing.T) {
 	got, err := s.Preview(context.Background(), repoA, "", treeFile("grown.txt", 1))
 	if err != nil || !got.TooLarge || got.Binary {
 		t.Errorf("Preview() = %+v, %v; want TooLarge and nil", got, err)
+	}
+}
+
+func TestPreviewTooLargeWhenTheForgeRefusesTheRead(t *testing.T) {
+	f := seeded()
+	f.SetFile(repoA, "big.bin", []byte("a"))
+	f.FailNext(fmt.Errorf("read big.bin: %w", forge.ErrTooLarge))
+	s := core.New(f, core.Options{Now: stepClock()})
+
+	// The listing gave no size, as GitLab's doesn't, so only the forge's ErrTooLarge says the file is over the cap.
+	got, err := s.Preview(context.Background(), repoA, "", treeFile("big.bin", 0))
+	if err != nil || got != (domain.FilePreview{TooLarge: true}) {
+		t.Errorf("Preview() = %+v, %v; want {TooLarge: true} and nil", got, err)
 	}
 }
 

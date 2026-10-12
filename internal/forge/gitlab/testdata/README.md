@@ -24,3 +24,7 @@ The fake server serves them under `/api/v4`. All sources are pages under https:/
 | `merge_409.json` | same (409 `SHA does not match HEAD of source branch`) | none |
 | `merge_422.json` | same (422 `Branch cannot be merged`) | none |
 | `error_object.json` | `rest/troubleshooting/`, validation errors | `message` as a `{field: [errors]}` object, which GitLab sends for validation failures |
+| `repo/file_readme.json` | `repository_files/`, "Get file from repository" | `content` is the base64 of a three-line README; the rest is the docs example trimmed |
+| `repo/branches.json` | `branches/`, "List repository branches" | two branches, one the default; the second's `committed_date` carries a +01:00 offset to exercise the time parse |
+| `repo/commits.json` | `commits/`, "List repository commits" | two commits, newest first; `message` runs past the `title` so the subject line is told apart from the body |
+| `repo/tree_src.json` | `repositories/`, "List repository tree" | five entries for one directory: a `tree`, two `blob`s, a `commit` and a `blob` with mode `160000` (both submodules) |

@@ -65,7 +65,11 @@ var (
 	ErrUnsupported  = errors.New("unsupported")
 	ErrHeadChanged  = errors.New("head changed since confirmation")
 	ErrRefused      = errors.New("refused by the forge") // the forge declined: conflicts, branch protection, required checks
+	ErrTooLarge     = errors.New("file too large")       // TreeReader.ReadFile: the file is over MaxReadSize
 )
+
+// MaxReadSize is the largest file, in bytes, TreeReader.ReadFile must return; over it, an adapter may return ErrTooLarge without downloading.
+const MaxReadSize = 256 << 10
 
 // Forge is the core interface every adapter implements; list methods return every page.
 type Forge interface {
@@ -136,6 +140,7 @@ type TreeReader interface {
 	// ListTree returns the entries of dir ("" is the root) at ref ("" is the default branch), in any order; ErrNotFound when dir or ref is missing or the repo is empty.
 	ListTree(ctx context.Context, r domain.RepoRef, ref, dir string) ([]domain.TreeEntry, error)
 	// ReadFile returns the bytes of the file at path on ref ("" is the default branch); ErrNotFound when the ref or path is missing.
+	// It may return ErrTooLarge for a file over MaxReadSize without downloading it.
 	ReadFile(ctx context.Context, r domain.RepoRef, ref, path string) ([]byte, error)
 }
 
@@ -150,7 +155,7 @@ const (
 
 // BranchUpdater is optional: callers detect it with a type assertion, and core reports ErrUnsupported for an adapter without it.
 type BranchUpdater interface {
-	// UpdateStyles returns the styles UpdateBranch accepts, UpdateMerge first; it does no I/O.
+	// UpdateStyles returns the styles UpdateBranch accepts, UpdateMerge first when supported; it does no I/O.
 	UpdateStyles() []UpdateStyle
 	// UpdateBranch brings change request n up to date with its target branch; ErrUnsupported for a style UpdateStyles omits.
 	UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style UpdateStyle) error

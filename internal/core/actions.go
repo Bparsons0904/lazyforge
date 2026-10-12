@@ -146,7 +146,7 @@ func (s *Service) refresh(ctx context.Context, what string, r domain.RepoRef, n 
 	return cr, nil
 }
 
-// UpdateStyles returns the styles UpdateBranch accepts, merge first; nil when the forge can't update branches.
+// UpdateStyles returns the styles UpdateBranch accepts, UpdateMerge first when supported; nil when the forge can't update branches.
 func (s *Service) UpdateStyles() []forge.UpdateStyle {
 	b, ok := s.f.(forge.BranchUpdater)
 	if !ok {

@@ -16,7 +16,7 @@ import (
 )
 
 // MaxPreviewSize is the largest file a preview reads, in bytes; the listing's size decides before any download.
-const MaxPreviewSize = 256 << 10
+const MaxPreviewSize = forge.MaxReadSize
 
 // Tree fetches the entries of dir ("" is the root) on ref ("" is the default branch), directories first; a missing dir or ref yields none, not an error.
 func (s *Service) Tree(ctx context.Context, r domain.RepoRef, ref, dir string) ([]domain.TreeEntry, error) {
@@ -75,6 +75,9 @@ func (s *Service) Preview(ctx context.Context, r domain.RepoRef, ref string, e d
 				return []domain.FilePreview{{TooLarge: true}}, nil
 			}
 			b, err := tr.ReadFile(ctx, r, ref, e.Path)
+			if errors.Is(err, forge.ErrTooLarge) {
+				return []domain.FilePreview{{TooLarge: true}}, nil
+			}
 			if err != nil {
 				return nil, err
 			}

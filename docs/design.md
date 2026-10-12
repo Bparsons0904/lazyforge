@@ -120,7 +120,7 @@ Its job is to show at a glance which repos have Renovate updates waiting, how ma
 | `ctrl-d` / `ctrl-u` | Half-page scroll in the details pane, or half-page move on the Branches or Files tab |
 | `space` | Mark a PR for bulk actions, or tick a Renovate dashboard entry |
 | `m` | Merge: the marked PRs, the current PR, or every PR in an update group (`[2]` of ★ Renovate) |
-| `u` | Update the current PR with the latest target branch: a dialog asks whether to merge it in or rebase onto it (GitHub offers merge only). On a row in `[2]` Updates by dependency it updates every open PR in that group. Needs repository write access. |
+| `u` | Update the current PR with the latest target branch: a dialog asks whether to merge it in or rebase onto it (GitHub offers merge only, GitLab rebase only). On a row in `[2]` Updates by dependency it updates every open PR in that group. Needs repository write access. |
 | `N` | Run Renovate now: a dialog asks whether to run it for this repo or for all repos. Needs a `renovate_workflow` for the host and write access to its repo. |
 | `a` | Approve |
 | `x` | Close a PR or issue |
@@ -141,7 +141,7 @@ Every merge and close goes through a confirm dialog. The dialog lists the target
 - **"Only merge when CI is green"** is a setting per host, with a per-repo override. When it's on, failing or running CI turns the warning into a refusal. It's off by default.
 - **Bulk merges carry on past a failure.** The dialog then shows a result per PR: merged, refused (for example "changed since you confirmed", or conflicts) or failed. PRs that didn't merge stay marked, so `m` retries just those after lazyforge re-checks them. A PR that changed after you confirmed is never merged unseen.
 
-Updating a PR (`u`) asks how to bring in the latest target branch: merge or rebase, with `j`/`k` to choose and Enter to confirm. GitHub offers merge only. The status bar shows the outcome, or the forge's reason when it refuses (for example a conflict, missing permission, or nothing to update), and the PR is refreshed so its CI reflects the new head.
+Updating a PR (`u`) asks how to bring in the latest target branch: merge or rebase, with `j`/`k` to choose and Enter to confirm. GitHub offers merge only and GitLab rebase only, because its API cannot merge the target branch into an MR. The status bar shows the outcome, or the forge's reason when it refuses (for example a conflict, missing permission, or nothing to update), and the PR is refreshed so its CI reflects the new head.
 
 ## Renovate features
 

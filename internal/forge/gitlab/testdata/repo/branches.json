@@ -1,0 +1,48 @@
+[
+  {
+    "name": "feature/login",
+    "merged": false,
+    "protected": false,
+    "default": false,
+    "developers_can_push": false,
+    "developers_can_merge": false,
+    "can_push": true,
+    "web_url": "https://gitlab.example.com/group/sub/repo/-/tree/feature/login",
+    "commit": {
+      "id": "2f63b7a1c4d5e6f708192a3b4c5d6e7f80910a2b",
+      "short_id": "2f63b7a1",
+      "title": "Add the login form",
+      "message": "Add the login form\n\nValidates on blur.",
+      "author_name": "Bob Example",
+      "author_email": "bob@example.com",
+      "authored_date": "2026-09-30T08:15:00.000+00:00",
+      "committer_name": "Bob Example",
+      "committer_email": "bob@example.com",
+      "committed_date": "2026-09-30T09:15:00.000+01:00",
+      "web_url": "https://gitlab.example.com/group/sub/repo/-/commit/2f63b7a1c4d5e6f708192a3b4c5d6e7f80910a2b"
+    }
+  },
+  {
+    "name": "main",
+    "merged": false,
+    "protected": true,
+    "default": true,
+    "developers_can_push": false,
+    "developers_can_merge": false,
+    "can_push": false,
+    "web_url": "https://gitlab.example.com/group/sub/repo/-/tree/main",
+    "commit": {
+      "id": "7b5c3a1e9d8f6a4b2c0e1f3a5b7c9d1e3f5a7b9c",
+      "short_id": "7b5c3a1e",
+      "title": "Merge branch 'fix-typo' into 'main'",
+      "message": "Merge branch 'fix-typo' into 'main'\n\nSee merge request group/sub/repo!12",
+      "author_name": "Alice Example",
+      "author_email": "alice@example.com",
+      "authored_date": "2026-10-01T10:00:00.000+00:00",
+      "committer_name": "GitLab",
+      "committer_email": "noreply@gitlab.example.com",
+      "committed_date": "2026-10-01T10:05:00.000+00:00",
+      "web_url": "https://gitlab.example.com/group/sub/repo/-/commit/7b5c3a1e9d8f6a4b2c0e1f3a5b7c9d1e3f5a7b9c"
+    }
+  }
+]

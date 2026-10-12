@@ -196,19 +196,31 @@ func RunContract(t *testing.T, newForge func(t *testing.T) (forge.Forge, Fixture
 				t.Errorf("got %v, want ErrNotFound", err)
 			}
 		}},
-		{"UpdateStyles starts with UpdateMerge", func(t *testing.T, f forge.Forge, _ Fixture) {
+		{"UpdateStyles is non-empty, without duplicates, UpdateMerge first when offered", func(t *testing.T, f forge.Forge, _ Fixture) {
 			styles := branchUpdater(t, f).UpdateStyles()
-			if len(styles) == 0 || styles[0] != forge.UpdateMerge {
-				t.Errorf("styles %v, want non-empty with UpdateMerge first", styles)
+			if len(styles) == 0 {
+				t.Fatal("styles empty, want at least one")
+			}
+			if i := slices.Index(styles, forge.UpdateMerge); i > 0 {
+				t.Errorf("styles %v, want UpdateMerge first", styles)
+			}
+			seen := map[forge.UpdateStyle]bool{}
+			for _, s := range styles {
+				if seen[s] {
+					t.Errorf("styles %v list %s twice", styles, s)
+				}
+				seen[s] = true
 			}
 		}},
-		{"UpdateBranch with UpdateMerge on the open change request succeeds", func(t *testing.T, f forge.Forge, fx Fixture) {
-			if err := branchUpdater(t, f).UpdateBranch(ctx, fx.Repo, fx.OpenCR, forge.UpdateMerge); err != nil {
+		{"UpdateBranch with the first style on the open change request succeeds", func(t *testing.T, f forge.Forge, fx Fixture) {
+			bu := branchUpdater(t, f)
+			if err := bu.UpdateBranch(ctx, fx.Repo, fx.OpenCR, bu.UpdateStyles()[0]); err != nil {
 				t.Fatal(err)
 			}
 		}},
 		{"UpdateBranch of a missing number is ErrNotFound", func(t *testing.T, f forge.Forge, fx Fixture) {
-			err := branchUpdater(t, f).UpdateBranch(ctx, fx.Repo, fx.Missing, forge.UpdateMerge)
+			bu := branchUpdater(t, f)
+			err := bu.UpdateBranch(ctx, fx.Repo, fx.Missing, bu.UpdateStyles()[0])
 			if !errors.Is(err, forge.ErrNotFound) {
 				t.Errorf("got %v, want ErrNotFound", err)
 			}

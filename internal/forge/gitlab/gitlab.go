@@ -255,6 +255,9 @@ func statusError(op string, code int, msg string) error {
 	// GitLab answers "you may not merge or approve this" with 401, which is not a bad token.
 	case code == http.StatusUnauthorized && action:
 		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
+	// A 403 on rebase is branch protection or no push access, which the status bar should explain.
+	case code == http.StatusForbidden && strings.HasSuffix(op, "/rebase"):
+		return fmt.Errorf("%s: %w: %s", op, forge.ErrRefused, msg)
 	case code == http.StatusUnauthorized, code == http.StatusForbidden:
 		sentinel = forge.ErrUnauthorized
 	case code == http.StatusNotFound:

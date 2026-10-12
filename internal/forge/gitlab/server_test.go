@@ -262,12 +262,12 @@ func (s *server) scripted(r *http.Request) (reply, bool) {
 }
 
 var (
-	reProjects  = regexp.MustCompile(`^/projects$`)
-	reProject   = regexp.MustCompile(`^/projects/([^/]+)$`)
-	reColl      = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues|pipelines|releases)$`)
-	reItem      = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues)/(\d+)$`)
-	reItemMerge = regexp.MustCompile(`^/projects/([^/]+)/merge_requests/(\d+)/(merge|approve)$`)
-	reNotes     = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues)/(\d+)/notes$`)
+	reProjects = regexp.MustCompile(`^/projects$`)
+	reProject  = regexp.MustCompile(`^/projects/([^/]+)$`)
+	reColl     = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues|pipelines|releases)$`)
+	reItem     = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues)/(\d+)$`)
+	reMRAction = regexp.MustCompile(`^/projects/([^/]+)/merge_requests/(\d+)/(merge|approve|rebase)$`)
+	reNotes    = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues)/(\d+)/notes$`)
 )
 
 func (s *server) route(w http.ResponseWriter, r *http.Request, body []byte) {
@@ -325,13 +325,13 @@ func (s *server) route(w http.ResponseWriter, r *http.Request, body []byte) {
 		s.item(w, r, m[2], iid, body)
 		return
 	}
-	if m := reItemMerge.FindStringSubmatch(p); m != nil {
+	if m := reMRAction.FindStringSubmatch(p); m != nil {
 		if s.project(m[1]) == nil {
 			s.notFound(w)
 			return
 		}
 		iid, _ := strconv.Atoi(m[2])
-		s.mergeOrApprove(w, r, m[3], iid, body)
+		s.mrAction(w, r, m[3], iid, body)
 		return
 	}
 	if m := reNotes.FindStringSubmatch(p); m != nil {
@@ -442,7 +442,7 @@ func (s *server) item(w http.ResponseWriter, r *http.Request, kind string, iid i
 	}
 }
 
-func (s *server) mergeOrApprove(w http.ResponseWriter, r *http.Request, action string, iid int, body []byte) {
+func (s *server) mrAction(w http.ResponseWriter, r *http.Request, action string, iid int, body []byte) {
 	o := s.find(s.mrs, iid)
 	if o == nil {
 		s.notFound(w)
@@ -472,6 +472,12 @@ func (s *server) mergeOrApprove(w http.ResponseWriter, r *http.Request, action s
 			return
 		}
 		writeJSON(w, 201, obj{"iid": iid, "approved_by": []obj{{"user": obj{"username": "alice"}}}})
+	case "rebase":
+		if r.Method != http.MethodPut {
+			s.notFound(w)
+			return
+		}
+		writeJSON(w, 202, obj{"rebase_in_progress": true})
 	}
 }
 
