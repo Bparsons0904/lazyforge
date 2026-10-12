@@ -45,13 +45,13 @@ token = "x"
 			wantSubs: []string{"nope"},
 		},
 		{
-			name: "gitlab has no adapter",
+			name: "gitlab connects through its adapter",
 			config: `[hosts.gl]
 type = "gitlab"
 url = "https://gl.invalid"
 token = "x"
 `,
-			wantSubs: []string{`host "gl"`, `type "gitlab" has no adapter yet`},
+			wantSubs: []string{`host "gl"`, `connect to https://gl.invalid`},
 		},
 		{
 			name: "token_cmd failure hides output",
@@ -176,6 +176,13 @@ func TestProbe(t *testing.T) {
 	signIn.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusUnauthorized) })
 	locked := httptest.NewServer(signIn)
 	t.Cleanup(locked.Close)
+	gl := http.NewServeMux()
+	gl.HandleFunc("GET /api/v4/metadata", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"message":"401 Unauthorized"}`))
+	})
+	gitlabLocked := httptest.NewServer(gl)
+	t.Cleanup(gitlabLocked.Close)
 	closed := httptest.NewServer(http.NotFoundHandler())
 	closed.Close()
 
@@ -188,6 +195,8 @@ func TestProbe(t *testing.T) {
 		wantErr error // nil: no error; errUnreachable: any non-ErrNotFound error; else matched with errors.Is
 	}{
 		{"github", serve(t, githubRoutes), forge.KindGitHub, nil},
+		{"gitlab", serve(t, map[string]string{"GET /api/v4/metadata": `{"version":"17.5.0"}`}), forge.KindGitLab, nil},
+		{"gitlab behind sign-in", gitlabLocked.URL, forge.KindGitLab, nil},
 		{"forgejo", serve(t, forgejoRoutes), forge.KindForgejo, nil},
 		{"gitea", serve(t, map[string]string{"GET /api/v1/version": `{"version":"1.22.0"}`}), forge.KindGitea, nil},
 		{"sign-in only", locked.URL, "", nil},
@@ -241,13 +250,30 @@ func TestProbeConcurrent(t *testing.T) {
 	}
 }
 
-func TestConnectGitlabSkipsTokenCmd(t *testing.T) {
-	marker := filepath.Join(t.TempDir(), "ran")
-	_, err := connect(context.Background(), config.Host{Type: "gitlab", TokenCmd: "touch " + marker})
-	if err == nil || !strings.Contains(err.Error(), `type "gitlab" has no adapter yet`) {
-		t.Fatalf("err = %v", err)
+var gitlabRoutes = map[string]string{
+	"GET /api/v4/user":     `{"username":"gl"}`,
+	"GET /api/v4/metadata": `{"version":"17.5.0"}`,
+}
+
+func TestConnectRoutesGitlab(t *testing.T) {
+	url := serve(t, gitlabRoutes)
+	f, err := connect(context.Background(), config.Host{Type: "gitlab", URL: url, Token: "x"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, statErr := os.Stat(marker); statErr == nil {
-		t.Error("token_cmd ran for an unsupported type")
+	if info := f.Info(); info.Kind != forge.KindGitLab || info.User != "gl" || info.Version != "17.5.0" || info.ChangeRequestTerm != "MR" {
+		t.Errorf("info = %+v; want GitLab as gl with the MR term", info)
+	}
+}
+
+func TestConnectGitlabResolvesTokenCmd(t *testing.T) {
+	url := serve(t, gitlabRoutes)
+	marker := filepath.Join(t.TempDir(), "ran")
+	_, err := connect(context.Background(), config.Host{Type: "gitlab", URL: url, TokenCmd: "touch " + marker + " && echo tok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, statErr := os.Stat(marker); statErr != nil {
+		t.Error("token_cmd did not run for a gitlab host")
 	}
 }

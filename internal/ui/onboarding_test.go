@@ -112,21 +112,23 @@ func TestOnboardForgeType(t *testing.T) {
 	e := newObEnv()
 	o := e.start(onboardStart{})
 	v := obView(o)
-	for _, want := range []string{"GitHub", "GitLab", "coming soon"} {
+	for _, want := range []string{"Forgejo", "Gitea", "GitHub", "GitLab"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("view lacks %q", want)
 		}
 	}
-	for _, line := range strings.Split(v, "\n") {
-		if soon := strings.Contains(line, "coming soon"); strings.Contains(line, "GitHub") && soon || strings.Contains(line, "GitLab") && !soon {
-			t.Errorf("only GitLab should be coming soon: %q", line)
-		}
+	if strings.Contains(v, "coming soon") {
+		t.Errorf("no forge type should be coming soon:\n%s", v)
 	}
-	o, _ = obKeys(o, "j", "down", "j", "j")
-	if o.cursor != 2 {
-		t.Fatalf("cursor %d, want GitHub (2) and never GitLab", o.cursor)
+	o, _ = obKeys(o, "j", "down", "j", "j", "j")
+	if o.cursor != 3 {
+		t.Fatalf("cursor %d, want GitLab (3) as the last row", o.cursor)
 	}
 	o, _ = obKeys(o, "enter")
+	if o.step != stepURL || o.kind != forge.KindGitLab {
+		t.Fatalf("step %d kind %q", o.step, o.kind)
+	}
+	o, _ = obKeys(e.start(onboardStart{}), "j", "j", "enter")
 	if o.step != stepURL || o.kind != forge.KindGitHub {
 		t.Fatalf("step %d kind %q", o.step, o.kind)
 	}
@@ -448,5 +450,26 @@ func TestOnboardLongErrorWrapsToFrameWidth(t *testing.T) {
 		if !strings.Contains(view, word) {
 			t.Fatalf("error text cut off, lacks %q:\n%s", word, view)
 		}
+	}
+}
+
+// Seam: terminology. After sign-in to a host that says MR, the Renovate step never says "PR".
+func TestOnboardRenovateStepUsesHostTerm(t *testing.T) {
+	e := newObEnv()
+	e.f = forgetest.NewFake(forge.HostInfo{Kind: forge.KindGitLab, User: "bob", ChangeRequestTerm: "MR"})
+	e.f.AddRepo(domain.Repo{RepoRef: domain.RepoRef{Owner: "bob", Name: "one"}})
+	o, _ := obKeys(obType(e.toSignIn(t), "tok"), "enter")
+	o, cmd := o.update(keyMsg("enter"), defaultKeys())
+	live := appExec(cmd)
+	if v := obView(o); !strings.Contains(v, "find its MRs") || !strings.Contains(v, "Looking for Renovate MRs…") {
+		t.Fatalf("step text lacks the host term:\n%s", v)
+	}
+	failed, _ := obRun(o, renovateSuggestedMsg{err: errors.New("boom")})
+	if v := obView(failed); !strings.Contains(v, "Couldn't look for Renovate MRs: boom") || wordPR.MatchString(v) {
+		t.Fatalf("error note:\n%s", v)
+	}
+	o, _ = obRun(o, live...)
+	if v := obView(o); !strings.Contains(v, "No Renovate MRs found") || wordPR.MatchString(v) {
+		t.Fatalf("no-result note:\n%s", v)
 	}
 }

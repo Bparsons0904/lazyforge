@@ -20,6 +20,7 @@ import (
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/gitea"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/github"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/gitlab"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/termimg"
 )
@@ -122,7 +123,7 @@ func appDeps(ctx context.Context, configPath, hostName string, noUpdateCheck boo
 // connect errors carry no host name; callers add it.
 func connect(ctx context.Context, h config.Host) (forge.Forge, error) {
 	switch h.Type {
-	case "forgejo", "gitea", "github":
+	case "forgejo", "gitea", "github", "gitlab":
 	default:
 		return nil, fmt.Errorf("type %q has no adapter yet", h.Type)
 	}
@@ -138,6 +139,13 @@ func connect(ctx context.Context, h config.Host) (forge.Forge, error) {
 		}
 		return github.New(ctx, url, token, hc)
 	}
+	if h.Type == "gitlab" {
+		url := h.URL
+		if url == "" {
+			url = "https://gitlab.com" // config allows a gitlab host without a url
+		}
+		return gitlab.New(ctx, url, token, hc)
+	}
 	return gitea.New(ctx, h.URL, token, hc)
 }
 
@@ -149,7 +157,7 @@ func probe(ctx context.Context, url string) (forge.Kind, error) {
 		kind forge.Kind
 		err  error
 	}
-	probes := []func(context.Context, string, *http.Client) (forge.Kind, error){gitea.Probe, github.Probe}
+	probes := []func(context.Context, string, *http.Client) (forge.Kind, error){gitea.Probe, github.Probe, gitlab.Probe}
 	results := make([]result, len(probes))
 	var wg sync.WaitGroup
 	for i, p := range probes {

@@ -43,8 +43,8 @@ Behind the splash, lazyforge is already on the screen it would have opened (onbo
 The first launch, with no config yet, starts onboarding instead of the host picker. Nobody has to write a config file by hand.
 
 1. **Welcome:** one screen explaining what lazyforge is.
-2. **Forge type:** Forgejo, Gitea, GitHub or GitLab. Types without an adapter yet are listed as "coming soon" and can't be selected.
-3. **Address:** the server URL (pre-filled with `github.com` for GitHub). lazyforge checks that the server is reachable and is the chosen forge type.
+2. **Forge type:** Forgejo, Gitea, GitHub or GitLab. A type without an adapter yet would be listed as "coming soon" and can't be selected; none is today.
+3. **Address:** the server URL (pre-filled with `github.com` for GitHub and `gitlab.com` for GitLab; a self-managed address is accepted). lazyforge checks that the server is reachable and is the chosen forge type.
 4. **Sign in:** either paste a token, or give a command that prints one (such as `gh auth token` or a secrets-manager command). The screen links to the page where a token is created (`<url>/user/settings/applications` on Forgejo and Gitea) and lists the permissions it needs:
    - `read:user`: the sign-in check
    - `write:repository`: listing repos, PRs, CI status and runs; merging, approving and closing PRs
@@ -53,6 +53,8 @@ The first launch, with no config yet, starts onboarding instead of the host pick
    On GitHub the page is `<url>/settings/tokens`, and the token is either:
    - a classic token with `repo`: repos, PRs, CI status, merging, approving and closing PRs, issues, comments, labels and Renovate dashboard ticks
    - a fine-grained token with Contents, Pull requests and Issues read/write, plus Actions, Checks and Commit statuses read
+
+   On GitLab the page is `<url>/-/user_settings/personal_access_tokens`, and the token needs the one scope `api`: repos, MRs, pipelines, merging, approving and closing MRs, issues, comments, labels, Renovate dashboard ticks and running Renovate. `read_api` is not enough, and a failure names the `api` scope.
 5. **Connection test:** shows "Signed in as *name* · *N* repositories". On failure it says why (bad token, missing permission, server unreachable) and stays on the step until it's fixed.
 6. **Renovate:** lazyforge looks for existing Renovate PRs and suggests the bot's username. You can confirm it, edit it, or skip. Below it, an optional field takes the workflow that runs Renovate, as `owner/repo/file`; Tab moves between the two fields. Leave it blank to hide `N`.
 7. **Name and save:** a short name for the host (suggested from the URL). Saving goes straight into the repo list.
@@ -178,7 +180,7 @@ Answered by the PM on 2026-10-02 (#13):
 - ★ Renovate view, all five boxes
 - Merge, approve, close, comment (`$EDITOR`), open in browser, refresh, `R` (opens the run page)
 - Bulk merge (marked PRs and update groups), with the CI warning and the "only merge when green" setting
-- Forgejo/Gitea and GitHub adapters (the GitHub adapter ships with the public release, the PM's call in #83)
+- Forgejo/Gitea, GitHub and GitLab adapters (the GitHub adapter ships with the public release, the PM's call in #83; GitLab moved into v1 on 2026-10-12, #137)
 - Install script, release binaries, and the startup update check
 
-After v1: the Files tab with diffs (optionally rendered through `delta`), box `[4]`, the Repo box's Files tab, then the GitLab adapter.
+After v1: the Files tab with diffs (optionally rendered through `delta`), box `[4]`, the Repo box's Files tab.

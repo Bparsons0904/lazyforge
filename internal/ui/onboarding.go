@@ -52,7 +52,7 @@ var forgeRows = []struct {
 	name string
 }{{forge.KindForgejo, "Forgejo"}, {forge.KindGitea, "Gitea"}, {forge.KindGitHub, "GitHub"}, {forge.KindGitLab, "GitLab"}}
 
-const selectableForges = 3 // the leading forgeRows that have an adapter; the rest are "coming soon"
+const selectableForges = 4 // the leading forgeRows that have an adapter; any after are "coming soon"
 
 type scope struct{ name, use string } // name "" continues the previous row's use
 
@@ -96,11 +96,33 @@ var githubHelp = forgeHelp{
 	cantList: "Signed in, but the token can't list repositories: a classic token needs repo; a fine-grained one needs Contents, Pull requests and Issues.",
 }
 
+var gitlabHelp = forgeHelp{
+	addr:      "https://gitlab.com",
+	tokenPath: "/-/user_settings/personal_access_tokens",
+	scopes: []scope{
+		{"api", "repos, MRs, pipelines, merge, approve, close MRs"},
+		{"", "issues, comments, labels, Renovate ticks and runs"},
+	},
+	rejected: "The token was rejected. Check it's valid, not expired, and has the api scope.",
+	cantList: "Signed in, but the token can't list repositories: it needs the api scope (read_api is not enough).",
+}
+
 func helpFor(k forge.Kind) forgeHelp {
-	if k == forge.KindGitHub {
+	switch k {
+	case forge.KindGitHub:
 		return githubHelp
+	case forge.KindGitLab:
+		return gitlabHelp
 	}
 	return giteaHelp
+}
+
+// term is the host's word for a change request; before sign-in succeeds it falls back to "PR".
+func (o onboarding) term() string {
+	if o.f != nil {
+		return o.f.Info().ChangeRequestTerm
+	}
+	return "PR"
 }
 
 var hostNameRE = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -416,9 +438,9 @@ func (o *onboarding) suggested(msg renovateSuggestedMsg) {
 	o.busy, o.renovateDone = false, true
 	switch {
 	case msg.err != nil:
-		o.note = "Couldn't look for Renovate PRs: " + msg.err.Error()
+		o.note = "Couldn't look for Renovate " + o.term() + "s: " + msg.err.Error()
 	case msg.user == "":
-		o.note = "No Renovate PRs found"
+		o.note = "No Renovate " + o.term() + "s found"
 	case !o.renovateTouched:
 		o.renovate.SetValue(msg.user)
 	}
@@ -609,6 +631,13 @@ func (o onboarding) view(w, h int) string {
 				"Using GitHub Enterprise Server? Enter its address.", "", o.addr.View(),
 			}
 		}
+		if o.kind == forge.KindGitLab {
+			title = "GitLab host"
+			lines = []string{
+				"Press enter for gitlab.com.",
+				"Using a self-managed GitLab? Enter its address.", "", o.addr.View(),
+			}
+		}
 	case stepSignIn:
 		title = "Sign in"
 		token, command := "● Paste a token", "○ Command that prints one"
@@ -634,7 +663,7 @@ func (o onboarding) view(w, h int) string {
 	case stepRenovate:
 		title = "Renovate"
 		lines = []string{
-			"Renovate bot username, used to find its PRs. Leave it blank to skip.", "", o.renovate.View(), "",
+			"Renovate bot username, used to find its " + o.term() + "s. Leave it blank to skip.", "", o.renovate.View(), "",
 			"Workflow that runs Renovate, as owner/repo/file. N (run Renovate now) starts it; leave it blank to hide N.",
 			"For a one-repo run it needs an optional repo input (README: Run Renovate now).", o.workflow.View(),
 		}
@@ -667,7 +696,7 @@ func (o onboarding) busyText() string {
 	case stepTest:
 		return "Signing in…"
 	case stepRenovate:
-		return "Looking for Renovate PRs…"
+		return "Looking for Renovate " + o.term() + "s…"
 	case stepName:
 		return "Saving…"
 	}
