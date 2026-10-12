@@ -1,0 +1,6 @@
+[
+  {"id":105,"iid":15,"project_id":11,"sha":"7c1f0b2e9d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"renovate/example-lib-1.x","status":"running","source":"merge_request_event"},
+  {"id":104,"iid":14,"project_id":11,"sha":"ffff1111d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"main","status":"success","source":"push"},
+  {"id":103,"iid":13,"project_id":11,"sha":"7c1f0b2e9d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"renovate/example-lib-1.x","status":"success","source":"push"},
+  {"id":102,"iid":12,"project_id":11,"sha":"5e5e5e5e9d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"docs/changelog","status":"failed","source":"push"}
+]

@@ -1,0 +1,4 @@
+[
+  {"id":404,"type":null,"body":"approved this merge request","author":{"id":1,"username":"alice"},"created_at":"2026-10-10T10:00:00.000Z","system":true},
+  {"id":403,"type":null,"body":"Looks good to me","author":{"id":1,"username":"alice"},"created_at":"2026-10-09T10:00:00.000Z","system":false}
+]

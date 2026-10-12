@@ -1,0 +1,4 @@
+{
+  "7": {"id":105,"iid":15,"project_id":11,"sha":"7c1f0b2e9d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"renovate/example-lib-1.x","status":"running","source":"merge_request_event"},
+  "8": {"id":106,"iid":16,"project_id":11,"sha":"cccc0000d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"refs/merge-requests/8/merge","status":"failed","source":"merge_request_event"}
+}

@@ -1,0 +1,4 @@
+[
+  {"id":11,"name":"repo","path_with_namespace":"group/sub/repo","web_url":"https://gitlab.example.com/group/sub/repo"},
+  {"id":12,"name":"other","path_with_namespace":"group/other","web_url":"https://gitlab.example.com/group/other"}
+]

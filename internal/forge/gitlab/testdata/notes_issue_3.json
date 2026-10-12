@@ -1,0 +1,6 @@
+[
+  {"id":304,"type":null,"body":"Fixed in the next release","author":{"id":1,"username":"alice"},"created_at":"2026-10-04T10:00:00.000Z","system":false},
+  {"id":303,"type":null,"body":"changed the description","author":{"id":1,"username":"alice"},"created_at":"2026-10-03T10:00:00.000Z","system":true},
+  {"id":302,"type":null,"body":"I can reproduce this","author":{"id":1,"username":"alice"},"created_at":"2026-10-02T10:00:00.000Z","system":false},
+  {"id":301,"type":null,"body":"Happens with an empty file","author":{"id":3,"username":"bob"},"created_at":"2026-10-01T10:00:00.000Z","system":false}
+]
