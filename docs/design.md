@@ -79,7 +79,7 @@ The first launch, with no config yet, starts onboarding instead of the host pick
 |---|---|---|
 | `[1]` Pull requests | Open PRs/MRs with CI status. Renovate PRs show `pkg from → to` and a bump label. | Overview · Files · Comments · Checks |
 | `[2]` Issues | Open issues; the Dependency Dashboard is marked ⚙ | Overview · Comments |
-| `[3]` Actions | Recent workflow runs | Overview · Logs |
+| `[3]` Actions (Pipelines on GitLab) | Recent workflow runs | Overview · Logs |
 | `[4]` Renovate | Dependency Dashboard checkbox entries (open, awaiting schedule, rate-limited) | Overview |
 | `[5]` Releases | Releases and tags | Overview |
 | `[6]` Repo | The repo itself | README · Files · Branches |

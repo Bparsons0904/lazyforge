@@ -543,7 +543,7 @@ func (m Model) body() string {
 	case m.level == levelRepos:
 		left = m.repos.view(leftW, bodyH, m.svc, m.info.ChangeRequestTerm, now)
 		if _, ok := m.repos.selected(); ok {
-			right = m.boxes.view(rightW, bodyH, -1, false, m.info.ChangeRequestTerm, now)
+			right = m.boxes.view(rightW, bodyH, -1, false, m.info, now)
 		} else if m.repos.loaded {
 			right = m.star.render(rightW, bodyH, -1, false, m.info.ChangeRequestTerm, now)
 		} else {
@@ -553,7 +553,7 @@ func (m Model) body() string {
 		left = m.star.render(leftW, bodyH, int(m.star.focus), m.level == levelBoxes, m.info.ChangeRequestTerm, now)
 		right = m.details.view(nil, rightW, bodyH, m.level == levelDetails)
 	default:
-		left = m.boxes.view(leftW, bodyH, int(m.boxes.focus), m.level == levelBoxes, m.info.ChangeRequestTerm, now)
+		left = m.boxes.view(leftW, bodyH, int(m.boxes.focus), m.level == levelBoxes, m.info, now)
 		right = m.details.view(m.boxes.selected(), rightW, bodyH, m.level == levelDetails)
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, fitLines(strings.Split(left, "\n"), leftW, bodyH), fitLines(strings.Split(right, "\n"), rightW, bodyH))
@@ -574,7 +574,7 @@ func (m Model) breadcrumb(w int) string {
 	if r, ok := m.repos.selected(); ok {
 		crumbs = append(crumbs, r.String())
 		if m.level != levelRepos {
-			crumbs = append(crumbs, fmt.Sprintf("[%d] %s", m.boxes.focus+1, boxTitle(m.boxes.focus, m.info.ChangeRequestTerm)))
+			crumbs = append(crumbs, fmt.Sprintf("[%d] %s", m.boxes.focus+1, boxTitle(m.boxes.focus, m.info)))
 			if c := itemCrumb(m.boxes.selected()); c != "" {
 				crumbs = append(crumbs, c)
 			}

@@ -9,6 +9,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/ui/style"
 )
 
@@ -154,10 +155,10 @@ func (b boxes) selected() any {
 	}
 }
 
-func boxTitle(k boxKind, term string) string {
+func boxTitle(k boxKind, info forge.HostInfo) string {
 	switch k {
 	case boxCRs:
-		return crBoxTitle(term)
+		return crBoxTitle(info.ChangeRequestTerm)
 	case boxIssues:
 		return "Issues"
 	case boxRepo:
@@ -165,6 +166,9 @@ func boxTitle(k boxKind, term string) string {
 	case boxReleases:
 		return "Releases"
 	default:
+		if info.Kind == forge.KindGitLab {
+			return "Pipelines"
+		}
 		return "Actions"
 	}
 }
@@ -182,14 +186,14 @@ func crBoxTitle(term string) string {
 }
 
 // view renders the boxes as a w×h column; focus < 0 renders the equal-height preview.
-func (b boxes) view(w, h int, focus int, active bool, term string, now time.Time) string {
+func (b boxes) view(w, h int, focus int, active bool, info forge.HostInfo, now time.Time) string {
 	ks := b.kinds()
 	hs := splitHeights(h, len(ks), slices.Index(ks, boxKind(focus)))
 	panes := make([]string, 0, len(ks))
 	for i, k := range ks {
 		focused := k == boxKind(focus)
 		accent := style.RepoAccents.Title(int(k), focused && active)
-		title := accent.Render(fmt.Sprintf("[%d] %s", int(k)+1, boxTitle(k, term)))
+		title := accent.Render(fmt.Sprintf("[%d] %s", int(k)+1, boxTitle(k, info)))
 		if b.loaded[k] && k != boxRepo {
 			title += " " + style.Count.Render(fmt.Sprint(b.len(k)))
 		}
