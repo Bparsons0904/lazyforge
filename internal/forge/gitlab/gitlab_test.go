@@ -66,7 +66,7 @@ func waits(t *testing.T) *[]time.Duration {
 func TestContract(t *testing.T) {
 	forgetest.RunContract(t, func(t *testing.T) (forge.Forge, forgetest.Fixture) {
 		f, _ := newForge(t)
-		return f, forgetest.Fixture{Repo: sub, OpenCR: openMR, OpenCRHead: openHead, OpenIssue: openIss, Missing: missing}
+		return f, forgetest.Fixture{Repo: sub, OpenCR: openMR, OpenCRHead: openHead, OpenIssue: openIss, Missing: missing, Asset: "/group/sub/repo/uploads/abc123/shot.png"}
 	})
 }
 

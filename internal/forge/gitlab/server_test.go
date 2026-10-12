@@ -16,6 +16,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge/forgetest"
 )
 
 const (
@@ -68,6 +70,7 @@ type server struct {
 	issues    []obj
 	notes     map[string][]obj // "issues/3" or "merge_requests/7"
 	releases  []obj
+	uploads   map[string][]byte // "<full path>/<secret>/<file>", decoded
 	nextNote  int
 }
 
@@ -125,6 +128,10 @@ func newServerAt(t testing.TB, prefix string) *server {
 			"merge_requests/7": loadList(t, "notes_mr_7.json"),
 		},
 		releases: loadList(t, "releases.json"),
+		uploads: map[string][]byte{
+			uploadKey("group/sub/repo", "abc123", "shot.png"): forgetest.DemoPNG,
+			uploadKey("group/sub/repo", "abc123", "a b.png"):  forgetest.DemoPNG,
+		},
 		nextNote: 1000,
 	}
 	s.Server = httptest.NewServer(http.HandlerFunc(s.serve))
@@ -267,6 +274,7 @@ var (
 	reColl     = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues|pipelines|releases)$`)
 	reItem     = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues)/(\d+)$`)
 	reMRAction = regexp.MustCompile(`^/projects/([^/]+)/merge_requests/(\d+)/(merge|approve|rebase)$`)
+	reUpload   = regexp.MustCompile(`^/projects/([^/]+)/uploads/([^/]+)/([^/]+)$`)
 	reNotes    = regexp.MustCompile(`^/projects/([^/]+)/(merge_requests|issues)/(\d+)/notes$`)
 )
 
@@ -334,6 +342,10 @@ func (s *server) route(w http.ResponseWriter, r *http.Request, body []byte) {
 		s.mrAction(w, r, m[3], iid, body)
 		return
 	}
+	if m := reUpload.FindStringSubmatch(p); m != nil && r.Method == http.MethodGet {
+		s.upload(w, m[1], m[2], m[3])
+		return
+	}
 	if m := reNotes.FindStringSubmatch(p); m != nil {
 		if s.project(m[1]) == nil {
 			s.notFound(w)
@@ -344,6 +356,37 @@ func (s *server) route(w http.ResponseWriter, r *http.Request, body []byte) {
 		return
 	}
 	s.notFound(w)
+}
+
+func uploadKey(path, secret, file string) string { return path + "/" + secret + "/" + file }
+
+// upload answers the uploads API; the project is addressed by escaped full path or by numeric id.
+func (s *server) upload(w http.ResponseWriter, project, secret, file string) {
+	file, err := url.PathUnescape(file)
+	if err != nil {
+		s.notFound(w)
+		return
+	}
+	pr := s.project(project)
+	if pr == nil {
+		for _, p := range s.projects {
+			if strconv.Itoa(int(p["id"].(float64))) == project {
+				pr = p
+			}
+		}
+	}
+	if pr == nil {
+		s.notFound(w)
+		return
+	}
+	b, ok := s.uploads[uploadKey(pr["path_with_namespace"].(string), secret, file)]
+	if !ok {
+		s.notFound(w)
+		return
+	}
+	w.Header().Set("Content-Type", "image/png")
+	w.WriteHeader(200)
+	_, _ = w.Write(b)
 }
 
 // project finds a project by its URL-decoded full path.

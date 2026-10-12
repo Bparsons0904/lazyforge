@@ -121,6 +121,12 @@ type AssetReader interface {
 	OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error)
 }
 
+// AssetResolver is implemented by adapters whose body links don't resolve against the repo's page the way a browser would.
+type AssetResolver interface {
+	// ResolveAsset returns the absolute URL for ref, a link in a body of repo, without I/O; ok=false leaves ref to the caller.
+	ResolveAsset(repo domain.RepoRef, ref *url.URL) (u *url.URL, ok bool)
+}
+
 // ReadmeReader is implemented by adapters that can read a repo's README.
 type ReadmeReader interface {
 	// GetReadme returns the README on the default branch, or an error matching ErrNotFound when the repo has none.

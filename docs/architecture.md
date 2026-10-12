@@ -124,6 +124,7 @@ type Labeler interface {
     SetLabels(ctx context.Context, item ItemRef, ids []int64) ([]domain.Label, error)
 }
 type AssetReader interface { OpenAsset(ctx context.Context, u *url.URL) (io.ReadCloser, error) }
+type AssetResolver interface { ResolveAsset(repo domain.RepoRef, ref *url.URL) (u *url.URL, ok bool) } // no I/O; ok=false leaves ref to core's resolution against the repo page
 type BranchUpdater interface { UpdateStyles() []UpdateStyle; UpdateBranch(ctx context.Context, r domain.RepoRef, n int, style UpdateStyle) error } // UpdateStyles: merge first; ErrUnsupported for a style it omits
 type WorkflowDispatcher interface { DispatchWorkflow(ctx context.Context, r domain.RepoRef, workflow, ref string, inputs map[string]string) error } // workflow is the file name; ErrNotFound when the repo or workflow is missing
 ```

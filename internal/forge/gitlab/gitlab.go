@@ -23,6 +23,7 @@ import (
 const (
 	pageSize      = "100" // GitLab's max per_page
 	maxRetryAfter = 60 * time.Second
+	maxRedirects  = 10          // net/http's limit for a client with no CheckRedirect
 	defaultWait   = time.Second // when a 429 carries no usable Retry-After
 )
 
@@ -118,7 +119,24 @@ func newForge(webURL, token string, hc *http.Client) (*Forge, error) {
 	if err != nil || u.Host == "" {
 		return nil, fmt.Errorf("gitlab host %q: not an absolute URL", webURL)
 	}
-	return &Forge{hc: hc, web: web, api: web + "/api/v4", token: token}, nil
+	return &Forge{hc: tokenOnlyOn(hc, u), web: web, api: web + "/api/v4", token: token}, nil
+}
+
+// tokenOnlyOn returns a copy of hc that drops the token on any redirect hop off base's origin. Go forwards a
+// custom header like PRIVATE-TOKEN to every hop, and strips Authorization only across domains.
+func tokenOnlyOn(hc *http.Client, base *url.URL) *http.Client {
+	c := *hc
+	c.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxRedirects {
+			return fmt.Errorf("stopped after %d redirects", maxRedirects)
+		}
+		if !forge.SameOrigin(req.URL, base) {
+			req.Header.Del("PRIVATE-TOKEN")
+			req.Header.Del("Authorization")
+		}
+		return nil
+	}
+	return &c
 }
 
 // Info returns what New learned at connect.

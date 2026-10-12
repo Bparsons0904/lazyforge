@@ -145,6 +145,11 @@ func (s *Service) resolveImage(repo domain.RepoRef, raw string) (*url.URL, forge
 		return nil, nil, errors.New("forge URL is malformed")
 	}
 	abs := page.ResolveReference(ref)
+	if r, ok := s.f.(forge.AssetResolver); ok {
+		if u, ok := r.ResolveAsset(repo, ref); ok {
+			abs = u
+		}
+	}
 	abs.Fragment, abs.RawFragment = "", ""
 	if !forge.SameOrigin(abs, page) {
 		return nil, nil, fmt.Errorf("image is not on the session's host: %w", forge.ErrUnsupported)

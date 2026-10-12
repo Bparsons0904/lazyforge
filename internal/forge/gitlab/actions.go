@@ -2,7 +2,6 @@ package gitlab
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -12,8 +11,6 @@ import (
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/domain"
 	"git.bobparsons.dev/deadstyle/lazyforge/internal/forge"
 )
-
-const traceMaxRedirects = 10
 
 type pipelineRun struct {
 	ID        int64      `json:"id"`
@@ -97,29 +94,14 @@ func (f *Forge) ListJobs(ctx context.Context, r domain.RepoRef, runID int64) ([]
 	return out, nil
 }
 
-// JobLog returns the raw trace, ANSI and section markers included; the caller closes it. It drops the token
-// on any redirect off the API origin, since Go forwards a custom header like PRIVATE-TOKEN to every hop.
+// JobLog returns the raw trace, ANSI and section markers included; the caller closes it.
 func (f *Forge) JobLog(ctx context.Context, r domain.RepoRef, jobID int64) (io.ReadCloser, error) {
 	req, op, err := f.request(ctx, http.MethodGet, f.url(projectPath(r)+"/jobs/"+strconv.FormatInt(jobID, 10)+"/trace", nil), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "text/plain")
-	base, err := url.Parse(f.api)
-	if err != nil {
-		return nil, fmt.Errorf("%s: parse API base: %w", op, err)
-	}
-	hc := *f.hc
-	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		if len(via) >= traceMaxRedirects {
-			return fmt.Errorf("stopped after %d redirects", traceMaxRedirects)
-		}
-		if !forge.SameOrigin(req.URL, base) {
-			req.Header.Del("PRIVATE-TOKEN")
-		}
-		return nil
-	}
-	resp, err := hc.Do(req)
+	resp, err := f.hc.Do(req)
 	if err != nil {
 		return nil, doError(op, err)
 	}
