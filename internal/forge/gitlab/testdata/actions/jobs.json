@@ -1,0 +1,7 @@
+[
+  {"id":501,"name":"compile","stage":"build","status":"success","pipeline":{"id":105}},
+  {"id":502,"name":"unit","stage":"test","status":"failed","pipeline":{"id":105}},
+  {"id":503,"name":"lint","stage":"test","status":"running","pipeline":{"id":105}},
+  {"id":504,"name":"deploy","stage":"deploy","status":"manual","pipeline":{"id":105}},
+  {"id":505,"name":"docs","stage":"deploy","status":"skipped","pipeline":{"id":105}}
+]

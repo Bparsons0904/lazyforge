@@ -1,0 +1,5 @@
+Running with gitlab-runner 17.0.0
+[0Ksection_start:1789000000:prepare_executor[0K[36;1mPreparing the "docker" executor[0;m
+section_end:1789000001:prepare_executor[0K
+[32;1m$ make test[0;m
+ok  	pkg	0.012s

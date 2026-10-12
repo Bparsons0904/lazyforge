@@ -24,6 +24,10 @@ The fake server serves them under `/api/v4`. All sources are pages under https:/
 | `merge_409.json` | same (409 `SHA does not match HEAD of source branch`) | none |
 | `merge_422.json` | same (422 `Branch cannot be merged`) | none |
 | `error_object.json` | `rest/troubleshooting/`, validation errors | `message` as a `{field: [errors]}` object, which GitLab sends for validation failures |
+| `actions/pipelines.json` | `pipelines/`, "List project pipelines" (#139) | three pipelines, newest first; the first has `name`, `started_at` and `duration` (GitLab 19.4 and later), the second has none of them and no `name`, so `source` and `created_at` stand in, the third is `canceled` |
+| `actions/jobs.json` | `jobs/`, "List pipeline jobs" (#139) | five jobs across `build`, `test` and `deploy` stages with `success`, `failed`, `running`, `manual` and `skipped` statuses |
+| `actions/trace.txt` | `jobs/`, "Get a log file" (#139) | a short trace with ANSI colour codes and `section_start`/`section_end` markers |
+| `labels.json` | `labels/`, "List labels" (#139) | five labels: hex colours, one CSS colour name (`red`), one name with spaces, and one group label (`is_project_label` false) |
 | `repo/file_readme.json` | `repository_files/`, "Get file from repository" | `content` is the base64 of a three-line README; the rest is the docs example trimmed |
 | `repo/branches.json` | `branches/`, "List repository branches" | two branches, one the default; the second's `committed_date` carries a +01:00 offset to exercise the time parse |
 | `repo/commits.json` | `commits/`, "List repository commits" | two commits, newest first; `message` runs past the `title` so the subject line is told apart from the body |

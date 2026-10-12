@@ -1,0 +1,5 @@
+[
+  {"id":105,"iid":15,"project_id":11,"sha":"7c1f0b2e9d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"main","status":"success","source":"push","name":"Build and test","created_at":"2026-09-01T10:00:00.000Z","updated_at":"2026-09-01T10:05:20.000Z","started_at":"2026-09-01T10:00:05.000Z","duration":312,"web_url":"https://gitlab.example.com/group/sub/repo/-/pipelines/105"},
+  {"id":104,"iid":14,"project_id":11,"sha":"ffff1111d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"renovate/example-lib-1.x","status":"running","source":"merge_request_event","created_at":"2026-08-31T09:00:00.000Z","updated_at":"2026-08-31T09:01:00.000Z","web_url":"https://gitlab.example.com/group/sub/repo/-/pipelines/104"},
+  {"id":103,"iid":13,"project_id":11,"sha":"5e5e5e5e9d4a53b8a6e17d02f5c3b9a41e8d6f70","ref":"docs/changelog","status":"canceled","source":"web","name":"Docs","created_at":"2026-08-30T08:00:00.000Z","updated_at":"2026-08-30T08:00:30.000Z","web_url":"https://gitlab.example.com/group/sub/repo/-/pipelines/103"}
+]

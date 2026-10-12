@@ -1,0 +1,7 @@
+[
+  {"id":1,"name":"bug","color":"#d9534f","description":"Something is broken","text_color":"#FFFFFF","is_project_label":true},
+  {"id":2,"name":"good first issue","color":"#69d100","text_color":"#FFFFFF","is_project_label":true},
+  {"id":3,"name":"renovate","color":"#0033cc","text_color":"#FFFFFF","is_project_label":false},
+  {"id":4,"name":"triage","color":"red","text_color":"#FFFFFF","is_project_label":false},
+  {"id":5,"name":"wontfix","color":"#a8d695","text_color":"#FFFFFF","is_project_label":true}
+]

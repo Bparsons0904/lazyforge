@@ -36,8 +36,11 @@ type Forge struct {
 }
 
 var (
-	_ forge.Forge    = (*Forge)(nil)
-	_ forge.Approver = (*Forge)(nil)
+	_ forge.Forge     = (*Forge)(nil)
+	_ forge.Approver  = (*Forge)(nil)
+	_ forge.RunLister = (*Forge)(nil)
+	_ forge.LogReader = (*Forge)(nil)
+	_ forge.Labeler   = (*Forge)(nil)
 )
 
 // retryWait is the pause before the single 429 retry; it returns ctx.Err() if ctx ends first.
